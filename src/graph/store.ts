@@ -11,6 +11,7 @@ export class GraphStore {
 	private edgesBySource: Map<string, RelationEdge[]>;
 	private staleFiles: Set<string>;
 	private allStale: boolean;
+	private changeListeners: Set<() => void>;
 
 	constructor(app: App, settings: TrailSettings) {
 		this.app = app;
@@ -18,6 +19,14 @@ export class GraphStore {
 		this.edgesBySource = new Map();
 		this.staleFiles = new Set();
 		this.allStale = true;
+		this.changeListeners = new Set();
+	}
+
+	onDidChange(callback: () => void) {
+		this.changeListeners.add(callback);
+		return () => {
+			this.changeListeners.delete(callback);
+		};
 	}
 
 	updateSettings(settings: TrailSettings) {
@@ -28,15 +37,19 @@ export class GraphStore {
 		this.edgesBySource.clear();
 		const files = this.app.vault.getMarkdownFiles();
 		for (const file of files) {
-			await this.updateFile(file);
+			await this.updateFile(file, false);
 		}
 		this.staleFiles.clear();
 		this.allStale = false;
+		this.emitChange();
 	}
 
-	async updateFile(file: TFile) {
+	async updateFile(file: TFile, emit = true) {
 		const edges = await this.parseFileEdges(file);
 		this.edgesBySource.set(file.path, edges);
+		if (emit) {
+			this.emitChange();
+		}
 	}
 
 	markFileStale(path: string) {
@@ -63,11 +76,12 @@ export class GraphStore {
 		for (const path of filesToUpdate) {
 			const file = this.app.vault.getAbstractFileByPath(path);
 			if (file instanceof TFile) {
-				await this.updateFile(file);
+				await this.updateFile(file, false);
 			} else {
 				this.edgesBySource.delete(path);
 			}
 		}
+		this.emitChange();
 	}
 
 	handleRename(oldPath: string, newPath: string) {
@@ -99,6 +113,7 @@ export class GraphStore {
 			this.staleFiles.delete(oldPath);
 			this.staleFiles.add(newPath);
 		}
+		this.emitChange();
 	}
 
 	handleDelete(path: string) {
@@ -110,6 +125,13 @@ export class GraphStore {
 			}
 		}
 		this.staleFiles.delete(path);
+		this.emitChange();
+	}
+
+	private emitChange() {
+		for (const listener of this.changeListeners) {
+			listener();
+		}
 	}
 
 	getRelationTypes(): string[] {

@@ -9,6 +9,7 @@ export default class TrailPlugin extends Plugin {
 	graph: GraphStore;
 	private changedFiles: Set<string>;
 	private refreshTimeoutId: number | null;
+	private graphRefreshTimeoutId: number | null;
 
 	async onload() {
 		await this.loadSettings();
@@ -16,11 +17,17 @@ export default class TrailPlugin extends Plugin {
 		this.graph = new GraphStore(this.app, this.settings);
 		this.changedFiles = new Set();
 		this.refreshTimeoutId = null;
+		this.graphRefreshTimeoutId = null;
 		await this.graph.build();
 
 		this.registerView(TRAIL_VIEW_TYPE, (leaf) => new TrailView(leaf, this));
 		this.addSettingTab(new TrailSettingTab(this.app, this));
 		registerCommands(this);
+
+		const unsubscribe = this.graph.onDidChange(() => {
+			this.queueGraphRefresh();
+		});
+		this.register(() => unsubscribe());
 
 		this.registerEvent(this.app.metadataCache.on("changed", (file) => {
 			if (file) {
@@ -31,14 +38,12 @@ export default class TrailPlugin extends Plugin {
 		this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
 			if (file instanceof TFile) {
 				this.graph.handleRename(oldPath, file.path);
-				this.refreshActiveView();
 			}
 		}));
 
 		this.registerEvent(this.app.vault.on("delete", (file) => {
 			if (file instanceof TFile) {
 				this.graph.handleDelete(file.path);
-				this.refreshActiveView();
 			}
 		}));
 
@@ -50,7 +55,6 @@ export default class TrailPlugin extends Plugin {
 	onunload() {}
 
 	refreshActiveView() {
-		void this.graph.ensureFresh();
 		const leaves = this.app.workspace.getLeavesOfType(TRAIL_VIEW_TYPE);
 		for (const leaf of leaves) {
 			const view = leaf.view;
@@ -87,5 +91,15 @@ export default class TrailPlugin extends Plugin {
 		}
 		this.changedFiles.clear();
 		this.refreshActiveView();
+	}
+
+	private queueGraphRefresh() {
+		if (this.graphRefreshTimeoutId !== null) {
+			window.clearTimeout(this.graphRefreshTimeoutId);
+		}
+		this.graphRefreshTimeoutId = window.setTimeout(() => {
+			this.graphRefreshTimeoutId = null;
+			this.refreshActiveView();
+		}, 150);
 	}
 }
