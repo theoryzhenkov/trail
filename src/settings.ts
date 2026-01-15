@@ -7,7 +7,12 @@ export interface TrailSettings {
 }
 
 export const DEFAULT_SETTINGS: TrailSettings = {
-	impliedRules: []
+	impliedRules: [
+		{baseRelation: "up", impliedRelation: "down", direction: "reverse"},
+		{baseRelation: "down", impliedRelation: "up", direction: "reverse"},
+		{baseRelation: "next", impliedRelation: "prev", direction: "reverse"},
+		{baseRelation: "prev", impliedRelation: "next", direction: "reverse"}
+	]
 };
 
 const RELATION_NAME_REGEX = /^[a-z0-9_-]+$/i;
