@@ -50,6 +50,11 @@ export default class TrailPlugin extends Plugin {
 		this.registerEvent(this.app.workspace.on("file-open", () => {
 			this.refreshActiveView();
 		}));
+
+		// Refresh views after workspace is fully ready (handles restored views)
+		this.app.workspace.onLayoutReady(() => {
+			this.refreshActiveView();
+		});
 	}
 
 	onunload() {}
