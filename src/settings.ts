@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS: TrailSettings = {
 
 export class TrailSettingTab extends PluginSettingTab {
 	plugin: TrailPlugin;
+	private openSections: Set<number> = new Set();
 
 	constructor(app: App, plugin: TrailPlugin) {
 		super(app, plugin);
@@ -22,10 +23,23 @@ export class TrailSettingTab extends PluginSettingTab {
 	display(): void {
 		const {containerEl} = this;
 
+		// Save current open state before clearing
+		this.saveOpenState(containerEl);
+
 		containerEl.empty();
 		containerEl.addClass("trail-settings");
 
 		this.renderRelations(containerEl);
+	}
+
+	private saveOpenState(containerEl: HTMLElement) {
+		const details = containerEl.querySelectorAll<HTMLDetailsElement>(".trail-relation-section");
+		this.openSections.clear();
+		details.forEach((el, index) => {
+			if (el.open) {
+				this.openSections.add(index);
+			}
+		});
 	}
 
 	private renderRelations(containerEl: HTMLElement) {
@@ -43,11 +57,14 @@ export class TrailSettingTab extends PluginSettingTab {
 					.setButtonText("Add relation")
 					.setCta()
 					.onClick(() => {
+						const newIndex = this.plugin.settings.relations.length;
 						this.plugin.settings.relations.push({
 							name: "",
 							aliases: [],
 							impliedRelations: []
 						});
+						// Auto-expand the new section
+						this.openSections.add(newIndex);
 						void this.plugin.saveSettings();
 						this.display();
 					});
@@ -56,7 +73,11 @@ export class TrailSettingTab extends PluginSettingTab {
 
 	private renderRelationSection(containerEl: HTMLElement, relation: RelationDefinition, index: number) {
 		const details = containerEl.createEl("details", {cls: "trail-relation-section"});
-		details.open = !relation.name; // Auto-expand new/empty relations
+		
+		// Restore open state: open if was open before, or if new/empty relation
+		const wasOpen = this.openSections.has(index);
+		const isNew = !relation.name;
+		details.open = wasOpen || isNew;
 
 		const summary = details.createEl("summary", {cls: "trail-relation-summary"});
 		const summaryContent = summary.createDiv({cls: "trail-relation-summary-content"});
@@ -175,17 +196,30 @@ export class TrailSettingTab extends PluginSettingTab {
 			.addText((text) => {
 				text
 					.setPlaceholder(relation.name || "key")
-					.setValue(alias.key)
-					.onChange((value) => {
-						const normalized = value.trim().toLowerCase();
-						if (!normalized) {
-							new Notice("Alias key cannot be empty.");
-							text.setValue(alias.key);
-							return;
-						}
+					.setValue(alias.key);
+				
+				// Store current value for comparison
+				let currentValue = alias.key;
+				
+				// Update on change but don't validate yet
+				text.onChange((value) => {
+					currentValue = value;
+				});
+				
+				// Validate and save on blur
+				text.inputEl.addEventListener("blur", () => {
+					const normalized = currentValue.trim().toLowerCase();
+					if (!normalized) {
+						new Notice("Alias key cannot be empty.");
+						text.setValue(alias.key);
+						return;
+					}
+					if (normalized !== alias.key) {
 						alias.key = normalized;
+						text.setValue(normalized);
 						void this.plugin.saveSettings();
-					});
+					}
+				});
 			})
 			.addExtraButton((button) => {
 				button
