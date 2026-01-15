@@ -1,12 +1,202 @@
-/* Trail Settings */
+/* Trail View - Native Obsidian Styling */
 
+.trail-view {
+	padding: 0;
+}
+
+/* Context bar showing active note */
+.trail-context {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 12px;
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+.trail-context-icon {
+	display: flex;
+	color: var(--text-faint);
+}
+
+.trail-context-icon svg {
+	width: 14px;
+	height: 14px;
+}
+
+.trail-context-text {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.trail-filter-badge {
+	font-size: var(--font-ui-smaller);
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-hover);
+	color: var(--text-faint);
+}
+
+/* Main content area */
+.trail-content {
+	padding: 4px 0;
+}
+
+/* Sections */
+.trail-section {
+	margin: 0;
+}
+
+.trail-section-header {
+	padding: 6px 12px 6px 4px;
+	gap: 4px;
+}
+
+.trail-section-header:hover {
+	background: var(--nav-item-background-hover);
+}
+
+.trail-section-icon {
+	display: flex;
+	color: var(--text-faint);
+	margin-right: 2px;
+}
+
+.trail-section-icon svg {
+	width: 14px;
+	height: 14px;
+}
+
+.trail-section-title {
+	font-weight: var(--font-semibold);
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+}
+
+.trail-section-content {
+	padding-left: 8px;
+}
+
+/* Collapse behavior */
+.trail-section.is-collapsed > .trail-section-content {
+	display: none;
+}
+
+.trail-section.is-collapsed > .trail-section-header > .collapse-icon {
+	transform: rotate(-90deg);
+}
+
+.collapse-icon {
+	transition: transform 100ms ease-in-out;
+}
+
+/* Tree items */
+.trail-section .tree-item {
+	margin: 0;
+}
+
+.trail-section .tree-item-self {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 12px 4px calc(8px + var(--indent-level, 0) * 16px);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.trail-section .tree-item-self:hover {
+	background: var(--nav-item-background-hover);
+}
+
+.trail-section .tree-item-inner {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Relation tags */
+.trail-relation-tag {
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+	background: var(--tag-background);
+	color: var(--tag-color);
+	flex-shrink: 0;
+}
+
+.trail-relation-tag.is-implied {
+	background: var(--background-modifier-border);
+	color: var(--text-faint);
+	font-style: italic;
+}
+
+/* Internal links */
+.trail-section .internal-link {
+	color: var(--link-color);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.trail-section .internal-link:hover {
+	color: var(--link-color-hover);
+	text-decoration: underline;
+}
+
+/* No results text */
+.trail-no-results {
+	padding: 8px 12px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-small);
+	font-style: italic;
+}
+
+/* Empty state */
+.trail-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 40px 20px;
+	text-align: center;
+	color: var(--text-faint);
+}
+
+.trail-empty-icon {
+	margin-bottom: 12px;
+	color: var(--text-faint);
+}
+
+.trail-empty-icon svg {
+	width: 48px;
+	height: 48px;
+	stroke-width: 1px;
+}
+
+.trail-empty-title {
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+	margin-bottom: 4px;
+}
+
+.trail-empty-description {
+	font-size: var(--font-ui-small);
+	color: var(--text-faint);
+}
+
+/* Settings tab styles (keep these) */
 .trail-settings {
 	--trail-border: var(--background-modifier-border);
 	--trail-bg-hover: var(--background-modifier-hover);
 	--trail-radius: 8px;
 }
 
-/* Relation Section (collapsible) */
 .trail-relation-section {
 	margin: 12px 0;
 	border: 1px solid var(--trail-border);
@@ -77,7 +267,6 @@
 	color: var(--text-muted);
 }
 
-/* Relation Content */
 .trail-relation-content {
 	padding: 0 16px 16px;
 	border-top: 1px solid var(--trail-border);
@@ -87,7 +276,6 @@
 	padding-top: 16px;
 }
 
-/* Subsections */
 .trail-subsection {
 	margin: 16px 0;
 	padding: 12px;
@@ -109,7 +297,7 @@
 	color: var(--text-muted);
 }
 
-.trail-empty-state {
+.trail-empty-state-settings {
 	color: var(--text-faint);
 	font-style: italic;
 	font-size: 0.85em;
@@ -122,7 +310,6 @@
 	margin: 8px 0;
 }
 
-/* Subsection settings */
 .trail-subsection .setting-item {
 	padding: 8px 0;
 	border-top: none;
@@ -130,44 +317,4 @@
 
 .trail-subsection .setting-item:last-child {
 	padding-bottom: 0;
-}
-
-/* Trail View */
-.trail-view {
-	padding: 16px;
-}
-
-.trail-view h2 {
-	margin-top: 0;
-}
-
-.trail-filter-row {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 4px 0;
-	cursor: pointer;
-}
-
-.trail-filter-row:hover {
-	background: var(--background-modifier-hover);
-}
-
-.trail-ancestor-list {
-	list-style: none;
-	padding-left: 0;
-}
-
-.trail-ancestor-list li {
-	padding: 4px 0;
-}
-
-.trail-file-link {
-	color: var(--link-color);
-	cursor: pointer;
-	text-decoration: none;
-}
-
-.trail-file-link:hover {
-	text-decoration: underline;
 }

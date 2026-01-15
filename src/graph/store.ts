@@ -9,11 +9,15 @@ export class GraphStore {
 	private app: App;
 	private settings: TrailSettings;
 	private edgesBySource: Map<string, RelationEdge[]>;
+	private staleFiles: Set<string>;
+	private allStale: boolean;
 
 	constructor(app: App, settings: TrailSettings) {
 		this.app = app;
 		this.settings = settings;
 		this.edgesBySource = new Map();
+		this.staleFiles = new Set();
+		this.allStale = true;
 	}
 
 	updateSettings(settings: TrailSettings) {
@@ -26,11 +30,86 @@ export class GraphStore {
 		for (const file of files) {
 			await this.updateFile(file);
 		}
+		this.staleFiles.clear();
+		this.allStale = false;
 	}
 
 	async updateFile(file: TFile) {
 		const edges = await this.parseFileEdges(file);
 		this.edgesBySource.set(file.path, edges);
+	}
+
+	markFileStale(path: string) {
+		this.staleFiles.add(path);
+	}
+
+	markAllStale() {
+		this.allStale = true;
+		this.staleFiles.clear();
+	}
+
+	async ensureFresh() {
+		if (this.allStale) {
+			await this.build();
+			return;
+		}
+
+		if (this.staleFiles.size === 0) {
+			return;
+		}
+
+		const filesToUpdate = Array.from(this.staleFiles);
+		this.staleFiles.clear();
+		for (const path of filesToUpdate) {
+			const file = this.app.vault.getAbstractFileByPath(path);
+			if (file instanceof TFile) {
+				await this.updateFile(file);
+			} else {
+				this.edgesBySource.delete(path);
+			}
+		}
+	}
+
+	handleRename(oldPath: string, newPath: string) {
+		const edges = this.edgesBySource.get(oldPath);
+		if (edges) {
+			const updatedEdges = edges.map((edge) => ({
+				...edge,
+				fromPath: newPath
+			}));
+			this.edgesBySource.set(newPath, updatedEdges);
+			this.edgesBySource.delete(oldPath);
+		}
+
+		for (const [source, list] of this.edgesBySource.entries()) {
+			let changed = false;
+			const updated = list.map((edge) => {
+				if (edge.toPath === oldPath) {
+					changed = true;
+					return {...edge, toPath: newPath};
+				}
+				return edge;
+			});
+			if (changed) {
+				this.edgesBySource.set(source, updated);
+			}
+		}
+
+		if (this.staleFiles.has(oldPath)) {
+			this.staleFiles.delete(oldPath);
+			this.staleFiles.add(newPath);
+		}
+	}
+
+	handleDelete(path: string) {
+		this.edgesBySource.delete(path);
+		for (const [source, list] of this.edgesBySource.entries()) {
+			const filtered = list.filter((edge) => edge.toPath !== path);
+			if (filtered.length !== list.length) {
+				this.edgesBySource.set(source, filtered);
+			}
+		}
+		this.staleFiles.delete(path);
 	}
 
 	getRelationTypes(): string[] {
