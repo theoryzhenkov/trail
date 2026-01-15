@@ -1,23 +1,15 @@
 import {App, Notice, PluginSettingTab, Setting} from "obsidian";
 import TrailPlugin from "./main";
-import {ImpliedRule} from "./types";
+import {ImpliedRelation, RelationAlias, RelationAliasType, RelationDefinition} from "./types";
 
 export interface TrailSettings {
-	impliedRules: ImpliedRule[];
-	relationProperties: string[];
+	relations: RelationDefinition[];
 }
 
-export const DEFAULT_SETTINGS: TrailSettings = {
-	impliedRules: [
-		{baseRelation: "up", impliedRelation: "down", direction: "reverse"},
-		{baseRelation: "down", impliedRelation: "up", direction: "reverse"},
-		{baseRelation: "next", impliedRelation: "prev", direction: "reverse"},
-		{baseRelation: "prev", impliedRelation: "next", direction: "reverse"}
-	],
-	relationProperties: ["up", "down", "next", "prev"]
-};
-
 const RELATION_NAME_REGEX = /^[a-z0-9_-]+$/i;
+export const DEFAULT_SETTINGS: TrailSettings = {
+	relations: createDefaultRelations()
+};
 
 export class TrailSettingTab extends PluginSettingTab {
 	plugin: TrailPlugin;
@@ -31,132 +23,337 @@ export class TrailSettingTab extends PluginSettingTab {
 		const {containerEl} = this;
 
 		containerEl.empty();
-		new Setting(containerEl).setName("Trail").setHeading();
+		containerEl.addClass("trail-settings");
 
-		this.renderRelationProperties(containerEl);
-		this.renderImpliedRules(containerEl);
+		this.renderRelations(containerEl);
 	}
 
-	private renderRelationProperties(containerEl: HTMLElement) {
+	private renderRelations(containerEl: HTMLElement) {
 		new Setting(containerEl)
-			.setName("Relation properties")
-			.setDesc("Top-level frontmatter properties to treat as relations (comma-separated).")
-			.addText((text) => {
-				text
-					.setPlaceholder("up, down, next, prev")
-					.setValue(this.plugin.settings.relationProperties.join(", "))
-					.onChange((value) => {
-						this.plugin.settings.relationProperties = value
-							.split(",")
-							.map((s) => s.trim().toLowerCase())
-							.filter((s) => s.length > 0 && RELATION_NAME_REGEX.test(s));
-						void this.plugin.saveSettings();
-					});
-			});
-	}
+			.setName("Relations")
+			.setDesc("Define relation types and their aliases.");
 
-	private renderImpliedRules(containerEl: HTMLElement) {
-		new Setting(containerEl).setName("Implied relations").setHeading();
-		containerEl.createEl("p", {
-			text: "Define implied relations between relation types."
-		});
-
-		const table = containerEl.createEl("table", {cls: "trail-implied-table"});
-		const header = table.createEl("tr");
-		header.createEl("th", {text: "Base relation"});
-		header.createEl("th", {text: "Implied relation"});
-		header.createEl("th", {text: "Direction"});
-		header.createEl("th", {text: ""});
-
-		for (const [index, rule] of this.plugin.settings.impliedRules.entries()) {
-			this.renderRuleRow(table, rule, index);
+		for (const [index, relation] of this.plugin.settings.relations.entries()) {
+			this.renderRelationSection(containerEl, relation, index);
 		}
 
 		new Setting(containerEl)
 			.addButton((button) => {
 				button
-					.setButtonText("Add rule")
-					.onClick(async () => {
-						this.plugin.settings.impliedRules.push({
-							baseRelation: "",
-							impliedRelation: "",
-							direction: "forward"
+					.setButtonText("Add relation")
+					.setCta()
+					.onClick(() => {
+						this.plugin.settings.relations.push({
+							name: "",
+							aliases: [],
+							impliedRelations: []
 						});
-						await this.plugin.saveSettings();
+						void this.plugin.saveSettings();
 						this.display();
 					});
 			});
 	}
 
-	private renderRuleRow(table: HTMLElement, rule: ImpliedRule, index: number) {
-		const row = table.createEl("tr");
+	private renderRelationSection(containerEl: HTMLElement, relation: RelationDefinition, index: number) {
+		const details = containerEl.createEl("details", {cls: "trail-relation-section"});
+		details.open = !relation.name; // Auto-expand new/empty relations
 
-		const baseCell = row.createEl("td");
-		const baseInput = baseCell.createEl("input", {
-			type: "text",
-			value: rule.baseRelation,
-			placeholder: "up"
+		const summary = details.createEl("summary", {cls: "trail-relation-summary"});
+		const summaryContent = summary.createDiv({cls: "trail-relation-summary-content"});
+		
+		const nameSpan = summaryContent.createEl("span", {
+			cls: "trail-relation-name",
+			text: relation.name || "(unnamed)"
 		});
-		baseInput.addEventListener("change", () => {
-			const value = baseInput.value.trim();
-			if (!this.isValidRelationName(value)) {
-				new Notice("Relation names must use letters, numbers, underscore, or dash.");
-				baseInput.value = rule.baseRelation;
-				return;
-			}
-			rule.baseRelation = value.toLowerCase();
-			baseInput.value = rule.baseRelation;
-			void this.plugin.saveSettings();
-		});
+		if (!relation.name) {
+			nameSpan.addClass("trail-relation-name-empty");
+		}
 
-		const impliedCell = row.createEl("td");
-		const impliedInput = impliedCell.createEl("input", {
-			type: "text",
-			value: rule.impliedRelation,
-			placeholder: "parent"
+		const badges = summaryContent.createDiv({cls: "trail-relation-badges"});
+		badges.createEl("span", {
+			cls: "trail-badge",
+			text: `${relation.aliases.length} alias${relation.aliases.length !== 1 ? "es" : ""}`
 		});
-		impliedInput.addEventListener("change", () => {
-			const value = impliedInput.value.trim();
-			if (!this.isValidRelationName(value)) {
-				new Notice("Relation names must use letters, numbers, underscore, or dash.");
-				impliedInput.value = rule.impliedRelation;
-				return;
-			}
-			rule.impliedRelation = value.toLowerCase();
-			impliedInput.value = rule.impliedRelation;
-			void this.plugin.saveSettings();
+		badges.createEl("span", {
+			cls: "trail-badge",
+			text: `${relation.impliedRelations.length} implied`
 		});
 
-		const directionCell = row.createEl("td");
-		const select = directionCell.createEl("select");
-		const directions: ImpliedRule["direction"][] = ["forward", "reverse", "both"];
-		for (const direction of directions) {
-			const option = select.createEl("option", {
-				value: direction,
-				text: direction
+		const content = details.createDiv({cls: "trail-relation-content"});
+
+		// Relation name
+		new Setting(content)
+			.setName("Name")
+			.setDesc("Unique identifier for this relation type.")
+			.addText((text) => {
+				text
+					.setPlaceholder("E.g., up, parent, contains")
+					.setValue(relation.name)
+					.onChange((value) => {
+						const normalized = normalizeRelationName(value);
+						if (value && !isValidRelationName(normalized)) {
+							new Notice("Relation names must use letters, numbers, underscore, or dash.");
+							text.setValue(relation.name);
+							return;
+						}
+						if (normalized && this.isDuplicateRelationName(normalized, index)) {
+							new Notice("Relation name already exists.");
+							text.setValue(relation.name);
+							return;
+						}
+						const previousName = relation.name;
+						relation.name = normalized;
+						this.updateImpliedRelationTargets(previousName, normalized);
+						void this.plugin.saveSettings();
+						// Update just the summary name
+						nameSpan.textContent = normalized || "(unnamed)";
+						nameSpan.toggleClass("trail-relation-name-empty", !normalized);
+					});
 			});
-			if (direction === rule.direction) {
-				option.selected = true;
+
+		// Aliases subsection
+		this.renderAliasesSubsection(content, relation);
+
+		// Implied relations subsection
+		this.renderImpliedSubsection(content, relation);
+
+		// Delete button
+		new Setting(content)
+			.addButton((button) => {
+				button
+					.setButtonText("Delete relation")
+					.setWarning()
+					.onClick(() => {
+						this.plugin.settings.relations.splice(index, 1);
+						this.removeImpliedRelationTargets(relation.name);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
+	}
+
+	private renderAliasesSubsection(containerEl: HTMLElement, relation: RelationDefinition) {
+		const section = containerEl.createDiv({cls: "trail-subsection"});
+		new Setting(section)
+			.setName("Aliases")
+			.setDesc("Frontmatter keys that map to this relation.");
+
+		if (relation.aliases.length === 0) {
+			section.createEl("p", {text: "No aliases defined.", cls: "trail-empty-state"});
+		} else {
+			for (const [aliasIndex, alias] of relation.aliases.entries()) {
+				this.renderAliasRow(section, relation, alias, aliasIndex);
 			}
 		}
-		select.addEventListener("change", () => {
-			rule.direction = select.value as ImpliedRule["direction"];
-			void this.plugin.saveSettings();
-		});
 
-		const removeCell = row.createEl("td");
-		const removeButton = removeCell.createEl("button", {text: "Remove"});
-		removeButton.addEventListener("click", () => {
-			this.plugin.settings.impliedRules.splice(index, 1);
-			void this.plugin.saveSettings();
-			this.display();
-		});
+		new Setting(section)
+			.addButton((button) => {
+				button.setButtonText("Add alias").onClick(() => {
+					relation.aliases.push({
+						type: "property",
+						key: relation.name || "key"
+					});
+					void this.plugin.saveSettings();
+					this.display();
+				});
+			});
 	}
 
-	private isValidRelationName(value: string) {
-		if (value.length === 0) {
-			return false;
+	private renderAliasRow(containerEl: HTMLElement, relation: RelationDefinition, alias: RelationAlias, index: number) {
+		new Setting(containerEl)
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("property", "Property (up:)")
+					.addOption("dotProperty", "Dot (relations.up:)")
+					.addOption("relationsMap", "Map (relations: {up:})")
+					.setValue(alias.type)
+					.onChange((value) => {
+						alias.type = value as RelationAliasType;
+						void this.plugin.saveSettings();
+					});
+			})
+			.addText((text) => {
+				text
+					.setPlaceholder(relation.name || "key")
+					.setValue(alias.key)
+					.onChange((value) => {
+						const normalized = value.trim().toLowerCase();
+						if (!normalized) {
+							new Notice("Alias key cannot be empty.");
+							text.setValue(alias.key);
+							return;
+						}
+						alias.key = normalized;
+						void this.plugin.saveSettings();
+					});
+			})
+			.addExtraButton((button) => {
+				button
+					.setIcon("trash")
+					.setTooltip("Remove alias")
+					.onClick(() => {
+						relation.aliases.splice(index, 1);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
+	}
+
+	private renderImpliedSubsection(containerEl: HTMLElement, relation: RelationDefinition) {
+		const section = containerEl.createDiv({cls: "trail-subsection"});
+		new Setting(section)
+			.setName("Implied relations")
+			.setDesc("Other relations that are automatically created when this relation exists.");
+
+		if (relation.impliedRelations.length === 0) {
+			section.createEl("p", {text: "No implied relations.", cls: "trail-empty-state"});
+		} else {
+			for (const [impliedIndex, implied] of relation.impliedRelations.entries()) {
+				this.renderImpliedRow(section, relation, implied, impliedIndex);
+			}
 		}
-		return RELATION_NAME_REGEX.test(value);
+
+		const options = this.getRelationOptions(relation.name);
+		if (options.length > 0) {
+			new Setting(section)
+				.addButton((button) => {
+					button.setButtonText("Add implied relation").onClick(() => {
+						relation.impliedRelations.push({
+							targetRelation: options[0] ?? "",
+							direction: "forward"
+						});
+						void this.plugin.saveSettings();
+						this.display();
+					});
+				});
+		} else {
+			section.createEl("p", {
+				text: "Add more relations to create implied rules.",
+				cls: "trail-hint"
+			});
+		}
 	}
+
+	private renderImpliedRow(
+		containerEl: HTMLElement,
+		relation: RelationDefinition,
+		implied: ImpliedRelation,
+		index: number
+	) {
+		const setting = new Setting(containerEl);
+		
+		setting
+			.addDropdown((dropdown) => {
+				const options = this.getRelationOptions(relation.name);
+				for (const option of options) {
+					dropdown.addOption(option, option);
+				}
+				dropdown
+					.setValue(implied.targetRelation)
+					.onChange((value) => {
+						implied.targetRelation = value;
+						void this.plugin.saveSettings();
+					});
+			})
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("forward", "Forward (→)")
+					.addOption("reverse", "Reverse (←)")
+					.addOption("both", "Both (↔)")
+					.setValue(implied.direction)
+					.onChange((value) => {
+						implied.direction = value as ImpliedRelation["direction"];
+						void this.plugin.saveSettings();
+					});
+			})
+			.addExtraButton((button) => {
+				button
+					.setIcon("trash")
+					.setTooltip("Remove implied relation")
+					.onClick(() => {
+						relation.impliedRelations.splice(index, 1);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
+	}
+
+	private getRelationOptions(excludeName: string): string[] {
+		return this.plugin.settings.relations
+			.map((r) => r.name)
+			.filter((name) => name.length > 0 && name !== excludeName);
+	}
+
+	private isDuplicateRelationName(name: string, currentIndex: number): boolean {
+		return this.plugin.settings.relations.some((r, i) => i !== currentIndex && r.name === name);
+	}
+
+	private updateImpliedRelationTargets(oldName: string, newName: string) {
+		if (!oldName || oldName === newName) {
+			return;
+		}
+		for (const rel of this.plugin.settings.relations) {
+			for (const implied of rel.impliedRelations) {
+				if (implied.targetRelation === oldName) {
+					implied.targetRelation = newName;
+				}
+			}
+		}
+	}
+
+	private removeImpliedRelationTargets(targetName: string) {
+		for (const rel of this.plugin.settings.relations) {
+			rel.impliedRelations = rel.impliedRelations.filter(
+				(implied) => implied.targetRelation !== targetName
+			);
+		}
+	}
+}
+
+function createDefaultRelations(): RelationDefinition[] {
+	const base = ["up", "down", "next", "prev"];
+	const relations = base.map((name) => ({
+		name,
+		aliases: createDefaultAliases(name),
+		impliedRelations: [] as ImpliedRelation[]
+	}));
+
+	const impliedPairs: Array<[string, string]> = [
+		["up", "down"],
+		["down", "up"],
+		["next", "prev"],
+		["prev", "next"]
+	];
+
+	for (const [from, to] of impliedPairs) {
+		const relation = relations.find((item) => item.name === from);
+		if (!relation) {
+			continue;
+		}
+		relation.impliedRelations.push({
+			targetRelation: to,
+			direction: "reverse"
+		});
+	}
+
+	return relations;
+}
+
+function createDefaultAliases(name: string): RelationAlias[] {
+	return [
+		{type: "property", key: name},
+		{type: "dotProperty", key: `relations.${name}`},
+		{type: "relationsMap", key: name}
+	];
+}
+
+function normalizeRelationName(name: string): string {
+	return name.trim().toLowerCase();
+}
+
+function isValidRelationName(value: string) {
+	if (value.length === 0) {
+		return false;
+	}
+	return RELATION_NAME_REGEX.test(value);
 }

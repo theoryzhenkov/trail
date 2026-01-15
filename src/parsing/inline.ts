@@ -4,7 +4,7 @@ import {dedupeRelations, extractLinkTarget, isValidRelationName, normalizeRelati
 const PREFIX_REGEX = /([a-z0-9_-]+)::\s*\[\[([^\]]+)\]\]/gi;
 const SUFFIX_REGEX = /\[\[([^\]]+)\]\]::\s*([a-z0-9_-]+)/gi;
 
-export function parseInlineRelations(content: string): ParsedRelation[] {
+export function parseInlineRelations(content: string, allowedRelations?: Set<string>): ParsedRelation[] {
 	const relations: ParsedRelation[] = [];
 
 	for (const match of content.matchAll(PREFIX_REGEX)) {
@@ -15,6 +15,9 @@ export function parseInlineRelations(content: string): ParsedRelation[] {
 		}
 		const relation = normalizeRelationName(rawRelation);
 		if (!isValidRelationName(relation)) {
+			continue;
+		}
+		if (allowedRelations && !allowedRelations.has(relation)) {
 			continue;
 		}
 		const target = extractLinkTarget(rawTarget);
@@ -32,6 +35,9 @@ export function parseInlineRelations(content: string): ParsedRelation[] {
 		}
 		const relation = normalizeRelationName(rawRelation);
 		if (!isValidRelationName(relation)) {
+			continue;
+		}
+		if (allowedRelations && !allowedRelations.has(relation)) {
 			continue;
 		}
 		const target = extractLinkTarget(rawTarget);

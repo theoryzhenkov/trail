@@ -1,38 +1,36 @@
-import {ParsedRelation} from "../types";
+import {ParsedRelation, RelationDefinition} from "../types";
 import {dedupeRelations, extractWikiLinkTarget, isValidRelationName, normalizeRelationName} from "./index";
 
 type FrontmatterValue = string | string[] | null | undefined;
 
 export function parseFrontmatterRelations(
 	frontmatter: Record<string, unknown> | undefined,
-	relationProperties: string[]
+	relationDefinitions: RelationDefinition[]
 ): ParsedRelation[] {
 	if (!frontmatter) {
 		return [];
 	}
 
 	const relations: ParsedRelation[] = [];
-	const relationPropertiesSet = new Set(relationProperties.map((p) => p.toLowerCase()));
-
-	// Parse `relations` map: relations: { up: [...] }
+	const relationAliases = buildRelationAliases(relationDefinitions);
+	const frontmatterLowercase = normalizeFrontmatterKeys(frontmatter);
 	const relationsMap = frontmatter.relations;
-	if (relationsMap && typeof relationsMap === "object" && !Array.isArray(relationsMap)) {
-		for (const [key, value] of Object.entries(relationsMap as Record<string, FrontmatterValue>)) {
-			relations.push(...parseRelationEntry(key, value));
-		}
-	}
+	const relationsMapEntries = normalizeRelationsMap(relationsMap);
 
-	// Parse `relations.up` dot properties
-	for (const [key, value] of Object.entries(frontmatter)) {
-		if (key.startsWith("relations.")) {
-			const relationName = key.slice("relations.".length);
-			relations.push(...parseRelationEntry(relationName, value as FrontmatterValue));
-			continue;
-		}
+	for (const [relationName, aliases] of relationAliases.entries()) {
+		for (const alias of aliases) {
+			if (alias.type === "relationsMap") {
+				const value = relationsMapEntries.get(alias.key);
+				if (value !== undefined) {
+					relations.push(...parseRelationEntry(relationName, value));
+				}
+				continue;
+			}
 
-		// Parse top-level relation properties (e.g., `up`, `down`)
-		if (relationPropertiesSet.has(key.toLowerCase())) {
-			relations.push(...parseRelationEntry(key, value as FrontmatterValue));
+			const value = frontmatterLowercase.get(alias.key);
+			if (value !== undefined) {
+				relations.push(...parseRelationEntry(relationName, value));
+			}
 		}
 	}
 
@@ -60,4 +58,39 @@ function normalizeValues(value: FrontmatterValue): string[] {
 		return [value];
 	}
 	return [];
+}
+
+function buildRelationAliases(relations: RelationDefinition[]): Map<string, RelationDefinition["aliases"]> {
+	const map = new Map<string, RelationDefinition["aliases"]>();
+	for (const relation of relations) {
+		const name = normalizeRelationName(relation.name);
+		if (!isValidRelationName(name)) {
+			continue;
+		}
+		const aliases = relation.aliases.map((alias) => ({
+			type: alias.type,
+			key: alias.key.toLowerCase()
+		}));
+		map.set(name, aliases);
+	}
+	return map;
+}
+
+function normalizeFrontmatterKeys(frontmatter: Record<string, unknown>): Map<string, FrontmatterValue> {
+	const map = new Map<string, FrontmatterValue>();
+	for (const [key, value] of Object.entries(frontmatter)) {
+		map.set(key.toLowerCase(), value as FrontmatterValue);
+	}
+	return map;
+}
+
+function normalizeRelationsMap(relationsMap: unknown): Map<string, FrontmatterValue> {
+	const map = new Map<string, FrontmatterValue>();
+	if (!relationsMap || typeof relationsMap !== "object" || Array.isArray(relationsMap)) {
+		return map;
+	}
+	for (const [key, value] of Object.entries(relationsMap as Record<string, FrontmatterValue>)) {
+		map.set(key.toLowerCase(), value);
+	}
+	return map;
 }

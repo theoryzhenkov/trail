@@ -1,6 +1,6 @@
 import {App, TFile} from "obsidian";
 import {TrailSettings} from "../settings";
-import {ImpliedRule, RelationEdge} from "../types";
+import {RelationDefinition, RelationEdge} from "../types";
 import {parseInlineRelations} from "../parsing/inline";
 import {parseFrontmatterRelations} from "../parsing/frontmatter";
 import {computeAncestors, AncestorNode} from "./traversal";
@@ -35,6 +35,11 @@ export class GraphStore {
 
 	getRelationTypes(): string[] {
 		const types = new Set<string>();
+		for (const relation of this.settings.relations) {
+			if (relation.name) {
+				types.add(relation.name);
+			}
+		}
 		for (const edge of this.getEdgesWithImplied()) {
 			types.add(edge.relation);
 		}
@@ -71,16 +76,21 @@ export class GraphStore {
 
 	private getEdgesWithImplied(): RelationEdge[] {
 		const explicitEdges = Array.from(this.edgesBySource.values()).flat();
-		return applyImpliedRules(explicitEdges, this.settings.impliedRules);
+		return applyImpliedRules(explicitEdges, this.settings.relations);
 	}
 
 	private async parseFileEdges(file: TFile): Promise<RelationEdge[]> {
 		const content = await this.app.vault.read(file);
-		const inlineRelations = parseInlineRelations(content);
+		const allowedRelations = new Set(
+			this.settings.relations
+				.map((relation) => relation.name)
+				.filter((name) => name.length > 0)
+		);
+		const inlineRelations = parseInlineRelations(content, allowedRelations);
 		const cache = this.app.metadataCache.getFileCache(file);
 		const frontmatterRelations = parseFrontmatterRelations(
 			cache?.frontmatter,
-			this.settings.relationProperties
+			this.settings.relations
 		);
 
 		const combined = [...inlineRelations, ...frontmatterRelations];
@@ -103,22 +113,21 @@ export class GraphStore {
 	}
 }
 
-function applyImpliedRules(edges: RelationEdge[], rules: ImpliedRule[]): RelationEdge[] {
-	if (rules.length === 0) {
+function applyImpliedRules(edges: RelationEdge[], relations: RelationDefinition[]): RelationEdge[] {
+	if (relations.length === 0) {
 		return edges;
 	}
 
 	const impliedEdges: RelationEdge[] = [];
 	const existing = new Set(edges.map((edge) => edgeKey(edge)));
+	const impliedRules = buildImpliedRules(relations);
 
 	for (const edge of edges) {
-		for (const rule of rules) {
+		const rulesForRelation = impliedRules.get(edge.relation) ?? [];
+		for (const rule of rulesForRelation) {
 			const baseRelation = rule.baseRelation.trim().toLowerCase();
 			const impliedRelation = rule.impliedRelation.trim().toLowerCase();
 			if (!baseRelation || !impliedRelation) {
-				continue;
-			}
-			if (edge.relation !== baseRelation) {
 				continue;
 			}
 
@@ -147,6 +156,40 @@ function applyImpliedRules(edges: RelationEdge[], rules: ImpliedRule[]): Relatio
 	}
 
 	return [...edges, ...impliedEdges];
+}
+
+function buildImpliedRules(relations: RelationDefinition[]): Map<string, Array<{
+	baseRelation: string;
+	impliedRelation: string;
+	direction: "forward" | "reverse" | "both";
+}>> {
+	const map = new Map<string, Array<{
+		baseRelation: string;
+		impliedRelation: string;
+		direction: "forward" | "reverse" | "both";
+	}>>();
+
+	for (const relation of relations) {
+		const baseRelation = relation.name.trim().toLowerCase();
+		if (!baseRelation) {
+			continue;
+		}
+		for (const implied of relation.impliedRelations) {
+			const impliedRelation = implied.targetRelation.trim().toLowerCase();
+			if (!impliedRelation) {
+				continue;
+			}
+			const list = map.get(baseRelation) ?? [];
+			list.push({
+				baseRelation,
+				impliedRelation,
+				direction: implied.direction
+			});
+			map.set(baseRelation, list);
+		}
+	}
+
+	return map;
 }
 
 function addImplied(edge: RelationEdge, impliedEdges: RelationEdge[], existing: Set<string>) {

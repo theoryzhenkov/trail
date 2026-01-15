@@ -3,16 +3,16 @@ import {TRAIL_VIEW_TYPE} from "../ui/trail-view";
 
 export function registerCommands(plugin: TrailPlugin) {
 	plugin.addCommand({
-		id: "trail-open-pane",
-		name: "Open trail pane",
+		id: "open-pane",
+		name: "Open pane",
 		callback: async () => {
 			await activateTrailView(plugin);
 		}
 	});
 
 	plugin.addCommand({
-		id: "trail-refresh-graph",
-		name: "Refresh trail graph",
+		id: "refresh-graph",
+		name: "Refresh graph",
 		callback: async () => {
 			await plugin.graph.build();
 			plugin.refreshActiveView();
