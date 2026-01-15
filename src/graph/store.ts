@@ -78,7 +78,10 @@ export class GraphStore {
 		const content = await this.app.vault.read(file);
 		const inlineRelations = parseInlineRelations(content);
 		const cache = this.app.metadataCache.getFileCache(file);
-		const frontmatterRelations = parseFrontmatterRelations(cache?.frontmatter);
+		const frontmatterRelations = parseFrontmatterRelations(
+			cache?.frontmatter,
+			this.settings.relationProperties
+		);
 
 		const combined = [...inlineRelations, ...frontmatterRelations];
 		const edges: RelationEdge[] = [];

@@ -3,13 +3,18 @@ import {dedupeRelations, extractWikiLinkTarget, isValidRelationName, normalizeRe
 
 type FrontmatterValue = string | string[] | null | undefined;
 
-export function parseFrontmatterRelations(frontmatter: Record<string, unknown> | undefined): ParsedRelation[] {
+export function parseFrontmatterRelations(
+	frontmatter: Record<string, unknown> | undefined,
+	relationProperties: string[]
+): ParsedRelation[] {
 	if (!frontmatter) {
 		return [];
 	}
 
 	const relations: ParsedRelation[] = [];
+	const relationPropertiesSet = new Set(relationProperties.map((p) => p.toLowerCase()));
 
+	// Parse `relations` map: relations: { up: [...] }
 	const relationsMap = frontmatter.relations;
 	if (relationsMap && typeof relationsMap === "object" && !Array.isArray(relationsMap)) {
 		for (const [key, value] of Object.entries(relationsMap as Record<string, FrontmatterValue>)) {
@@ -17,12 +22,18 @@ export function parseFrontmatterRelations(frontmatter: Record<string, unknown> |
 		}
 	}
 
+	// Parse `relations.up` dot properties
 	for (const [key, value] of Object.entries(frontmatter)) {
-		if (!key.startsWith("relations.")) {
+		if (key.startsWith("relations.")) {
+			const relationName = key.slice("relations.".length);
+			relations.push(...parseRelationEntry(relationName, value as FrontmatterValue));
 			continue;
 		}
-		const relationName = key.slice("relations.".length);
-		relations.push(...parseRelationEntry(relationName, value as FrontmatterValue));
+
+		// Parse top-level relation properties (e.g., `up`, `down`)
+		if (relationPropertiesSet.has(key.toLowerCase())) {
+			relations.push(...parseRelationEntry(key, value as FrontmatterValue));
+		}
 	}
 
 	return dedupeRelations(relations);

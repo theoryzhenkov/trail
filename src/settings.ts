@@ -4,6 +4,7 @@ import {ImpliedRule} from "./types";
 
 export interface TrailSettings {
 	impliedRules: ImpliedRule[];
+	relationProperties: string[];
 }
 
 export const DEFAULT_SETTINGS: TrailSettings = {
@@ -12,7 +13,8 @@ export const DEFAULT_SETTINGS: TrailSettings = {
 		{baseRelation: "down", impliedRelation: "up", direction: "reverse"},
 		{baseRelation: "next", impliedRelation: "prev", direction: "reverse"},
 		{baseRelation: "prev", impliedRelation: "next", direction: "reverse"}
-	]
+	],
+	relationProperties: ["up", "down", "next", "prev"]
 };
 
 const RELATION_NAME_REGEX = /^[a-z0-9_-]+$/i;
@@ -31,7 +33,26 @@ export class TrailSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		new Setting(containerEl).setName("Trail").setHeading();
 
+		this.renderRelationProperties(containerEl);
 		this.renderImpliedRules(containerEl);
+	}
+
+	private renderRelationProperties(containerEl: HTMLElement) {
+		new Setting(containerEl)
+			.setName("Relation properties")
+			.setDesc("Top-level frontmatter properties to treat as relations (comma-separated).")
+			.addText((text) => {
+				text
+					.setPlaceholder("up, down, next, prev")
+					.setValue(this.plugin.settings.relationProperties.join(", "))
+					.onChange((value) => {
+						this.plugin.settings.relationProperties = value
+							.split(",")
+							.map((s) => s.trim().toLowerCase())
+							.filter((s) => s.length > 0 && RELATION_NAME_REGEX.test(s));
+						void this.plugin.saveSettings();
+					});
+			});
 	}
 
 	private renderImpliedRules(containerEl: HTMLElement) {
