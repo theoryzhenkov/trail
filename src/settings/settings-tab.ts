@@ -140,6 +140,18 @@ export class TrailSettingTab extends PluginSettingTab {
 			.setName("Groups")
 			.setDesc("Configure relation groups shown in the trail pane.");
 
+		new Setting(containerEl)
+			.setName("Hide empty groups")
+			.setDesc("Hide groups that have no relations for the current note.")
+			.addToggle((toggle) => {
+				toggle
+					.setValue(Boolean(this.plugin.settings.hideEmptyGroups))
+					.onChange((value) => {
+						this.plugin.settings.hideEmptyGroups = value;
+						void this.plugin.saveSettings();
+					});
+			});
+
 		for (const [index, group] of this.plugin.settings.groups.entries()) {
 			this.renderGroupSection(containerEl, group, index);
 		}

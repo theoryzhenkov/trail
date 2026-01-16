@@ -164,8 +164,10 @@ export class TrailView extends ItemView {
 			if (!this.shouldShowGroup(group, activeFile.path)) {
 				continue;
 			}
-			visibleCount++;
-			this.renderGroup(containerEl, group, activeFile.path);
+			const wasRendered = this.renderGroup(containerEl, group, activeFile.path);
+			if (wasRendered) {
+				visibleCount++;
+			}
 		}
 
 		if (visibleCount === 0) {
@@ -179,9 +181,15 @@ export class TrailView extends ItemView {
 		return this.plugin.graph.matchesFilters(filePath, showConditions, showConditionsMode);
 	}
 
-	private renderGroup(containerEl: HTMLElement, group: RelationGroup, filePath: string) {
+	private renderGroup(containerEl: HTMLElement, group: RelationGroup, filePath: string): boolean {
 		const filteredGroup = this.filterGroupMembers(group);
 		const tree = this.plugin.graph.getGroupTree(filePath, filteredGroup);
+
+		const isEmpty = filteredGroup.members.length === 0 || tree.length === 0;
+		if (isEmpty && this.plugin.settings.hideEmptyGroups) {
+			return false;
+		}
+
 		const section = createCollapsibleSection(
 			containerEl,
 			group.name || "Unnamed group",
@@ -191,16 +199,17 @@ export class TrailView extends ItemView {
 
 		if (filteredGroup.members.length === 0) {
 			section.contentEl.createDiv({cls: "trail-no-results", text: "No members selected"});
-			return;
+			return true;
 		}
 
 		if (tree.length === 0) {
 			section.contentEl.createDiv({cls: "trail-no-results", text: "No relations found"});
-			return;
+			return true;
 		}
 
 		const transformedTree = this.transformTreeByDirection(tree);
 		this.renderGroupTree(section.contentEl, transformedTree, 0, group.displayProperties ?? []);
+		return true;
 	}
 
 	private filterGroupMembers(group: RelationGroup): RelationGroup {
