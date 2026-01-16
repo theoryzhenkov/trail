@@ -1,19 +1,30 @@
 import {App, Notice, PluginSettingTab, Setting} from "obsidian";
 import TrailPlugin from "./main";
-import {ImpliedRelation, RelationAlias, RelationAliasType, RelationDefinition} from "./types";
+import {
+	ImpliedRelation,
+	RelationAlias,
+	RelationAliasType,
+	RelationDefinition,
+	RelationDisplayMode,
+	RelationGroup,
+	RelationGroupMember
+} from "./types";
 
 export interface TrailSettings {
 	relations: RelationDefinition[];
+	groups: RelationGroup[];
 }
 
 const RELATION_NAME_REGEX = /^[a-z0-9_-]+$/i;
 export const DEFAULT_SETTINGS: TrailSettings = {
-	relations: createDefaultRelations()
+	relations: createDefaultRelations(),
+	groups: createDefaultGroups()
 };
 
 export class TrailSettingTab extends PluginSettingTab {
 	plugin: TrailPlugin;
 	private openSections: Set<number> = new Set();
+	private openGroupSections: Set<number> = new Set();
 
 	constructor(app: App, plugin: TrailPlugin) {
 		super(app, plugin);
@@ -25,11 +36,13 @@ export class TrailSettingTab extends PluginSettingTab {
 
 		// Save current open state before clearing
 		this.saveOpenState(containerEl);
+		this.saveGroupOpenState(containerEl);
 
 		containerEl.empty();
 		containerEl.addClass("trail-settings");
 
 		this.renderRelations(containerEl);
+		this.renderGroups(containerEl);
 	}
 
 	private saveOpenState(containerEl: HTMLElement) {
@@ -38,6 +51,16 @@ export class TrailSettingTab extends PluginSettingTab {
 		details.forEach((el, index) => {
 			if (el.open) {
 				this.openSections.add(index);
+			}
+		});
+	}
+
+	private saveGroupOpenState(containerEl: HTMLElement) {
+		const details = containerEl.querySelectorAll<HTMLDetailsElement>(".trail-group-section");
+		this.openGroupSections.clear();
+		details.forEach((el, index) => {
+			if (el.open) {
+				this.openGroupSections.add(index);
 			}
 		});
 	}
@@ -65,6 +88,161 @@ export class TrailSettingTab extends PluginSettingTab {
 						});
 						// Auto-expand the new section
 						this.openSections.add(newIndex);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
+	}
+
+	private renderGroups(containerEl: HTMLElement) {
+		new Setting(containerEl)
+			.setName("Groups")
+			.setDesc("Configure relation groups shown in the trail pane.");
+
+		for (const [index, group] of this.plugin.settings.groups.entries()) {
+			this.renderGroupSection(containerEl, group, index);
+		}
+
+		new Setting(containerEl)
+			.addButton((button) => {
+				button
+					.setButtonText("Add group")
+					.setCta()
+					.onClick(() => {
+						const newIndex = this.plugin.settings.groups.length;
+						this.plugin.settings.groups.push({
+							name: "",
+							members: []
+						});
+						this.openGroupSections.add(newIndex);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
+	}
+
+	private renderGroupSection(containerEl: HTMLElement, group: RelationGroup, index: number) {
+		const details = containerEl.createEl("details", {cls: "trail-relation-section trail-group-section"});
+		const wasOpen = this.openGroupSections.has(index);
+		const isNew = !group.name;
+		details.open = wasOpen || isNew;
+
+		const summary = details.createEl("summary", {cls: "trail-relation-summary"});
+		const summaryContent = summary.createDiv({cls: "trail-relation-summary-content"});
+
+		const nameSpan = summaryContent.createEl("span", {
+			cls: "trail-relation-name",
+			text: group.name || "(unnamed)"
+		});
+		if (!group.name) {
+			nameSpan.addClass("trail-relation-name-empty");
+		}
+
+		const badges = summaryContent.createDiv({cls: "trail-relation-badges"});
+		badges.createEl("span", {
+			cls: "trail-badge",
+			text: `${group.members.length} member${group.members.length !== 1 ? "s" : ""}`
+		});
+
+		const content = details.createDiv({cls: "trail-relation-content"});
+
+		new Setting(content)
+			.setName("Name")
+			.setDesc("Group label shown in the trail pane.")
+			.addText((text) => {
+				text
+					.setPlaceholder("E.g., hierarchy, navigation")
+					.setValue(group.name)
+					.onChange((value) => {
+						group.name = value.trim();
+						void this.plugin.saveSettings();
+						nameSpan.textContent = group.name || "(unnamed)";
+						nameSpan.toggleClass("trail-relation-name-empty", !group.name);
+					});
+			});
+
+		this.renderGroupMembers(content, group);
+
+		new Setting(content)
+			.addButton((button) => {
+				button
+					.setButtonText("Delete group")
+					.setWarning()
+					.onClick(() => {
+						this.plugin.settings.groups.splice(index, 1);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
+	}
+
+	private renderGroupMembers(containerEl: HTMLElement, group: RelationGroup) {
+		const section = containerEl.createDiv({cls: "trail-subsection"});
+		new Setting(section)
+			.setName("Members")
+			.setDesc("Relations to show together in this group.");
+
+		if (group.members.length === 0) {
+			section.createEl("p", {text: "No members defined.", cls: "trail-empty-state"});
+		} else {
+			for (const [memberIndex, member] of group.members.entries()) {
+				this.renderGroupMemberRow(section, group, member, memberIndex);
+			}
+		}
+
+		new Setting(section)
+			.addButton((button) => {
+				button.setButtonText("Add member").onClick(() => {
+					group.members.push({
+						relation: "",
+						displayMode: "direct"
+					});
+					void this.plugin.saveSettings();
+					this.display();
+				});
+			});
+	}
+
+	private renderGroupMemberRow(
+		containerEl: HTMLElement,
+		group: RelationGroup,
+		member: RelationGroupMember,
+		index: number
+	) {
+		const setting = new Setting(containerEl);
+
+		setting
+			.addDropdown((dropdown) => {
+				dropdown.addOption("", "(select relation)");
+				for (const option of this.getAllRelationOptions()) {
+					dropdown.addOption(option, option);
+				}
+				if (member.relation && !this.getAllRelationOptions().includes(member.relation)) {
+					dropdown.addOption(member.relation, member.relation);
+				}
+				dropdown
+					.setValue(member.relation)
+					.onChange((value) => {
+						member.relation = value;
+						void this.plugin.saveSettings();
+					});
+			})
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("hierarchy", "Hierarchy chain")
+					.addOption("direct", "Direct only")
+					.setValue(member.displayMode)
+					.onChange((value) => {
+						member.displayMode = value as RelationDisplayMode;
+						void this.plugin.saveSettings();
+					});
+			})
+			.addExtraButton((button) => {
+				button
+					.setIcon("trash")
+					.setTooltip("Remove member")
+					.onClick(() => {
+						group.members.splice(index, 1);
 						void this.plugin.saveSettings();
 						this.display();
 					});
@@ -125,6 +303,7 @@ export class TrailSettingTab extends PluginSettingTab {
 						const previousName = relation.name;
 						relation.name = normalized;
 						this.updateImpliedRelationTargets(previousName, normalized);
+						this.updateGroupMemberRelations(previousName, normalized);
 						void this.plugin.saveSettings();
 						// Update just the summary name
 						nameSpan.textContent = normalized || "(unnamed)";
@@ -147,6 +326,7 @@ export class TrailSettingTab extends PluginSettingTab {
 					.onClick(() => {
 						this.plugin.settings.relations.splice(index, 1);
 						this.removeImpliedRelationTargets(relation.name);
+						this.removeGroupMemberRelations(relation.name);
 						void this.plugin.saveSettings();
 						this.display();
 					});
@@ -318,6 +498,12 @@ export class TrailSettingTab extends PluginSettingTab {
 			.filter((name) => name.length > 0 && name !== excludeName);
 	}
 
+	private getAllRelationOptions(): string[] {
+		return this.plugin.settings.relations
+			.map((r) => r.name)
+			.filter((name) => name.length > 0);
+	}
+
 	private isDuplicateRelationName(name: string, currentIndex: number): boolean {
 		return this.plugin.settings.relations.some((r, i) => i !== currentIndex && r.name === name);
 	}
@@ -340,6 +526,25 @@ export class TrailSettingTab extends PluginSettingTab {
 			rel.impliedRelations = rel.impliedRelations.filter(
 				(implied) => implied.targetRelation !== targetName
 			);
+		}
+	}
+
+	private updateGroupMemberRelations(oldName: string, newName: string) {
+		if (!oldName || oldName === newName) {
+			return;
+		}
+		for (const group of this.plugin.settings.groups) {
+			for (const member of group.members) {
+				if (member.relation === oldName) {
+					member.relation = newName;
+				}
+			}
+		}
+	}
+
+	private removeGroupMemberRelations(targetName: string) {
+		for (const group of this.plugin.settings.groups) {
+			group.members = group.members.filter((member) => member.relation !== targetName);
 		}
 	}
 }
@@ -371,6 +576,26 @@ function createDefaultRelations(): RelationDefinition[] {
 	}
 
 	return relations;
+}
+
+function createDefaultGroups(): RelationGroup[] {
+	return [
+		createDefaultGroup("Hierarchy", [
+			{relation: "up", depth: 0},
+			{relation: "next", depth: 1}
+		]),
+		createDefaultGroup("Reverse", [
+			{relation: "down", depth: 0},
+			{relation: "prev", depth: 1}
+		])
+	];
+}
+
+function createDefaultGroup(name: string, members: RelationGroupMember[]): RelationGroup {
+	return {
+		name,
+		members
+	};
 }
 
 function createDefaultAliases(name: string): RelationAlias[] {
