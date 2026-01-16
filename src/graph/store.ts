@@ -1,9 +1,23 @@
 import {App, TFile} from "obsidian";
 import {TrailSettings} from "../settings";
-import {RelationDefinition, RelationEdge} from "../types";
+import {
+	RelationDefinition,
+	RelationDisplayMode,
+	RelationEdge,
+	RelationGroup
+} from "../types";
 import {parseInlineRelations} from "../parsing/inline";
 import {parseFrontmatterRelations} from "../parsing/frontmatter";
 import {computeAncestors, AncestorNode} from "./traversal";
+
+export interface GroupTreeNode {
+	path: string;
+	relation: string;
+	displayMode: RelationDisplayMode;
+	implied: boolean;
+	impliedFrom?: string;
+	children: GroupTreeNode[];
+}
 
 export class GraphStore {
 	private app: App;
@@ -175,6 +189,78 @@ export class GraphStore {
 		return computeAncestors(path, this.getEdgesWithImplied(), relationFilter);
 	}
 
+	getGroupTree(path: string, group: RelationGroup): GroupTreeNode[] {
+		const edges = this.getEdgesWithImplied();
+		const edgesBySource = new Map<string, RelationEdge[]>();
+		for (const edge of edges) {
+			const list = edgesBySource.get(edge.fromPath) ?? [];
+			list.push(edge);
+			edgesBySource.set(edge.fromPath, list);
+		}
+
+		const hierarchyRelations = new Set(
+			group.members
+				.filter((member) => member.displayMode === "hierarchy")
+				.map((member) => member.relation)
+				.filter((relation) => relation.length > 0)
+		);
+		const directRelations = new Set(
+			group.members
+				.filter((member) => member.displayMode === "direct")
+				.map((member) => member.relation)
+				.filter((relation) => relation.length > 0)
+		);
+
+		const buildDirectNodes = (sourcePath: string): GroupTreeNode[] => {
+			const outgoing = edgesBySource.get(sourcePath) ?? [];
+			return outgoing
+				.filter((edge) => directRelations.has(edge.relation))
+				.map((edge) => ({
+					path: edge.toPath,
+					relation: edge.relation,
+					displayMode: "direct" as RelationDisplayMode,
+					implied: edge.implied,
+					impliedFrom: edge.impliedFrom,
+					children: []
+				}));
+		};
+
+		if (hierarchyRelations.size === 0) {
+			return buildDirectNodes(path);
+		}
+
+		const visited = new Set<string>();
+		const buildHierarchyNodes = (sourcePath: string): GroupTreeNode[] => {
+			const outgoing = edgesBySource.get(sourcePath) ?? [];
+			const hierarchyEdges = outgoing.filter((edge) => hierarchyRelations.has(edge.relation));
+			const nodes: GroupTreeNode[] = [];
+
+			for (const edge of hierarchyEdges) {
+				const key = `${edge.fromPath}|${edge.toPath}|${edge.relation}|${edge.implied}`;
+				if (visited.has(key)) {
+					continue;
+				}
+				visited.add(key);
+				const children = [
+					...buildHierarchyNodes(edge.toPath),
+					...buildDirectNodes(edge.toPath)
+				];
+				nodes.push({
+					path: edge.toPath,
+					relation: edge.relation,
+					displayMode: "hierarchy",
+					implied: edge.implied,
+					impliedFrom: edge.impliedFrom,
+					children
+				});
+			}
+
+			return nodes;
+		};
+
+		return buildHierarchyNodes(path);
+	}
+
 	private getEdgesWithImplied(): RelationEdge[] {
 		const explicitEdges = Array.from(this.edgesBySource.values()).flat();
 		return applyImpliedRules(explicitEdges, this.settings.relations);
@@ -303,5 +389,5 @@ function addImplied(edge: RelationEdge, impliedEdges: RelationEdge[], existing: 
 }
 
 function edgeKey(edge: RelationEdge): string {
-	return `${edge.fromPath}|${edge.toPath}|${edge.relation}|${edge.implied}`;
+	return `${edge.fromPath}|${edge.toPath}|${edge.relation}`;
 }
