@@ -249,12 +249,12 @@ function compareByProperties(
 	sortKeys: PropertySortKey[]
 ): number {
 	for (const key of sortKeys) {
-		const aValue = getPropertySortValue(a, key.property);
-		const bValue = getPropertySortValue(b, key.property);
+		const aRaw = getRawPropertyValue(a, key.property);
+		const bRaw = getRawPropertyValue(b, key.property);
 
 		// Missing values sort to end
-		const aEmpty = aValue === "";
-		const bEmpty = bValue === "";
+		const aEmpty = aRaw === null;
+		const bEmpty = bRaw === null;
 
 		if (aEmpty && !bEmpty) {
 			return 1;
@@ -266,7 +266,7 @@ function compareByProperties(
 			continue;
 		}
 
-		const comparison = aValue.localeCompare(bValue);
+		const comparison = compareValues(aRaw, bRaw);
 		if (comparison !== 0) {
 			return key.direction === "desc" ? -comparison : comparison;
 		}
@@ -276,19 +276,73 @@ function compareByProperties(
 }
 
 /**
- * Gets a property value from a node, coerced to string for sorting.
+ * Gets a raw property value from a node for sorting.
+ * Returns null for missing/empty values.
  */
-function getPropertySortValue(node: GroupTreeNode, property: string): string {
+function getRawPropertyValue(node: GroupTreeNode, property: string): string | number | null {
 	const value = node.properties?.[property];
 
 	if (value === null || value === undefined) {
-		return "";
+		return null;
+	}
+
+	if (typeof value === "number") {
+		return value;
+	}
+
+	if (typeof value === "string") {
+		return value || null;
 	}
 
 	if (Array.isArray(value)) {
-		return value.length > 0 ? String(value[0]) : "";
+		return value.length > 0 ? value[0] ?? null : null;
 	}
 
+	// Booleans: convert to string
+	return String(value);
+}
+
+/**
+ * Compares two values, handling numeric vs string comparison appropriately.
+ * Numbers are compared numerically, strings lexicographically.
+ * Mixed types: numbers sort before strings.
+ */
+function compareValues(a: string | number | null, b: string | number | null): number {
+	// Both null handled by caller, but be safe
+	if (a === null && b === null) return 0;
+	if (a === null) return 1;
+	if (b === null) return -1;
+
+	const aIsNum = typeof a === "number";
+	const bIsNum = typeof b === "number";
+
+	// Both numbers: numeric comparison
+	if (aIsNum && bIsNum) {
+		return a - b;
+	}
+
+	// Both strings: try numeric parsing first for numeric strings
+	if (!aIsNum && !bIsNum) {
+		const aNum = parseFloat(a);
+		const bNum = parseFloat(b);
+		// Both parse as valid numbers: compare numerically
+		if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) {
+			return aNum - bNum;
+		}
+		// Otherwise lexicographic
+		return a.localeCompare(b);
+	}
+
+	// Mixed: numbers sort before strings
+	return aIsNum ? -1 : 1;
+}
+
+/**
+ * Gets a property value as string (for grouping by property value).
+ */
+function getPropertySortValue(node: GroupTreeNode, property: string): string {
+	const value = getRawPropertyValue(node, property);
+	if (value === null) return "";
 	return String(value);
 }
 

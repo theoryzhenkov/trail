@@ -206,7 +206,7 @@ export class TrailView extends ItemView {
 	private filterGroupMembers(group: RelationGroup): RelationGroup {
 		const members = group.members.filter((member) => this.selectedRelations.has(member.relation));
 		return {
-			name: group.name,
+			...group,
 			members
 		};
 	}
