@@ -84,6 +84,12 @@ Ready to add structure to your vault? Start with the [Getting Started guide](get
 
 ---
 
+## Support
+
+If you find Trail useful, consider [buying me a coffee](https://buymeacoffee.com/theoryzhenkov) :material-coffee:{ .heart }
+
+---
+
 ## Documentation Overview
 
 | Section | Description |

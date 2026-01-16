@@ -4,6 +4,8 @@
 	"version": "2.3.1",
 	"minAppVersion": "0.15.0",
 	"description": "Add typed relations to your notes and traverse them via a powerful hierarchy view.",
-	"author": "Fedor Ryzhenkov",
+	"author": "Theo Ryzhenkov",
+	"authorUrl": "https://github.com/theoryzhenkov",
+	"fundingUrl": "https://buymeacoffee.com/theoryzhenkov",
 	"isDesktopOnly": false
 }
