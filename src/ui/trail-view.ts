@@ -1,14 +1,13 @@
 import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
-import {RelationEdge} from "../types";
-import {AncestorNode} from "../graph/traversal";
+import {RelationGroup} from "../types";
+import {GroupTreeNode} from "../graph/store";
 
 export const TRAIL_VIEW_TYPE = "trail-view";
 
 export class TrailView extends ItemView {
 	private plugin: TrailPlugin;
 	private selectedRelations: Set<string>;
-	private showFilters: boolean = false;
 
 	constructor(leaf: WorkspaceLeaf, plugin: TrailPlugin) {
 		super(leaf);
@@ -137,8 +136,7 @@ export class TrailView extends ItemView {
 		// Main content
 		const mainEl = contentEl.createDiv({cls: "trail-content"});
 		
-		this.renderAncestors(mainEl, activeFile);
-		this.renderDirectEdges(mainEl, activeFile);
+		this.renderGroups(mainEl, activeFile);
 	}
 
 	private renderEmptyState(containerEl: HTMLElement, title: string, description: string) {
@@ -149,69 +147,66 @@ export class TrailView extends ItemView {
 		emptyEl.createDiv({cls: "trail-empty-description", text: description});
 	}
 
-	private renderAncestors(containerEl: HTMLElement, activeFile: TFile) {
-		const ancestors = this.plugin.graph.getAncestors(activeFile.path, this.selectedRelations);
-		
-		const section = this.createCollapsibleSection(containerEl, "Ancestors", "git-merge", ancestors.length);
-		
-		if (ancestors.length === 0) {
-			section.contentEl.createDiv({cls: "trail-no-results", text: "No ancestors found"});
+	private renderGroups(containerEl: HTMLElement, activeFile: TFile) {
+		const groups = this.plugin.settings.groups;
+		if (groups.length === 0) {
+			containerEl.createDiv({cls: "trail-no-results", text: "No groups configured"});
 			return;
 		}
 
-		this.renderAncestorTree(section.contentEl, ancestors);
-	}
+		for (const group of groups) {
+			const filteredGroup = this.filterGroupMembers(group);
+			const tree = this.plugin.graph.getGroupTree(activeFile.path, filteredGroup);
+			const section = this.createCollapsibleSection(
+				containerEl,
+				group.name || "Unnamed group",
+				"layers",
+				tree.length
+			);
 
-	private renderAncestorTree(containerEl: HTMLElement, ancestors: AncestorNode[]) {
-		const treeEl = containerEl.createDiv({cls: "tree-item-children"});
-		
-		for (const ancestor of ancestors) {
-			this.renderTreeItem(treeEl, ancestor);
+			if (filteredGroup.members.length === 0) {
+				section.contentEl.createDiv({cls: "trail-no-results", text: "No members selected"});
+				continue;
+			}
+
+			if (tree.length === 0) {
+				section.contentEl.createDiv({cls: "trail-no-results", text: "No relations found"});
+				continue;
+			}
+
+			const treeEl = section.contentEl.createDiv({cls: "tree-item-children"});
+			this.renderGroupTree(treeEl, tree, 0);
 		}
 	}
 
-	private renderTreeItem(containerEl: HTMLElement, ancestor: AncestorNode) {
-		const itemEl = containerEl.createDiv({cls: "tree-item"});
-		itemEl.style.setProperty("--indent-level", String(ancestor.depth - 1));
-		
-		const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
-		
-		// Relation badge
-		const relationEl = selfEl.createSpan({cls: "trail-relation-tag"});
-		const relationLabel = ancestor.implied 
-			? `${ancestor.viaRelation}` 
-			: ancestor.viaRelation;
-		relationEl.setText(relationLabel);
-		if (ancestor.implied) {
-			relationEl.addClass("is-implied");
-		}
-		
-		// File link
-		const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
-		this.renderFileLink(innerEl, ancestor.path);
+	private filterGroupMembers(group: RelationGroup): RelationGroup {
+		const members = group.members.filter((member) => this.selectedRelations.has(member.relation));
+		return {
+			name: group.name,
+			members
+		};
 	}
 
-	private renderDirectEdges(containerEl: HTMLElement, activeFile: TFile) {
-		const incoming = this.plugin.graph.getIncomingEdges(activeFile.path, this.selectedRelations);
-		const outgoing = this.plugin.graph.getOutgoingEdges(activeFile.path, this.selectedRelations);
+	private renderGroupTree(containerEl: HTMLElement, nodes: GroupTreeNode[], depth: number) {
+		for (const node of nodes) {
+			const itemEl = containerEl.createDiv({cls: "tree-item"});
+			itemEl.style.setProperty("--indent-level", String(depth));
 
-		// Incoming section
-		const incomingSection = this.createCollapsibleSection(
-			containerEl, 
-			"Incoming", 
-			"arrow-down-left",
-			incoming.length
-		);
-		this.renderEdgeList(incomingSection.contentEl, incoming, (edge) => edge.fromPath);
+			const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
+			const relationEl = selfEl.createSpan({cls: "trail-relation-tag"});
+			relationEl.setText(node.relation);
+			if (node.implied) {
+				relationEl.addClass("is-implied");
+			}
 
-		// Outgoing section
-		const outgoingSection = this.createCollapsibleSection(
-			containerEl, 
-			"Outgoing", 
-			"arrow-up-right",
-			outgoing.length
-		);
-		this.renderEdgeList(outgoingSection.contentEl, outgoing, (edge) => edge.toPath);
+			const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
+			this.renderFileLink(innerEl, node.path);
+
+			if (node.children.length > 0) {
+				const childrenEl = itemEl.createDiv({cls: "tree-item-children"});
+				this.renderGroupTree(childrenEl, node.children, depth + 1);
+			}
+		}
 	}
 
 	private createCollapsibleSection(
@@ -249,45 +244,6 @@ export class TrailView extends ItemView {
 		});
 		
 		return {headerEl, contentEl};
-	}
-
-	private renderEdgeList(
-		containerEl: HTMLElement, 
-		edges: RelationEdge[], 
-		pathSelector: (edge: RelationEdge) => string
-	) {
-		if (edges.length === 0) {
-			containerEl.createDiv({cls: "tree-item-flair-text trail-no-results", text: "None"});
-			return;
-		}
-
-		// Group edges by relation type
-		const grouped = new Map<string, RelationEdge[]>();
-		for (const edge of edges) {
-			const key = edge.relation;
-			if (!grouped.has(key)) {
-				grouped.set(key, []);
-			}
-			grouped.get(key)!.push(edge);
-		}
-
-		for (const [relation, groupEdges] of grouped) {
-			for (const edge of groupEdges) {
-				const itemEl = containerEl.createDiv({cls: "tree-item"});
-				const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
-				
-				// Relation badge
-				const relationEl = selfEl.createSpan({cls: "trail-relation-tag"});
-				relationEl.setText(relation);
-				if (edge.implied) {
-					relationEl.addClass("is-implied");
-				}
-				
-				// File link
-				const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
-				this.renderFileLink(innerEl, pathSelector(edge));
-			}
-		}
 	}
 
 	private renderFileLink(containerEl: HTMLElement, path: string) {
