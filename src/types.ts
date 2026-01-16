@@ -14,6 +14,17 @@ export interface ImpliedRelation {
 	direction: ImpliedDirection;
 }
 
+export interface RelationGroupMember {
+	relation: RelationName;
+	depth: number;
+	extend?: string;
+}
+
+export interface RelationGroup {
+	name: string;
+	members: RelationGroupMember[];
+}
+
 export interface RelationDefinition {
 	name: RelationName;
 	aliases: RelationAlias[];
