@@ -14,6 +14,8 @@ export interface ImpliedRelation {
 	direction: ImpliedDirection;
 }
 
+export type VisualDirection = "descending" | "ascending" | "sequential";
+
 export interface RelationGroupMember {
 	relation: RelationName;
 	depth: number;
@@ -49,6 +51,7 @@ export interface RelationDefinition {
 	name: RelationName;
 	aliases: RelationAlias[];
 	impliedRelations: ImpliedRelation[];
+	visualDirection?: VisualDirection;
 }
 
 export interface RelationEdge {

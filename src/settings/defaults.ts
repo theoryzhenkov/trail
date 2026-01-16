@@ -7,11 +7,17 @@ import {
 } from "../types";
 
 export function createDefaultRelations(): RelationDefinition[] {
-	const base = ["up", "down", "next", "prev"];
-	const relations = base.map((name) => ({
+	const base: Array<{name: string; visualDirection: RelationDefinition["visualDirection"]}> = [
+		{name: "up", visualDirection: "ascending"},
+		{name: "down", visualDirection: "descending"},
+		{name: "next", visualDirection: "sequential"},
+		{name: "prev", visualDirection: "sequential"}
+	];
+	const relations = base.map(({name, visualDirection}) => ({
 		name,
 		aliases: createDefaultAliases(name),
-		impliedRelations: [] as ImpliedRelation[]
+		impliedRelations: [] as ImpliedRelation[],
+		visualDirection
 	}));
 
 	const impliedPairs: Array<[string, string]> = [

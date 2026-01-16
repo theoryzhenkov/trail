@@ -8,7 +8,8 @@ import {
 	RelationAliasType,
 	RelationDefinition,
 	RelationGroup,
-	RelationGroupMember
+	RelationGroupMember,
+	VisualDirection
 } from "../types";
 import {isValidRelationName, normalizeRelationName} from "./validation";
 
@@ -496,6 +497,22 @@ export class TrailSettingTab extends PluginSettingTab {
 						// Update just the summary name
 						nameSpan.textContent = normalized || "(unnamed)";
 						nameSpan.toggleClass("trail-relation-name-empty", !normalized);
+					});
+			});
+
+		// Visual direction
+		new Setting(content)
+			.setName("Visual direction")
+			.setDesc("How items are displayed: descending (indent increases), ascending (indent decreases), or sequential (flat, sorted).")
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("descending", "Descending (children)")
+					.addOption("ascending", "Ascending (ancestors)")
+					.addOption("sequential", "Sequential (flat)")
+					.setValue(relation.visualDirection ?? "descending")
+					.onChange((value) => {
+						relation.visualDirection = value as VisualDirection;
+						void this.plugin.saveSettings();
 					});
 			});
 

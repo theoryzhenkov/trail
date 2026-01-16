@@ -5,7 +5,8 @@ import {
 	FilterMatchMode,
 	PropertyFilter,
 	RelationEdge,
-	RelationGroup
+	RelationGroup,
+	VisualDirection
 } from "../types";
 import {parseInlineRelations} from "../parsing/inline";
 import {parseFileProperties, parseFrontmatterRelations} from "../parsing/frontmatter";
@@ -21,6 +22,7 @@ export interface GroupTreeNode {
 	impliedFrom?: string;
 	children: GroupTreeNode[];
 	properties?: FileProperties;
+	visualDirection: VisualDirection;
 }
 
 export class GraphStore {
@@ -273,6 +275,9 @@ export class GraphStore {
 				}
 			}
 
+			const relationDef = this.settings.relations.find((r) => r.name === edge.relation);
+			const visualDirection = relationDef?.visualDirection ?? "descending";
+
 			nodes.push({
 				path: edge.toPath,
 				relation: edge.relation,
@@ -280,7 +285,8 @@ export class GraphStore {
 				implied: edge.implied,
 				impliedFrom: edge.impliedFrom,
 				children,
-				properties: this.getFileProperties(edge.toPath)
+				properties: this.getFileProperties(edge.toPath),
+				visualDirection
 			});
 		}
 
