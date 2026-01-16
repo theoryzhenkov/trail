@@ -1,0 +1,82 @@
+site_name: Trail
+site_description: Add typed relations to your notes and traverse them via a powerful hierarchy view
+site_url: https://theoryzhenkov.github.io/trail
+repo_url: https://github.com/theoryzhenkov/trail
+repo_name: theoryzhenkov/trail
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Syntax:
+    - syntax/index.md
+    - Inline Syntax: syntax/inline.md
+    - Frontmatter: syntax/frontmatter.md
+  - Configuration:
+    - configuration/index.md
+    - Relations: configuration/relations.md
+    - Implied Relations: configuration/implied-relations.md
+    - Groups: configuration/groups.md
+    - Filtering: configuration/filtering.md
+    - Sorting: configuration/sorting.md
+    - Display Properties: configuration/display-properties.md
+  - Usage:
+    - Trail Pane: usage/trail-pane.md
+    - Filtering Relations: usage/filtering.md
+  - Concepts:
+    - concepts/index.md
+    - Traversal: concepts/traversal.md
+    - Implied vs Explicit: concepts/implied-vs-explicit.md
+  - Examples:
+    - examples/index.md
+    - Family Tree: examples/family-tree.md
+    - Project Hierarchy: examples/project-hierarchy.md
+    - Sequential Notes: examples/sequential-notes.md
+  - Reference:
+    - Default Configuration: reference/default-config.md
+    - Relation Types: reference/relation-types.md
