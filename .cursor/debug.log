@@ -1,0 +1,31 @@
+{"location":"main.ts:onload:start","message":"onload started","data":{},"timestamp":1768526175613,"sessionId":"debug-session","hypothesisId":"H1"}
+{"location":"main.ts:onload:before-build","message":"about to build graph","data":{},"timestamp":1768526175613,"sessionId":"debug-session","hypothesisId":"H1"}
+{"location":"main.ts:onload:after-build","message":"graph build complete","data":{"edgeCount":4},"timestamp":1768526175613,"sessionId":"debug-session","hypothesisId":"H1,H4"}
+{"location":"main.ts:after-registerView","message":"checking for pre-existing views","data":{"viewCount":0},"timestamp":1768526175614,"sessionId":"debug-session","hypothesisId":"FIX"}
+{"location":"main.ts:refreshActiveView","message":"refreshActiveView called","data":{"leavesCount":0},"timestamp":1768526175614,"sessionId":"debug-session","hypothesisId":"H5"}
+{"location":"main.ts:onload:end","message":"onload finished","data":{},"timestamp":1768526175614,"sessionId":"debug-session","hypothesisId":"H1"}
+{"location":"trail-view.ts:onOpen","message":"view onOpen called","data":{},"timestamp":1768526175659,"sessionId":"debug-session","hypothesisId":"H6"}
+{"location":"trail-view.ts:refresh:start","message":"refresh called","data":{},"timestamp":1768526175659,"sessionId":"debug-session","hypothesisId":"H3"}
+{"location":"trail-view.ts:refresh:activeFile","message":"active file check","data":{"hasActiveFile":false},"timestamp":1768526175659,"sessionId":"debug-session","hypothesisId":"H3"}
+{"location":"main.ts:file-open","message":"file-open event","data":{"fileName":"Child"},"timestamp":1768526175736,"sessionId":"debug-session","hypothesisId":"H6"}
+{"location":"main.ts:refreshActiveView","message":"refreshActiveView called","data":{"leavesCount":1},"timestamp":1768526175736,"sessionId":"debug-session","hypothesisId":"H5"}
+{"location":"trail-view.ts:refresh:start","message":"refresh called","data":{},"timestamp":1768526175736,"sessionId":"debug-session","hypothesisId":"H3"}
+{"location":"trail-view.ts:refresh:activeFile","message":"active file check","data":{"hasActiveFile":true,"fileName":"Child"},"timestamp":1768526175736,"sessionId":"debug-session","hypothesisId":"H3"}
+{"location":"main.ts:onLayoutReady","message":"layout ready callback fired","data":{"viewCount":1},"timestamp":1768526175908,"sessionId":"debug-session","hypothesisId":"H2"}
+{"location":"main.ts:refreshActiveView","message":"refreshActiveView called","data":{"leavesCount":1},"timestamp":1768526175909,"sessionId":"debug-session","hypothesisId":"H5"}
+{"location":"trail-view.ts:refresh:start","message":"refresh called","data":{},"timestamp":1768526175909,"sessionId":"debug-session","hypothesisId":"H3"}
+{"location":"trail-view.ts:refresh:activeFile","message":"active file check","data":{"hasActiveFile":true,"fileName":"Child"},"timestamp":1768526175909,"sessionId":"debug-session","hypothesisId":"H3"}
+{"location":"main.ts:onload:start","message":"onload started","data":{},"timestamp":1768526176016,"sessionId":"debug-session","hypothesisId":"H1"}
+{"location":"main.ts:onload:before-build","message":"about to build graph","data":{},"timestamp":1768526176016,"sessionId":"debug-session","hypothesisId":"H1"}
+{"location":"main.ts:onload:after-build","message":"graph build complete","data":{"edgeCount":4},"timestamp":1768526176016,"sessionId":"debug-session","hypothesisId":"H1,H4"}
+{"location":"main.ts:after-registerView","message":"checking for pre-existing views","data":{"viewCount":0},"timestamp":1768526176017,"sessionId":"debug-session","hypothesisId":"FIX"}
+{"location":"main.ts:refreshActiveView","message":"refreshActiveView called","data":{"leavesCount":0},"timestamp":1768526176017,"sessionId":"debug-session","hypothesisId":"H5"}
+{"location":"main.ts:onload:end","message":"onload finished","data":{},"timestamp":1768526176017,"sessionId":"debug-session","hypothesisId":"H1"}
+{"location":"main.ts:onLayoutReady","message":"layout ready callback fired","data":{"viewCount":0},"timestamp":1768526177163,"sessionId":"debug-session","hypothesisId":"H2"}
+{"location":"main.ts:refreshActiveView","message":"refreshActiveView called","data":{"leavesCount":0},"timestamp":1768526177163,"sessionId":"debug-session","hypothesisId":"H5"}
+{"location":"trail-view.ts:onOpen","message":"view onOpen called","data":{},"timestamp":1768526228363,"sessionId":"debug-session","hypothesisId":"H6"}
+{"location":"trail-view.ts:refresh:start","message":"refresh called","data":{},"timestamp":1768526228364,"sessionId":"debug-session","hypothesisId":"H3"}
+{"location":"trail-view.ts:refresh:activeFile","message":"active file check","data":{"hasActiveFile":true,"fileName":"Child"},"timestamp":1768526228373,"sessionId":"debug-session","hypothesisId":"H3"}
+{"location":"main.ts:refreshActiveView","message":"refreshActiveView called","data":{"leavesCount":1},"timestamp":1768526412083,"sessionId":"debug-session","hypothesisId":"H5"}
+{"location":"trail-view.ts:refresh:start","message":"refresh called","data":{},"timestamp":1768526412084,"sessionId":"debug-session","hypothesisId":"H3"}
+{"location":"trail-view.ts:refresh:activeFile","message":"active file check","data":{"hasActiveFile":true,"fileName":"Child"},"timestamp":1768526412086,"sessionId":"debug-session","hypothesisId":"H3"}

@@ -18,7 +18,6 @@ export default class TrailPlugin extends Plugin {
 		this.changedFiles = new Set();
 		this.refreshTimeoutId = null;
 		this.graphRefreshTimeoutId = null;
-		await this.graph.build();
 
 		this.registerView(TRAIL_VIEW_TYPE, (leaf) => new TrailView(leaf, this));
 		this.addSettingTab(new TrailSettingTab(this.app, this));
@@ -51,9 +50,20 @@ export default class TrailPlugin extends Plugin {
 			this.refreshActiveView();
 		}));
 
+		// Wait for metadata cache to finish indexing before building graph
+		this.registerEvent(this.app.metadataCache.on("resolved", () => {
+			void this.onMetadataCacheReady();
+		}));
+
+		// Also handle case where cache is already resolved (plugin enabled after startup)
 		this.app.workspace.onLayoutReady(() => {
-			this.refreshActiveView();
+			void this.onMetadataCacheReady();
 		});
+	}
+
+	private async onMetadataCacheReady() {
+		await this.graph.build();
+		this.refreshActiveView();
 	}
 
 	onunload() {}
