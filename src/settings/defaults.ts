@@ -43,12 +43,14 @@ export function createDefaultRelations(): RelationDefinition[] {
 
 export function createDefaultGroups(): RelationGroup[] {
 	return [
-		createDefaultGroup("Hierarchy", [
-			{relation: "up", depth: 0},
-			{relation: "next", depth: 1}
+		createDefaultGroup("Ancestors", [
+			{relation: "up", depth: 0}
 		]),
-		createDefaultGroup("Reverse", [
-			{relation: "down", depth: 0},
+		createDefaultGroup("Children", [
+			{relation: "down", depth: 0}
+		]),
+		createDefaultGroup("Siblings", [
+			{relation: "next", depth: 1},
 			{relation: "prev", depth: 1}
 		])
 	];
