@@ -53,17 +53,27 @@ Examples:
 - Select which relation types to include.
 - Browse the full ancestor chain of the active note.
 
+## Installation
+
+### Install via BRAT
+
+1. Install the [BRAT plugin](https://github.com/TfTHacker/obsidian42-brat) from **Settings → Community plugins**.
+2. Enable BRAT.
+3. Open BRAT settings and select **Add Beta plugin**.
+4. Enter `https://github.com/theoryzhenkov/trail` and select **Add Plugin**.
+5. Enable Trail in **Settings → Community plugins**.
+
+### Manual install
+
+Copy `main.js`, `styles.css`, `manifest.json` to:
+
+```
+<Vault>/.obsidian/plugins/trail/
+```
+
 ## Development
 
 ```bash
 npm install
 npm run dev
-```
-
-## Manual install
-
-Copy `main.js`, `styles.css`, `manifest.json` to:
-
-```
-<Vault>/.obsidian/plugins/<plugin-id>/
 ```

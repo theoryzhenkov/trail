@@ -27,6 +27,7 @@ export interface FileProperties {
 }
 
 export type PropertyFilterOperator = "equals" | "contains" | "exists" | "notExists";
+export type FilterMatchMode = "all" | "any";
 
 export interface PropertyFilter {
 	key: string;
@@ -39,7 +40,9 @@ export interface RelationGroup {
 	members: RelationGroupMember[];
 	displayProperties?: string[];
 	filters?: PropertyFilter[];
+	filtersMatchMode?: FilterMatchMode;
 	showConditions?: PropertyFilter[];
+	showConditionsMatchMode?: FilterMatchMode;
 }
 
 export interface RelationDefinition {

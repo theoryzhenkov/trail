@@ -2,14 +2,16 @@ import {App, TFile} from "obsidian";
 import {TrailSettings} from "../settings";
 import {
 	FileProperties,
+	FilterMatchMode,
 	PropertyFilter,
-	RelationDefinition,
 	RelationEdge,
 	RelationGroup
 } from "../types";
 import {parseInlineRelations} from "../parsing/inline";
 import {parseFileProperties, parseFrontmatterRelations} from "../parsing/frontmatter";
 import {computeAncestors, AncestorNode} from "./traversal";
+import {applyImpliedRules} from "./implied-relations";
+import {buildPropertyExcludeKeys, evaluatePropertyFilter} from "./property-filters";
 
 export interface GroupTreeNode {
 	path: string;
@@ -209,11 +211,14 @@ export class GraphStore {
 		return this.evaluateGroup(path, group, edgesBySource, visited);
 	}
 
-	matchesFilters(path: string, filters: PropertyFilter[]): boolean {
+	matchesFilters(path: string, filters: PropertyFilter[], matchMode: FilterMatchMode = "all"): boolean {
 		if (filters.length === 0) {
 			return true;
 		}
 		const properties = this.propertiesByPath.get(path) ?? {};
+		if (matchMode === "any") {
+			return filters.some((filter) => evaluatePropertyFilter(properties, filter));
+		}
 		return filters.every((filter) => evaluatePropertyFilter(properties, filter));
 	}
 
@@ -348,190 +353,10 @@ export class GraphStore {
 			return true;
 		}
 		const properties = this.getFileProperties(path);
+		const matchMode = group.filtersMatchMode ?? "all";
+		if (matchMode === "any") {
+			return filters.some((filter) => evaluatePropertyFilter(properties, filter));
+		}
 		return filters.every((filter) => evaluatePropertyFilter(properties, filter));
 	}
-}
-
-function applyImpliedRules(edges: RelationEdge[], relations: RelationDefinition[]): RelationEdge[] {
-	if (relations.length === 0) {
-		return edges;
-	}
-
-	const impliedEdges: RelationEdge[] = [];
-	const existing = new Set(edges.map((edge) => edgeKey(edge)));
-	const impliedRules = buildImpliedRules(relations);
-
-	for (const edge of edges) {
-		const rulesForRelation = impliedRules.get(edge.relation) ?? [];
-		for (const rule of rulesForRelation) {
-			const baseRelation = rule.baseRelation.trim().toLowerCase();
-			const impliedRelation = rule.impliedRelation.trim().toLowerCase();
-			if (!baseRelation || !impliedRelation) {
-				continue;
-			}
-
-			if (rule.direction === "forward" || rule.direction === "both") {
-				const impliedEdge: RelationEdge = {
-					fromPath: edge.fromPath,
-					toPath: edge.toPath,
-					relation: impliedRelation,
-					implied: true,
-					impliedFrom: edge.relation
-				};
-				addImplied(impliedEdge, impliedEdges, existing);
-			}
-
-			if (rule.direction === "reverse" || rule.direction === "both") {
-				const impliedEdge: RelationEdge = {
-					fromPath: edge.toPath,
-					toPath: edge.fromPath,
-					relation: impliedRelation,
-					implied: true,
-					impliedFrom: edge.relation
-				};
-				addImplied(impliedEdge, impliedEdges, existing);
-			}
-		}
-	}
-
-	return [...edges, ...impliedEdges];
-}
-
-function buildImpliedRules(relations: RelationDefinition[]): Map<string, Array<{
-	baseRelation: string;
-	impliedRelation: string;
-	direction: "forward" | "reverse" | "both";
-}>> {
-	const map = new Map<string, Array<{
-		baseRelation: string;
-		impliedRelation: string;
-		direction: "forward" | "reverse" | "both";
-	}>>();
-
-	for (const relation of relations) {
-		const baseRelation = relation.name.trim().toLowerCase();
-		if (!baseRelation) {
-			continue;
-		}
-		for (const implied of relation.impliedRelations) {
-			const impliedRelation = implied.targetRelation.trim().toLowerCase();
-			if (!impliedRelation) {
-				continue;
-			}
-			const list = map.get(baseRelation) ?? [];
-			list.push({
-				baseRelation,
-				impliedRelation,
-				direction: implied.direction
-			});
-			map.set(baseRelation, list);
-		}
-	}
-
-	return map;
-}
-
-function addImplied(edge: RelationEdge, impliedEdges: RelationEdge[], existing: Set<string>) {
-	const key = edgeKey(edge);
-	if (existing.has(key)) {
-		return;
-	}
-	existing.add(key);
-	impliedEdges.push(edge);
-}
-
-function edgeKey(edge: RelationEdge): string {
-	return `${edge.fromPath}|${edge.toPath}|${edge.relation}`;
-}
-
-function buildPropertyExcludeKeys(relations: RelationDefinition[]): Set<string> {
-	const keys = new Set<string>();
-	for (const relation of relations) {
-		for (const alias of relation.aliases) {
-			if (alias.type === "relationsMap") {
-				continue;
-			}
-			keys.add(alias.key.toLowerCase());
-		}
-	}
-	return keys;
-}
-
-function evaluatePropertyFilter(properties: FileProperties, filter: PropertyFilter): boolean {
-	const key = filter.key.trim().toLowerCase();
-	if (!key) {
-		return true;
-	}
-	const value = properties[key];
-
-	switch (filter.operator) {
-		case "exists":
-			return value !== undefined;
-		case "notExists":
-			return value === undefined;
-		case "equals":
-			return matchesEquals(value, filter.value);
-		case "contains":
-			return matchesContains(value, filter.value);
-		default:
-			return true;
-	}
-}
-
-function matchesEquals(
-	value: FileProperties[string] | undefined,
-	expected: PropertyFilter["value"]
-): boolean {
-	if (value === undefined) {
-		return false;
-	}
-	if (value === null) {
-		return expected === null;
-	}
-	if (expected === undefined) {
-		return false;
-	}
-	if (Array.isArray(value)) {
-		const expectedStr = String(expected);
-		return value.some((item) => item === expectedStr);
-	}
-	if (typeof value === "string") {
-		return value === String(expected);
-	}
-	if (typeof value === "number") {
-		if (typeof expected === "number") {
-			return value === expected;
-		}
-		if (typeof expected === "string") {
-			return String(value) === expected;
-		}
-		return false;
-	}
-	if (typeof value === "boolean") {
-		if (typeof expected === "boolean") {
-			return value === expected;
-		}
-		if (typeof expected === "string") {
-			return String(value) === expected;
-		}
-		return false;
-	}
-	return false;
-}
-
-function matchesContains(
-	value: FileProperties[string] | undefined,
-	expected: PropertyFilter["value"]
-): boolean {
-	if (value === undefined || value === null || expected === undefined) {
-		return false;
-	}
-	const expectedStr = String(expected);
-	if (Array.isArray(value)) {
-		return value.some((item) => item === expectedStr);
-	}
-	if (typeof value === "string") {
-		return value.includes(expectedStr);
-	}
-	return false;
 }

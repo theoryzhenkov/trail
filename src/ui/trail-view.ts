@@ -158,7 +158,8 @@ export class TrailView extends ItemView {
 		for (const group of groups) {
 			// Check show conditions against active file
 			const showConditions = group.showConditions ?? [];
-			if (!this.plugin.graph.matchesFilters(activeFile.path, showConditions)) {
+			const showConditionsMode = group.showConditionsMatchMode ?? "all";
+			if (!this.plugin.graph.matchesFilters(activeFile.path, showConditions, showConditionsMode)) {
 				continue;
 			}
 			visibleCount++;

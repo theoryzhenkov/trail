@@ -1,6 +1,7 @@
 import {App, Notice, PluginSettingTab, Setting} from "obsidian";
-import TrailPlugin from "./main";
+import TrailPlugin from "../main";
 import {
+	FilterMatchMode,
 	ImpliedRelation,
 	PropertyFilter,
 	RelationAlias,
@@ -8,18 +9,8 @@ import {
 	RelationDefinition,
 	RelationGroup,
 	RelationGroupMember
-} from "./types";
-
-export interface TrailSettings {
-	relations: RelationDefinition[];
-	groups: RelationGroup[];
-}
-
-const RELATION_NAME_REGEX = /^[a-z0-9_-]+$/i;
-export const DEFAULT_SETTINGS: TrailSettings = {
-	relations: createDefaultRelations(),
-	groups: createDefaultGroups()
-};
+} from "../types";
+import {isValidRelationName, normalizeRelationName} from "./validation";
 
 export class TrailSettingTab extends PluginSettingTab {
 	plugin: TrailPlugin;
@@ -231,7 +222,17 @@ export class TrailSettingTab extends PluginSettingTab {
 		const section = containerEl.createDiv({cls: "trail-subsection"});
 		new Setting(section)
 			.setName("Filters")
-			.setDesc("Only include files that match these property filters.");
+			.setDesc("Only include files that match these property filters.")
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("all", "Match all")
+					.addOption("any", "Match any")
+					.setValue(group.filtersMatchMode ?? "all")
+					.onChange((value) => {
+						group.filtersMatchMode = value as FilterMatchMode;
+						void this.plugin.saveSettings();
+					});
+			});
 
 		const filters = group.filters ?? [];
 		if (filters.length === 0) {
@@ -274,7 +275,17 @@ export class TrailSettingTab extends PluginSettingTab {
 		const section = containerEl.createDiv({cls: "trail-subsection"});
 		new Setting(section)
 			.setName("Show conditions")
-			.setDesc("Only show this group when the active note matches these conditions.");
+			.setDesc("Only show this group when the active note matches these conditions.")
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("all", "Match all")
+					.addOption("any", "Match any")
+					.setValue(group.showConditionsMatchMode ?? "all")
+					.onChange((value) => {
+						group.showConditionsMatchMode = value as FilterMatchMode;
+						void this.plugin.saveSettings();
+					});
+			});
 
 		const conditions = group.showConditions ?? [];
 		if (conditions.length === 0) {
@@ -730,72 +741,4 @@ export class TrailSettingTab extends PluginSettingTab {
 			group.members = group.members.filter((member) => member.relation !== targetName);
 		}
 	}
-}
-
-function createDefaultRelations(): RelationDefinition[] {
-	const base = ["up", "down", "next", "prev"];
-	const relations = base.map((name) => ({
-		name,
-		aliases: createDefaultAliases(name),
-		impliedRelations: [] as ImpliedRelation[]
-	}));
-
-	const impliedPairs: Array<[string, string]> = [
-		["up", "down"],
-		["down", "up"],
-		["next", "prev"],
-		["prev", "next"]
-	];
-
-	for (const [from, to] of impliedPairs) {
-		const relation = relations.find((item) => item.name === from);
-		if (!relation) {
-			continue;
-		}
-		relation.impliedRelations.push({
-			targetRelation: to,
-			direction: "reverse"
-		});
-	}
-
-	return relations;
-}
-
-function createDefaultGroups(): RelationGroup[] {
-	return [
-		createDefaultGroup("Hierarchy", [
-			{relation: "up", depth: 0},
-			{relation: "next", depth: 1}
-		]),
-		createDefaultGroup("Reverse", [
-			{relation: "down", depth: 0},
-			{relation: "prev", depth: 1}
-		])
-	];
-}
-
-function createDefaultGroup(name: string, members: RelationGroupMember[]): RelationGroup {
-	return {
-		name,
-		members
-	};
-}
-
-function createDefaultAliases(name: string): RelationAlias[] {
-	return [
-		{type: "property", key: name},
-		{type: "dotProperty", key: `relations.${name}`},
-		{type: "relationsMap", key: name}
-	];
-}
-
-function normalizeRelationName(name: string): string {
-	return name.trim().toLowerCase();
-}
-
-function isValidRelationName(value: string) {
-	if (value.length === 0) {
-		return false;
-	}
-	return RELATION_NAME_REGEX.test(value);
 }
