@@ -34,10 +34,10 @@ export class TrailView extends ItemView {
 		});
 		
 		this.addAction("refresh-cw", "Refresh", () => {
-			this.refresh();
+			void this.refresh();
 		});
 
-		this.refresh();
+		void this.refresh();
 	}
 
 	private showFilterMenu() {
@@ -58,7 +58,7 @@ export class TrailView extends ItemView {
 					for (const relation of relationTypes) {
 						this.selectedRelations.add(relation);
 					}
-					this.refresh();
+					void this.refresh();
 				});
 			});
 			
@@ -67,7 +67,7 @@ export class TrailView extends ItemView {
 				item.setIcon("square");
 				item.onClick(() => {
 					this.selectedRelations.clear();
-					this.refresh();
+					void this.refresh();
 				});
 			});
 			
@@ -85,7 +85,7 @@ export class TrailView extends ItemView {
 						} else {
 							this.selectedRelations.add(relation);
 						}
-						this.refresh();
+						void this.refresh();
 					});
 				});
 			}

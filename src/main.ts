@@ -51,7 +51,6 @@ export default class TrailPlugin extends Plugin {
 			this.refreshActiveView();
 		}));
 
-		// Refresh views after workspace is fully ready (handles restored views)
 		this.app.workspace.onLayoutReady(() => {
 			this.refreshActiveView();
 		});
@@ -64,7 +63,7 @@ export default class TrailPlugin extends Plugin {
 		for (const leaf of leaves) {
 			const view = leaf.view;
 			if (view instanceof TrailView) {
-				view.refresh();
+				void view.refresh();
 			}
 		}
 	}
