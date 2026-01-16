@@ -5,7 +5,6 @@ import {
 	RelationAlias,
 	RelationAliasType,
 	RelationDefinition,
-	RelationDisplayMode,
 	RelationGroup,
 	RelationGroupMember
 } from "./types";
@@ -195,7 +194,7 @@ export class TrailSettingTab extends PluginSettingTab {
 				button.setButtonText("Add member").onClick(() => {
 					group.members.push({
 						relation: "",
-						displayMode: "direct"
+						depth: 1
 					});
 					void this.plugin.saveSettings();
 					this.display();
@@ -227,13 +226,31 @@ export class TrailSettingTab extends PluginSettingTab {
 						void this.plugin.saveSettings();
 					});
 			})
+			.addText((text) => {
+				text
+					.setPlaceholder("1")
+					.setValue(String(member.depth ?? 1));
+				text.inputEl.type = "number";
+				text.inputEl.min = "0";
+				text.inputEl.step = "1";
+				text.onChange((value) => {
+					const parsed = Number(value);
+					if (Number.isNaN(parsed) || parsed < 0) {
+						return;
+					}
+					member.depth = parsed;
+					void this.plugin.saveSettings();
+				});
+			})
 			.addDropdown((dropdown) => {
+				dropdown.addOption("", "No extend");
+				for (const option of this.getGroupNameOptions(group.name)) {
+					dropdown.addOption(option, option);
+				}
 				dropdown
-					.addOption("hierarchy", "Hierarchy chain")
-					.addOption("direct", "Direct only")
-					.setValue(member.displayMode)
+					.setValue(member.extend ?? "")
 					.onChange((value) => {
-						member.displayMode = value as RelationDisplayMode;
+						member.extend = value || undefined;
 						void this.plugin.saveSettings();
 					});
 			})
@@ -502,6 +519,12 @@ export class TrailSettingTab extends PluginSettingTab {
 		return this.plugin.settings.relations
 			.map((r) => r.name)
 			.filter((name) => name.length > 0);
+	}
+
+	private getGroupNameOptions(excludeName: string): string[] {
+		return this.plugin.settings.groups
+			.map((group) => group.name)
+			.filter((name) => name.length > 0 && name !== excludeName);
 	}
 
 	private isDuplicateRelationName(name: string, currentIndex: number): boolean {
