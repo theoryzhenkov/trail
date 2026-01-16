@@ -1,7 +1,66 @@
 import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
-import type {FileProperties, RelationGroup, VisualDirection} from "../types";
+import type {FileProperties, RelationGroup} from "../types";
 import {GroupTreeNode} from "../graph/store";
+
+/**
+ * Inverts a tree chain so the deepest node becomes the root.
+ * Parent -> Grandparent becomes Grandparent -> Parent
+ */
+function invertTree(nodes: GroupTreeNode[]): GroupTreeNode[] {
+	const result: GroupTreeNode[] = [];
+	for (const node of nodes) {
+		result.push(...invertChain(node));
+	}
+	return result;
+}
+
+/**
+ * Inverts a single chain: collects all nodes, reverses, rebuilds as chain.
+ */
+function invertChain(node: GroupTreeNode): GroupTreeNode[] {
+	// Collect all nodes in the chain (depth-first, following first child)
+	const chain: GroupTreeNode[] = [];
+	let current: GroupTreeNode | undefined = node;
+	while (current) {
+		chain.push(current);
+		// Follow the chain (first child), collect siblings separately
+		current = current.children[0];
+	}
+	
+	if (chain.length <= 1) {
+		return [{ ...node, children: [] }];
+	}
+	
+	// Reverse and rebuild as a chain
+	chain.reverse();
+	
+	// Build the inverted chain from deepest to shallowest
+	let result: GroupTreeNode | undefined;
+	for (const item of chain) {
+		const newNode: GroupTreeNode = {
+			...item,
+			children: result ? [result] : []
+		};
+		result = newNode;
+	}
+	
+	return result ? [result] : [];
+}
+
+/**
+ * Flattens a tree into a flat array of siblings (no children).
+ */
+function flattenTree(nodes: GroupTreeNode[]): GroupTreeNode[] {
+	const result: GroupTreeNode[] = [];
+	for (const node of nodes) {
+		result.push({ ...node, children: [] });
+		if (node.children.length > 0) {
+			result.push(...flattenTree(node.children));
+		}
+	}
+	return result;
+}
 
 export const TRAIL_VIEW_TYPE = "trail-view";
 
@@ -178,14 +237,14 @@ export class TrailView extends ItemView {
 				continue;
 			}
 
-			if (tree.length === 0) {
-				section.contentEl.createDiv({cls: "trail-no-results", text: "No relations found"});
-				continue;
-			}
+		if (tree.length === 0) {
+			section.contentEl.createDiv({cls: "trail-no-results", text: "No relations found"});
+			continue;
+		}
 
-			// Calculate max depth for the entire tree (needed for ascending visual direction)
-			const maxDepth = this.calculateTreeMaxDepth(tree);
-			this.renderGroupTree(section.contentEl, tree, 0, group.displayProperties ?? [], maxDepth);
+		// Transform tree based on visual direction
+		const transformedTree = this.transformTreeByDirection(tree);
+		this.renderGroupTree(section.contentEl, transformedTree, 0, group.displayProperties ?? []);
 		}
 
 		if (visibleCount === 0) {
@@ -201,18 +260,40 @@ export class TrailView extends ItemView {
 		};
 	}
 
+	/**
+	 * Transforms tree based on the dominant visual direction of nodes.
+	 * - ascending: invert the tree (deepest becomes root)
+	 * - sequential: flatten to siblings
+	 * - descending: no transformation
+	 */
+	private transformTreeByDirection(nodes: GroupTreeNode[]): GroupTreeNode[] {
+		if (nodes.length === 0) {
+			return nodes;
+		}
+		
+		// Detect dominant visual direction from first node
+		const direction = nodes[0]?.visualDirection ?? "descending";
+		
+		switch (direction) {
+			case "ascending":
+				return invertTree(nodes);
+			case "sequential":
+				return flattenTree(nodes);
+			case "descending":
+			default:
+				return nodes;
+		}
+	}
+
 	private renderGroupTree(
 		containerEl: HTMLElement,
 		nodes: GroupTreeNode[],
-		effectiveDepth: number,
-		displayProperties: string[],
-		maxDepth: number
+		depth: number,
+		displayProperties: string[]
 	) {
 		for (const node of nodes) {
-			const visualIndent = this.calculateVisualIndent(effectiveDepth, node.visualDirection, maxDepth);
-
 			const itemEl = containerEl.createDiv({cls: "tree-item"});
-			itemEl.style.setProperty("--indent-level", String(visualIndent));
+			itemEl.style.setProperty("--indent-level", String(depth));
 
 			const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
 			const relationEl = selfEl.createSpan({cls: "trail-relation-tag"});
@@ -227,46 +308,8 @@ export class TrailView extends ItemView {
 
 			if (node.children.length > 0) {
 				const childrenEl = itemEl.createDiv({cls: "tree-item-children"});
-				const childDepth =
-					node.visualDirection === "sequential" ? effectiveDepth : effectiveDepth + 1;
-				this.renderGroupTree(childrenEl, node.children, childDepth, displayProperties, maxDepth);
+				this.renderGroupTree(childrenEl, node.children, depth + 1, displayProperties);
 			}
-		}
-	}
-
-	private calculateTreeMaxDepth(nodes: GroupTreeNode[], currentDepth = 0): number {
-		let max = currentDepth;
-		for (const node of nodes) {
-			const nextDepth = node.visualDirection === "sequential" ? currentDepth : currentDepth + 1;
-			if (node.children.length > 0) {
-				const childMax = this.calculateTreeMaxDepth(node.children, nextDepth);
-				if (childMax > max) {
-					max = childMax;
-				}
-			}
-			if (currentDepth > max) {
-				max = currentDepth;
-			}
-		}
-		return max;
-	}
-
-	private calculateVisualIndent(
-		depth: number,
-		visualDirection: VisualDirection,
-		maxDepth: number
-	): number {
-		switch (visualDirection) {
-			case "ascending":
-				// Invert: deepest items have least indent, closest have most
-				return maxDepth - depth;
-			case "sequential":
-				// Flat within the current hierarchy level
-				return depth;
-			case "descending":
-			default:
-				// Normal: depth equals indent
-				return depth;
 		}
 	}
 
