@@ -178,22 +178,14 @@ export class TrailView extends ItemView {
 				continue;
 			}
 
-		if (tree.length === 0) {
-			section.contentEl.createDiv({cls: "trail-no-results", text: "No relations found"});
-			continue;
-		}
+			if (tree.length === 0) {
+				section.contentEl.createDiv({cls: "trail-no-results", text: "No relations found"});
+				continue;
+			}
 
-		// Check if all nodes use sequential visual direction
-		const isSequential = this.isTreeSequential(tree);
-		if (isSequential) {
-			// Flatten tree and render as flat list
-			const flatNodes = this.flattenTree(tree);
-			this.renderFlatList(section.contentEl, flatNodes, group.displayProperties ?? []);
-		} else {
 			// Calculate max depth for the entire tree (needed for ascending visual direction)
 			const maxDepth = this.calculateTreeMaxDepth(tree);
 			this.renderGroupTree(section.contentEl, tree, 0, group.displayProperties ?? [], maxDepth);
-		}
 		}
 
 		if (visibleCount === 0) {
@@ -212,12 +204,12 @@ export class TrailView extends ItemView {
 	private renderGroupTree(
 		containerEl: HTMLElement,
 		nodes: GroupTreeNode[],
-		depth: number,
+		effectiveDepth: number,
 		displayProperties: string[],
 		maxDepth: number
 	) {
 		for (const node of nodes) {
-			const visualIndent = this.calculateVisualIndent(depth, node.visualDirection, maxDepth);
+			const visualIndent = this.calculateVisualIndent(effectiveDepth, node.visualDirection, maxDepth);
 
 			const itemEl = containerEl.createDiv({cls: "tree-item"});
 			itemEl.style.setProperty("--indent-level", String(visualIndent));
@@ -235,7 +227,9 @@ export class TrailView extends ItemView {
 
 			if (node.children.length > 0) {
 				const childrenEl = itemEl.createDiv({cls: "tree-item-children"});
-				this.renderGroupTree(childrenEl, node.children, depth + 1, displayProperties, maxDepth);
+				const childDepth =
+					node.visualDirection === "sequential" ? effectiveDepth : effectiveDepth + 1;
+				this.renderGroupTree(childrenEl, node.children, childDepth, displayProperties, maxDepth);
 			}
 		}
 	}
@@ -243,75 +237,36 @@ export class TrailView extends ItemView {
 	private calculateTreeMaxDepth(nodes: GroupTreeNode[], currentDepth = 0): number {
 		let max = currentDepth;
 		for (const node of nodes) {
+			const nextDepth = node.visualDirection === "sequential" ? currentDepth : currentDepth + 1;
 			if (node.children.length > 0) {
-				const childMax = this.calculateTreeMaxDepth(node.children, currentDepth + 1);
+				const childMax = this.calculateTreeMaxDepth(node.children, nextDepth);
 				if (childMax > max) {
 					max = childMax;
 				}
-			} else if (currentDepth > max) {
+			}
+			if (currentDepth > max) {
 				max = currentDepth;
 			}
 		}
 		return max;
 	}
 
-	private calculateVisualIndent(depth: number, visualDirection: VisualDirection, maxDepth: number): number {
+	private calculateVisualIndent(
+		depth: number,
+		visualDirection: VisualDirection,
+		maxDepth: number
+	): number {
 		switch (visualDirection) {
 			case "ascending":
 				// Invert: deepest items have least indent, closest have most
 				return maxDepth - depth;
 			case "sequential":
-				// Flat: no indentation
-				return 0;
+				// Flat within the current hierarchy level
+				return depth;
 			case "descending":
 			default:
 				// Normal: depth equals indent
 				return depth;
-		}
-	}
-
-	private isTreeSequential(nodes: GroupTreeNode[]): boolean {
-		for (const node of nodes) {
-			if (node.visualDirection !== "sequential") {
-				return false;
-			}
-			if (node.children.length > 0 && !this.isTreeSequential(node.children)) {
-				return false;
-			}
-		}
-		return nodes.length > 0;
-	}
-
-	private flattenTree(nodes: GroupTreeNode[]): GroupTreeNode[] {
-		const result: GroupTreeNode[] = [];
-		for (const node of nodes) {
-			result.push(node);
-			if (node.children.length > 0) {
-				result.push(...this.flattenTree(node.children));
-			}
-		}
-		return result;
-	}
-
-	private renderFlatList(
-		containerEl: HTMLElement,
-		nodes: GroupTreeNode[],
-		displayProperties: string[]
-	) {
-		for (const node of nodes) {
-			const itemEl = containerEl.createDiv({cls: "tree-item"});
-			itemEl.style.setProperty("--indent-level", "0");
-
-			const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
-			const relationEl = selfEl.createSpan({cls: "trail-relation-tag"});
-			relationEl.setText(node.relation);
-			if (node.implied) {
-				relationEl.addClass("is-implied");
-			}
-
-			const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
-			this.renderFileLink(innerEl, node.path);
-			this.renderPropertyBadges(innerEl, node.properties, displayProperties);
 		}
 	}
 
