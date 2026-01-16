@@ -13,7 +13,9 @@ export function invertTree(nodes: GroupTreeNode[]): GroupTreeNode[] {
 }
 
 /**
- * Inverts a single chain: collects all nodes, reverses, rebuilds as chain.
+ * Inverts a single chain: collects all nodes, rebuilds with reversed parent/child.
+ * The loop makes the last-processed item the root, so iterating shallow→deep
+ * produces a deep→shallow chain.
  */
 function invertChain(node: GroupTreeNode): GroupTreeNode[] {
 	// Collect all nodes in the chain (depth-first, following first child)
@@ -21,7 +23,6 @@ function invertChain(node: GroupTreeNode): GroupTreeNode[] {
 	let current: GroupTreeNode | undefined = node;
 	while (current) {
 		chain.push(current);
-		// Follow the chain (first child), collect siblings separately
 		current = current.children[0];
 	}
 	
@@ -29,10 +30,8 @@ function invertChain(node: GroupTreeNode): GroupTreeNode[] {
 		return [{ ...node, children: [] }];
 	}
 	
-	// Reverse and rebuild as a chain
-	chain.reverse();
-	
-	// Build the inverted chain from deepest to shallowest
+	// Build inverted chain: iterate shallow→deep, last processed becomes root
+	// [Parent, Grandparent] → Grandparent{children:[Parent{children:[]}]}
 	let result: GroupTreeNode | undefined;
 	for (const item of chain) {
 		const newNode: GroupTreeNode = {
