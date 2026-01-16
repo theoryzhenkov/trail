@@ -1,14 +1,17 @@
 import {App, Notice, PluginSettingTab, Setting} from "obsidian";
 import TrailPlugin from "../main";
 import {
+	ChainSortMode,
 	FilterMatchMode,
 	ImpliedRelation,
 	PropertyFilter,
+	PropertySortKey,
 	RelationAlias,
 	RelationAliasType,
 	RelationDefinition,
 	RelationGroup,
 	RelationGroupMember,
+	SortDirection,
 	VisualDirection
 } from "../types";
 import {isValidRelationName, normalizeRelationName} from "./validation";
@@ -155,6 +158,7 @@ export class TrailSettingTab extends PluginSettingTab {
 
 		this.renderGroupMembers(content, group);
 		this.renderGroupProperties(content, group);
+		this.renderGroupSorting(content, group);
 		this.renderGroupFilters(content, group);
 		this.renderGroupShowConditions(content, group);
 
@@ -215,6 +219,126 @@ export class TrailSettingTab extends PluginSettingTab {
 							.filter((item) => item.length > 0);
 						group.displayProperties = properties;
 						void this.plugin.saveSettings();
+					});
+			});
+	}
+
+	private renderGroupSorting(containerEl: HTMLElement, group: RelationGroup) {
+		const section = containerEl.createDiv({cls: "trail-subsection"});
+		new Setting(section)
+			.setName("Sorting")
+			.setDesc("Configure how items are sorted within this group.");
+
+		// Chain sort mode
+		new Setting(section)
+			.setName("Chain sort priority")
+			.setDesc("How sequential relation chains (e.g., next/prev) interact with property sorting.")
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("primary", "Primary (chains first)")
+					.addOption("secondary", "Secondary (properties first)")
+					.addOption("disabled", "Disabled (no chain sorting)")
+					.setValue(group.chainSort ?? "primary")
+					.onChange((value) => {
+						group.chainSort = value as ChainSortMode;
+						void this.plugin.saveSettings();
+					});
+			});
+
+		// Sort by properties
+		const sortKeys = group.sortBy ?? [];
+		if (sortKeys.length === 0) {
+			section.createEl("p", {text: "No sort keys defined. Items sorted alphabetically.", cls: "trail-empty-state"});
+		} else {
+			for (const [keyIndex, sortKey] of sortKeys.entries()) {
+				this.renderSortKeyRow(section, group, sortKey, keyIndex);
+			}
+		}
+
+		new Setting(section)
+			.addButton((button) => {
+				button.setButtonText("Add sort key").onClick(() => {
+					const next: PropertySortKey = {
+						property: "",
+						direction: "asc"
+					};
+					group.sortBy = [...sortKeys, next];
+					void this.plugin.saveSettings();
+					this.display();
+				});
+			});
+	}
+
+	private renderSortKeyRow(
+		containerEl: HTMLElement,
+		group: RelationGroup,
+		sortKey: PropertySortKey,
+		index: number
+	) {
+		const setting = new Setting(containerEl);
+
+		setting
+			.addText((text) => {
+				text
+					.setPlaceholder("Property name")
+					.setValue(sortKey.property)
+					.onChange((value) => {
+						sortKey.property = value.trim().toLowerCase();
+						void this.plugin.saveSettings();
+					});
+			})
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("asc", "Ascending (A→Z)")
+					.addOption("desc", "Descending (Z→A)")
+					.setValue(sortKey.direction)
+					.onChange((value) => {
+						sortKey.direction = value as SortDirection;
+						void this.plugin.saveSettings();
+					});
+			})
+			.addExtraButton((button) => {
+				button
+					.setIcon("arrow-up")
+					.setTooltip("Move up")
+					.setDisabled(index === 0)
+					.onClick(() => {
+						const sortKeys = group.sortBy ?? [];
+						const prev = sortKeys[index - 1];
+						const curr = sortKeys[index];
+						if (index > 0 && prev && curr) {
+							sortKeys[index - 1] = curr;
+							sortKeys[index] = prev;
+							void this.plugin.saveSettings();
+							this.display();
+						}
+					});
+			})
+			.addExtraButton((button) => {
+				button
+					.setIcon("arrow-down")
+					.setTooltip("Move down")
+					.setDisabled(index === (group.sortBy?.length ?? 0) - 1)
+					.onClick(() => {
+						const sortKeys = group.sortBy ?? [];
+						const curr = sortKeys[index];
+						const next = sortKeys[index + 1];
+						if (index < sortKeys.length - 1 && curr && next) {
+							sortKeys[index] = next;
+							sortKeys[index + 1] = curr;
+							void this.plugin.saveSettings();
+							this.display();
+						}
+					});
+			})
+			.addExtraButton((button) => {
+				button
+					.setIcon("trash")
+					.setTooltip("Remove")
+					.onClick(() => {
+						group.sortBy = (group.sortBy ?? []).filter((_, i) => i !== index);
+						void this.plugin.saveSettings();
+						this.display();
 					});
 			});
 	}

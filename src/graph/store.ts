@@ -13,6 +13,7 @@ import {parseFileProperties, parseFrontmatterRelations} from "../parsing/frontma
 import {computeAncestors, AncestorNode} from "./traversal";
 import {applyImpliedRules} from "./implied-relations";
 import {buildPropertyExcludeKeys, evaluatePropertyFilter} from "./property-filters";
+import {sortSiblingsRecursively, SortConfig} from "./sibling-sort";
 
 export interface GroupTreeNode {
 	path: string;
@@ -237,7 +238,22 @@ export class GraphStore {
 			}
 			nodes.push(...this.evaluateMember(sourcePath, group, member, edgesBySource, visited, 1));
 		}
-		return nodes;
+
+		// Apply sibling sorting based on group configuration
+		const sortConfig: SortConfig = {
+			sortBy: group.sortBy ?? [],
+			chainSort: group.chainSort ?? "primary",
+			sequentialRelations: this.getSequentialRelations()
+		};
+		return sortSiblingsRecursively(nodes, edgesBySource, sortConfig);
+	}
+
+	private getSequentialRelations(): Set<string> {
+		return new Set(
+			this.settings.relations
+				.filter((r) => r.visualDirection === "sequential")
+				.map((r) => r.name)
+		);
 	}
 
 	private evaluateMember(

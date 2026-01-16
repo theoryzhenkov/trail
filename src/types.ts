@@ -37,6 +37,15 @@ export interface PropertyFilter {
 	value?: string | number | boolean;
 }
 
+export type SortDirection = "asc" | "desc";
+
+export interface PropertySortKey {
+	property: string;
+	direction: SortDirection;
+}
+
+export type ChainSortMode = "disabled" | "primary" | "secondary";
+
 export interface RelationGroup {
 	name: string;
 	members: RelationGroupMember[];
@@ -45,6 +54,8 @@ export interface RelationGroup {
 	filtersMatchMode?: FilterMatchMode;
 	showConditions?: PropertyFilter[];
 	showConditionsMatchMode?: FilterMatchMode;
+	sortBy?: PropertySortKey[];
+	chainSort?: ChainSortMode;
 }
 
 export interface RelationDefinition {
