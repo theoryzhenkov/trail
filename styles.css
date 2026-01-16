@@ -354,3 +354,41 @@
 	font-style: italic;
 	font-size: var(--font-ui-small);
 }
+
+/* Reorder controls for relation/group sections */
+.trail-reorder-controls {
+	display: flex;
+	gap: 2px;
+	margin-left: auto;
+}
+
+.trail-reorder-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: var(--radius-s);
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	transition: background-color 0.1s ease;
+}
+
+.trail-reorder-button:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.trail-reorder-button:disabled {
+	color: var(--text-faint);
+	cursor: not-allowed;
+	opacity: 0.4;
+}
+
+.trail-reorder-button svg {
+	width: 14px;
+	height: 14px;
+}

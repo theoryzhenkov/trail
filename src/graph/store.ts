@@ -167,16 +167,26 @@ export class GraphStore {
 	}
 
 	getRelationTypes(): string[] {
-		const types = new Set<string>();
+		// Build ordered list from settings
+		const orderedTypes: string[] = [];
+		const seen = new Set<string>();
+		
 		for (const relation of this.settings.relations) {
-			if (relation.name) {
-				types.add(relation.name);
+			if (relation.name && !seen.has(relation.name)) {
+				orderedTypes.push(relation.name);
+				seen.add(relation.name);
 			}
 		}
+		
+		// Add any relations found in edges but not in settings (append at end)
 		for (const edge of this.getEdgesWithImplied()) {
-			types.add(edge.relation);
+			if (!seen.has(edge.relation)) {
+				orderedTypes.push(edge.relation);
+				seen.add(edge.relation);
+			}
 		}
-		return Array.from(types).sort();
+		
+		return orderedTypes;
 	}
 
 	getIncomingEdges(path: string, relationFilter?: Set<string>): RelationEdge[] {
@@ -243,7 +253,8 @@ export class GraphStore {
 		const sortConfig: SortConfig = {
 			sortBy: group.sortBy ?? [],
 			chainSort: group.chainSort ?? "primary",
-			sequentialRelations: this.getSequentialRelations()
+			sequentialRelations: this.getSequentialRelations(),
+			relationOrder: this.getRelationOrder()
 		};
 		return sortSiblingsRecursively(nodes, edgesBySource, sortConfig);
 	}
@@ -254,6 +265,12 @@ export class GraphStore {
 				.filter((r) => r.visualDirection === "sequential")
 				.map((r) => r.name)
 		);
+	}
+
+	private getRelationOrder(): string[] {
+		return this.settings.relations
+			.map((r) => r.name)
+			.filter((name) => name.length > 0);
 	}
 
 	private evaluateMember(

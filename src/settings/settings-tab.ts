@@ -1,4 +1,4 @@
-import {App, Notice, PluginSettingTab, Setting} from "obsidian";
+import {App, Notice, PluginSettingTab, setIcon, Setting} from "obsidian";
 import TrailPlugin from "../main";
 import {
 	ChainSortMode,
@@ -56,6 +56,52 @@ export class TrailSettingTab extends PluginSettingTab {
 		details.forEach((el, index) => {
 			if (el.open) {
 				this.openGroupSections.add(index);
+			}
+		});
+	}
+
+	private renderReorderControls<T>(containerEl: HTMLElement, index: number, array: T[]) {
+		const controls = containerEl.createDiv({cls: "trail-reorder-controls"});
+
+		const upButton = controls.createEl("button", {
+			cls: "trail-reorder-button",
+			attr: {"aria-label": "Move up"}
+		});
+		setIcon(upButton, "arrow-up");
+		upButton.disabled = index === 0;
+		upButton.addEventListener("click", (e) => {
+			e.stopPropagation();
+			e.preventDefault();
+			if (index > 0) {
+				const item = array[index];
+				const prev = array[index - 1];
+				if (item !== undefined && prev !== undefined) {
+					array[index] = prev;
+					array[index - 1] = item;
+					void this.plugin.saveSettings();
+					this.display();
+				}
+			}
+		});
+
+		const downButton = controls.createEl("button", {
+			cls: "trail-reorder-button",
+			attr: {"aria-label": "Move down"}
+		});
+		setIcon(downButton, "arrow-down");
+		downButton.disabled = index === array.length - 1;
+		downButton.addEventListener("click", (e) => {
+			e.stopPropagation();
+			e.preventDefault();
+			if (index < array.length - 1) {
+				const item = array[index];
+				const next = array[index + 1];
+				if (item !== undefined && next !== undefined) {
+					array[index] = next;
+					array[index + 1] = item;
+					void this.plugin.saveSettings();
+					this.display();
+				}
 			}
 		});
 	}
@@ -138,6 +184,8 @@ export class TrailSettingTab extends PluginSettingTab {
 			cls: "trail-badge",
 			text: `${group.members.length} member${group.members.length !== 1 ? "s" : ""}`
 		});
+
+		this.renderReorderControls(summary, index, this.plugin.settings.groups);
 
 		const content = details.createDiv({cls: "trail-relation-content"});
 
@@ -289,8 +337,8 @@ export class TrailSettingTab extends PluginSettingTab {
 			})
 			.addDropdown((dropdown) => {
 				dropdown
-					.addOption("asc", "Ascending (A→Z)")
-					.addOption("desc", "Descending (Z→A)")
+					.addOption("asc", "Ascending (a→z)")
+					.addOption("desc", "Descending (z→a)")
 					.setValue(sortKey.direction)
 					.onChange((value) => {
 						sortKey.direction = value as SortDirection;
@@ -552,6 +600,42 @@ export class TrailSettingTab extends PluginSettingTab {
 			})
 			.addExtraButton((button) => {
 				button
+					.setIcon("arrow-up")
+					.setTooltip("Move up")
+					.setDisabled(index === 0)
+					.onClick(() => {
+						if (index > 0) {
+							const prev = group.members[index - 1];
+							const curr = group.members[index];
+							if (prev && curr) {
+								group.members[index - 1] = curr;
+								group.members[index] = prev;
+								void this.plugin.saveSettings();
+								this.display();
+							}
+						}
+					});
+			})
+			.addExtraButton((button) => {
+				button
+					.setIcon("arrow-down")
+					.setTooltip("Move down")
+					.setDisabled(index === group.members.length - 1)
+					.onClick(() => {
+						if (index < group.members.length - 1) {
+							const curr = group.members[index];
+							const next = group.members[index + 1];
+							if (curr && next) {
+								group.members[index] = next;
+								group.members[index + 1] = curr;
+								void this.plugin.saveSettings();
+								this.display();
+							}
+						}
+					});
+			})
+			.addExtraButton((button) => {
+				button
 					.setIcon("trash")
 					.setTooltip("Remove member")
 					.onClick(() => {
@@ -590,6 +674,8 @@ export class TrailSettingTab extends PluginSettingTab {
 			cls: "trail-badge",
 			text: `${relation.impliedRelations.length} implied`
 		});
+
+		this.renderReorderControls(summary, index, this.plugin.settings.relations);
 
 		const content = details.createDiv({cls: "trail-relation-content"});
 

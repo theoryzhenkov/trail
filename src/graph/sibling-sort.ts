@@ -5,6 +5,7 @@ export interface SortConfig {
 	sortBy: PropertySortKey[];
 	chainSort: ChainSortMode;
 	sequentialRelations: Set<string>;
+	relationOrder: string[];
 }
 
 interface ChainStructure {
@@ -25,11 +26,11 @@ export function sortSiblings(
 		return nodes;
 	}
 
-	const {sortBy, chainSort, sequentialRelations} = config;
+	const {sortBy, chainSort, sequentialRelations, relationOrder} = config;
 
 	// Chain sort disabled: pure property/alphabetical sort
 	if (chainSort === "disabled") {
-		return sortByPropertiesThenAlphabetically(nodes, sortBy);
+		return sortByPropertiesThenAlphabetically(nodes, sortBy, relationOrder);
 	}
 
 	// Build chain structure if we have sequential relations
@@ -40,16 +41,16 @@ export function sortSiblings(
 
 	// No chains found: pure property/alphabetical sort
 	if (structure.chains.size === 0) {
-		return sortByPropertiesThenAlphabetically(nodes, sortBy);
+		return sortByPropertiesThenAlphabetically(nodes, sortBy, relationOrder);
 	}
 
 	// Chain sort primary: chains first, property sort for ordering chains and disconnected
 	if (chainSort === "primary") {
-		return sortWithChainsPrimary(nodes, structure, sortBy);
+		return sortWithChainsPrimary(nodes, structure, sortBy, relationOrder);
 	}
 
 	// Chain sort secondary: property sort first, chains within same property groups
-	return sortWithChainsSecondary(nodes, structure, sortBy, edgesBySource, sequentialRelations);
+	return sortWithChainsSecondary(nodes, structure, sortBy, edgesBySource, sequentialRelations, relationOrder);
 }
 
 /**
@@ -78,7 +79,8 @@ export function sortSiblingsRecursively(
 function sortWithChainsPrimary(
 	nodes: GroupTreeNode[],
 	structure: ChainStructure,
-	sortBy: PropertySortKey[]
+	sortBy: PropertySortKey[],
+	relationOrder: string[]
 ): GroupTreeNode[] {
 	const nodeByPath = new Map(nodes.map((n) => [n.path, n]));
 
@@ -99,8 +101,8 @@ function sortWithChainsPrimary(
 		}
 	}
 
-	// Sort by properties, then relation, then alphabetically
-	sortKeys.sort((a, b) => compareNodes(a.node, b.node, sortBy));
+	// Sort by properties, then relation order, then alphabetically
+	sortKeys.sort((a, b) => compareNodes(a.node, b.node, sortBy, relationOrder));
 
 	// Expand: chain heads become full chains, disconnected stay as-is
 	const result: GroupTreeNode[] = [];
@@ -130,20 +132,21 @@ function sortWithChainsSecondary(
 	structure: ChainStructure,
 	sortBy: PropertySortKey[],
 	edgesBySource: Map<string, RelationEdge[]>,
-	sequentialRelations: Set<string>
+	sequentialRelations: Set<string>,
+	relationOrder: string[]
 ): GroupTreeNode[] {
 	// First, sort all nodes by properties
-	const sortedByProps = sortByPropertiesThenAlphabetically(nodes, sortBy);
+	const sortedByProps = sortByPropertiesThenAlphabetically(nodes, sortBy, relationOrder);
 
 	// If no sortBy keys, just apply chain sorting
 	if (sortBy.length === 0) {
-		return sortWithChainsPrimary(nodes, structure, sortBy);
+		return sortWithChainsPrimary(nodes, structure, sortBy, relationOrder);
 	}
 
 	// Group nodes by their primary sort key value
 	const primarySortKey = sortBy[0];
 	if (!primarySortKey) {
-		return sortWithChainsPrimary(nodes, structure, sortBy);
+		return sortWithChainsPrimary(nodes, structure, sortBy, relationOrder);
 	}
 	const groups = groupByPropertyValue(sortedByProps, primarySortKey);
 
@@ -165,7 +168,7 @@ function sortWithChainsSecondary(
 		} else {
 			// Apply chain sorting within this property group
 			const remainingSortBy = sortBy.slice(1);
-			result.push(...sortWithChainsPrimary(group, groupStructure, remainingSortBy));
+			result.push(...sortWithChainsPrimary(group, groupStructure, remainingSortBy, relationOrder));
 		}
 	}
 
@@ -196,19 +199,22 @@ function groupByPropertyValue(nodes: GroupTreeNode[], sortKey: PropertySortKey):
  */
 function sortByPropertiesThenAlphabetically(
 	nodes: GroupTreeNode[],
-	sortBy: PropertySortKey[]
+	sortBy: PropertySortKey[],
+	relationOrder: string[]
 ): GroupTreeNode[] {
-	return [...nodes].sort((a, b) => compareNodes(a, b, sortBy));
+	return [...nodes].sort((a, b) => compareNodes(a, b, sortBy, relationOrder));
 }
 
 /**
  * Unified comparison function: properties → relation → alphabetical.
  * Groups nodes by relation type as a lower priority than property sorting.
+ * Relation order is determined by settings order, not alphabetically.
  */
 function compareNodes(
 	a: GroupTreeNode,
 	b: GroupTreeNode,
-	sortBy: PropertySortKey[]
+	sortBy: PropertySortKey[],
+	relationOrder: string[]
 ): number {
 	// 1. Compare by property sort keys (highest priority)
 	const propCompare = compareByProperties(a, b, sortBy);
@@ -216,10 +222,18 @@ function compareNodes(
 		return propCompare;
 	}
 
-	// 2. Compare by relation name (groups same relations together)
-	const relationCompare = a.relation.localeCompare(b.relation);
-	if (relationCompare !== 0) {
-		return relationCompare;
+	// 2. Compare by relation order from settings (groups same relations together)
+	const aIndex = relationOrder.indexOf(a.relation);
+	const bIndex = relationOrder.indexOf(b.relation);
+	// Relations not in settings go to the end, sorted alphabetically
+	const aOrder = aIndex === -1 ? relationOrder.length : aIndex;
+	const bOrder = bIndex === -1 ? relationOrder.length : bIndex;
+	if (aOrder !== bOrder) {
+		return aOrder - bOrder;
+	}
+	// Both not in settings: fallback to alphabetical for relation names
+	if (aIndex === -1 && bIndex === -1 && a.relation !== b.relation) {
+		return a.relation.localeCompare(b.relation);
 	}
 
 	// 3. Compare by basename (alphabetical fallback)
