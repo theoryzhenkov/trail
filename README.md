@@ -2,6 +2,8 @@
 
 Trail is an Obsidian plugin for adding named relations between notes and traversing them through a dedicated pane.
 
+**[Documentation](https://theoryzhenkov.github.io/trail/)** · [Getting Started](https://theoryzhenkov.github.io/trail/getting-started/) · [Examples](https://theoryzhenkov.github.io/trail/examples/)
+
 ## Features
 
 - Inline typed relations using a concise `::` syntax.
