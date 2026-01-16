@@ -1,66 +1,14 @@
 import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
-import type {FileProperties, RelationGroup} from "../types";
-import {GroupTreeNode} from "../graph/store";
-
-/**
- * Inverts a tree chain so the deepest node becomes the root.
- * Parent -> Grandparent becomes Grandparent -> Parent
- */
-function invertTree(nodes: GroupTreeNode[]): GroupTreeNode[] {
-	const result: GroupTreeNode[] = [];
-	for (const node of nodes) {
-		result.push(...invertChain(node));
-	}
-	return result;
-}
-
-/**
- * Inverts a single chain: collects all nodes, reverses, rebuilds as chain.
- */
-function invertChain(node: GroupTreeNode): GroupTreeNode[] {
-	// Collect all nodes in the chain (depth-first, following first child)
-	const chain: GroupTreeNode[] = [];
-	let current: GroupTreeNode | undefined = node;
-	while (current) {
-		chain.push(current);
-		// Follow the chain (first child), collect siblings separately
-		current = current.children[0];
-	}
-	
-	if (chain.length <= 1) {
-		return [{ ...node, children: [] }];
-	}
-	
-	// Reverse and rebuild as a chain
-	chain.reverse();
-	
-	// Build the inverted chain from deepest to shallowest
-	let result: GroupTreeNode | undefined;
-	for (const item of chain) {
-		const newNode: GroupTreeNode = {
-			...item,
-			children: result ? [result] : []
-		};
-		result = newNode;
-	}
-	
-	return result ? [result] : [];
-}
-
-/**
- * Flattens a tree into a flat array of siblings (no children).
- */
-function flattenTree(nodes: GroupTreeNode[]): GroupTreeNode[] {
-	const result: GroupTreeNode[] = [];
-	for (const node of nodes) {
-		result.push({ ...node, children: [] });
-		if (node.children.length > 0) {
-			result.push(...flattenTree(node.children));
-		}
-	}
-	return result;
-}
+import type {RelationGroup} from "../types";
+import type {GroupTreeNode} from "../graph/store";
+import {invertTree, flattenTree} from "./tree-transforms";
+import {
+	renderEmptyState,
+	renderFileLink,
+	renderPropertyBadges,
+	createCollapsibleSection
+} from "./renderers";
 
 export const TRAIL_VIEW_TYPE = "trail-view";
 
@@ -108,48 +56,53 @@ export class TrailView extends ItemView {
 				item.setDisabled(true);
 			});
 		} else {
-			// Select all / none options
+			this.addFilterMenuItems(menu, relationTypes);
+		}
+		
+		this.showMenuAtActionButtons(menu);
+	}
+
+	private addFilterMenuItems(menu: Menu, relationTypes: string[]) {
+		menu.addItem((item) => {
+			item.setTitle("Select all");
+			item.setIcon("check-square");
+			item.onClick(() => {
+				for (const relation of relationTypes) {
+					this.selectedRelations.add(relation);
+				}
+				void this.refresh();
+			});
+		});
+		
+		menu.addItem((item) => {
+			item.setTitle("Select none");
+			item.setIcon("square");
+			item.onClick(() => {
+				this.selectedRelations.clear();
+				void this.refresh();
+			});
+		});
+		
+		menu.addSeparator();
+		
+		for (const relation of relationTypes) {
 			menu.addItem((item) => {
-				item.setTitle("Select all");
-				item.setIcon("check-square");
+				const isSelected = this.selectedRelations.has(relation);
+				item.setTitle(relation);
+				item.setIcon(isSelected ? "check" : "");
 				item.onClick(() => {
-					for (const relation of relationTypes) {
+					if (isSelected) {
+						this.selectedRelations.delete(relation);
+					} else {
 						this.selectedRelations.add(relation);
 					}
 					void this.refresh();
 				});
 			});
-			
-			menu.addItem((item) => {
-				item.setTitle("Select none");
-				item.setIcon("square");
-				item.onClick(() => {
-					this.selectedRelations.clear();
-					void this.refresh();
-				});
-			});
-			
-			menu.addSeparator();
-			
-			// Individual relation toggles
-			for (const relation of relationTypes) {
-				menu.addItem((item) => {
-					const isSelected = this.selectedRelations.has(relation);
-					item.setTitle(relation);
-					item.setIcon(isSelected ? "check" : "");
-					item.onClick(() => {
-						if (isSelected) {
-							this.selectedRelations.delete(relation);
-						} else {
-							this.selectedRelations.add(relation);
-						}
-						void this.refresh();
-					});
-				});
-			}
 		}
-		
-		// Position menu near the filter button
+	}
+
+	private showMenuAtActionButtons(menu: Menu) {
 		const actionButtons = this.containerEl.querySelector(".view-actions");
 		if (actionButtons) {
 			const rect = actionButtons.getBoundingClientRect();
@@ -167,43 +120,36 @@ export class TrailView extends ItemView {
 
 		const activeFile = this.plugin.app.workspace.getActiveFile();
 		if (!activeFile) {
-			this.renderEmptyState(contentEl, "No active note", "Open a note to see its relations");
+			renderEmptyState(contentEl, "file-question", "No active note", "Open a note to see its relations");
 			return;
 		}
 
-		// Initialize selected relations if empty
+		this.initializeSelectedRelations();
+		this.renderHeader(contentEl, activeFile);
+		this.renderGroups(contentEl.createDiv({cls: "trail-content"}), activeFile);
+	}
+
+	private initializeSelectedRelations() {
 		const relationTypes = this.plugin.graph.getRelationTypes();
 		if (this.selectedRelations.size === 0) {
 			for (const relation of relationTypes) {
 				this.selectedRelations.add(relation);
 			}
 		}
+	}
 
-		// Active note context
-		const contextEl = contentEl.createDiv({cls: "trail-context"});
+	private renderHeader(containerEl: HTMLElement, activeFile: TFile) {
+		const contextEl = containerEl.createDiv({cls: "trail-context"});
 		const noteIcon = contextEl.createSpan({cls: "trail-context-icon"});
 		setIcon(noteIcon, "file-text");
 		contextEl.createSpan({cls: "trail-context-text", text: activeFile.basename});
 
-		// Active filters indicator
+		const relationTypes = this.plugin.graph.getRelationTypes();
 		if (this.selectedRelations.size < relationTypes.length && relationTypes.length > 0) {
 			const filterBadge = contextEl.createSpan({cls: "trail-filter-badge"});
 			filterBadge.setText(`${this.selectedRelations.size}/${relationTypes.length}`);
 			filterBadge.setAttribute("aria-label", "Active relation filters");
 		}
-
-		// Main content
-		const mainEl = contentEl.createDiv({cls: "trail-content"});
-		
-		this.renderGroups(mainEl, activeFile);
-	}
-
-	private renderEmptyState(containerEl: HTMLElement, title: string, description: string) {
-		const emptyEl = containerEl.createDiv({cls: "trail-empty-state"});
-		const iconEl = emptyEl.createDiv({cls: "trail-empty-icon"});
-		setIcon(iconEl, "file-question");
-		emptyEl.createDiv({cls: "trail-empty-title", text: title});
-		emptyEl.createDiv({cls: "trail-empty-description", text: description});
 	}
 
 	private renderGroups(containerEl: HTMLElement, activeFile: TFile) {
@@ -215,41 +161,46 @@ export class TrailView extends ItemView {
 
 		let visibleCount = 0;
 		for (const group of groups) {
-			// Check show conditions against active file
-			const showConditions = group.showConditions ?? [];
-			const showConditionsMode = group.showConditionsMatchMode ?? "all";
-			if (!this.plugin.graph.matchesFilters(activeFile.path, showConditions, showConditionsMode)) {
+			if (!this.shouldShowGroup(group, activeFile.path)) {
 				continue;
 			}
 			visibleCount++;
-
-			const filteredGroup = this.filterGroupMembers(group);
-			const tree = this.plugin.graph.getGroupTree(activeFile.path, filteredGroup);
-			const section = this.createCollapsibleSection(
-				containerEl,
-				group.name || "Unnamed group",
-				"layers",
-				tree.length
-			);
-
-			if (filteredGroup.members.length === 0) {
-				section.contentEl.createDiv({cls: "trail-no-results", text: "No members selected"});
-				continue;
-			}
-
-		if (tree.length === 0) {
-			section.contentEl.createDiv({cls: "trail-no-results", text: "No relations found"});
-			continue;
-		}
-
-		// Transform tree based on visual direction
-		const transformedTree = this.transformTreeByDirection(tree);
-		this.renderGroupTree(section.contentEl, transformedTree, 0, group.displayProperties ?? []);
+			this.renderGroup(containerEl, group, activeFile.path);
 		}
 
 		if (visibleCount === 0) {
 			containerEl.createDiv({cls: "trail-no-results", text: "No groups match this note"});
 		}
+	}
+
+	private shouldShowGroup(group: RelationGroup, filePath: string): boolean {
+		const showConditions = group.showConditions ?? [];
+		const showConditionsMode = group.showConditionsMatchMode ?? "all";
+		return this.plugin.graph.matchesFilters(filePath, showConditions, showConditionsMode);
+	}
+
+	private renderGroup(containerEl: HTMLElement, group: RelationGroup, filePath: string) {
+		const filteredGroup = this.filterGroupMembers(group);
+		const tree = this.plugin.graph.getGroupTree(filePath, filteredGroup);
+		const section = createCollapsibleSection(
+			containerEl,
+			group.name || "Unnamed group",
+			"layers",
+			tree.length
+		);
+
+		if (filteredGroup.members.length === 0) {
+			section.contentEl.createDiv({cls: "trail-no-results", text: "No members selected"});
+			return;
+		}
+
+		if (tree.length === 0) {
+			section.contentEl.createDiv({cls: "trail-no-results", text: "No relations found"});
+			return;
+		}
+
+		const transformedTree = this.transformTreeByDirection(tree);
+		this.renderGroupTree(section.contentEl, transformedTree, 0, group.displayProperties ?? []);
 	}
 
 	private filterGroupMembers(group: RelationGroup): RelationGroup {
@@ -271,7 +222,6 @@ export class TrailView extends ItemView {
 			return nodes;
 		}
 		
-		// Detect dominant visual direction from first node
 		const direction = nodes[0]?.visualDirection ?? "descending";
 		
 		switch (direction) {
@@ -292,118 +242,34 @@ export class TrailView extends ItemView {
 		displayProperties: string[]
 	) {
 		for (const node of nodes) {
-			const itemEl = containerEl.createDiv({cls: "tree-item"});
-			itemEl.style.setProperty("--indent-level", String(depth));
-
-			const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
-			const relationEl = selfEl.createSpan({cls: "trail-relation-tag"});
-			relationEl.setText(node.relation);
-			if (node.implied) {
-				relationEl.addClass("is-implied");
-			}
-
-			const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
-			this.renderFileLink(innerEl, node.path);
-			this.renderPropertyBadges(innerEl, node.properties, displayProperties);
-
-			if (node.children.length > 0) {
-				const childrenEl = itemEl.createDiv({cls: "tree-item-children"});
-				this.renderGroupTree(childrenEl, node.children, depth + 1, displayProperties);
-			}
+			this.renderTreeNode(containerEl, node, depth, displayProperties);
 		}
 	}
 
-	private createCollapsibleSection(
-		containerEl: HTMLElement, 
-		title: string, 
-		icon: string,
-		count: number
-	): {headerEl: HTMLElement; contentEl: HTMLElement} {
-		const sectionEl = containerEl.createDiv({cls: "tree-item trail-section"});
-		
-		const headerEl = sectionEl.createDiv({cls: "tree-item-self trail-section-header is-clickable"});
-		
-		const collapseIcon = headerEl.createDiv({cls: "tree-item-icon collapse-icon"});
-		setIcon(collapseIcon, "chevron-down");
-		
-		const iconEl = headerEl.createSpan({cls: "trail-section-icon"});
-		setIcon(iconEl, icon);
-		
-		const titleEl = headerEl.createSpan({cls: "tree-item-inner trail-section-title"});
-		titleEl.setText(title);
-		
-		if (count > 0) {
-			const countEl = headerEl.createSpan({cls: "tree-item-flair"});
-			countEl.createSpan({cls: "tree-item-flair-text", text: String(count)});
-		}
-		
-		const contentEl = sectionEl.createDiv({cls: "tree-item-children trail-section-content"});
-		
-		// Collapse/expand functionality
-		let isCollapsed = false;
-		headerEl.addEventListener("click", () => {
-			isCollapsed = !isCollapsed;
-			sectionEl.toggleClass("is-collapsed", isCollapsed);
-			collapseIcon.toggleClass("is-collapsed", isCollapsed);
-		});
-		
-		return {headerEl, contentEl};
-	}
-
-	private renderFileLink(containerEl: HTMLElement, path: string) {
-		const file = this.plugin.app.vault.getAbstractFileByPath(path);
-		const label = file instanceof TFile ? file.basename : path;
-		const link = containerEl.createEl("a", {
-			text: label, 
-			cls: "internal-link",
-			attr: {"data-path": path}
-		});
-		link.addEventListener("click", (e) => {
-			e.preventDefault();
-			void this.plugin.app.workspace.openLinkText(path, "", false);
-		});
-	}
-
-	private renderPropertyBadges(
+	private renderTreeNode(
 		containerEl: HTMLElement,
-		properties: FileProperties | undefined,
+		node: GroupTreeNode,
+		depth: number,
 		displayProperties: string[]
 	) {
-		if (!properties || displayProperties.length === 0) {
-			return;
+		const itemEl = containerEl.createDiv({cls: "tree-item"});
+		itemEl.style.setProperty("--indent-level", String(depth));
+
+		const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
+		
+		const relationEl = selfEl.createSpan({cls: "trail-relation-tag"});
+		relationEl.setText(node.relation);
+		if (node.implied) {
+			relationEl.addClass("is-implied");
 		}
 
-		const badges: string[] = [];
-		for (const rawKey of displayProperties) {
-			const key = rawKey.trim().toLowerCase();
-			if (!key) {
-				continue;
-			}
-			const value = properties[key];
-			if (value === undefined) {
-				continue;
-			}
-			if (Array.isArray(value)) {
-				if (value.length === 0) {
-					continue;
-				}
-				badges.push(`${key}: ${value.join(", ")}`);
-				continue;
-			}
-			if (value === null) {
-				badges.push(`${key}: null`);
-				continue;
-			}
-			badges.push(`${key}: ${String(value)}`);
-		}
+		const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
+		renderFileLink(innerEl, this.plugin.app, node.path);
+		renderPropertyBadges(innerEl, node.properties, displayProperties);
 
-		if (badges.length === 0) {
-			return;
-		}
-
-		const badgesEl = containerEl.createDiv({cls: "trail-property-badges"});
-		for (const badge of badges) {
-			badgesEl.createSpan({cls: "trail-property-badge", text: badge});
+		if (node.children.length > 0) {
+			const childrenEl = itemEl.createDiv({cls: "tree-item-children"});
+			this.renderGroupTree(childrenEl, node.children, depth + 1, displayProperties);
 		}
 	}
 }
