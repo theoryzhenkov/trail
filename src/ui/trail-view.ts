@@ -174,8 +174,7 @@ export class TrailView extends ItemView {
 				continue;
 			}
 
-			const treeEl = section.contentEl.createDiv({cls: "tree-item-children"});
-			this.renderGroupTree(treeEl, tree, 0);
+			this.renderGroupTree(section.contentEl, tree, 0);
 		}
 	}
 
