@@ -20,9 +20,26 @@ export interface RelationGroupMember {
 	extend?: string;
 }
 
+export type PropertyValue = string | number | boolean | string[] | null;
+
+export interface FileProperties {
+	[key: string]: PropertyValue;
+}
+
+export type PropertyFilterOperator = "equals" | "contains" | "exists" | "notExists";
+
+export interface PropertyFilter {
+	key: string;
+	operator: PropertyFilterOperator;
+	value?: string | number | boolean;
+}
+
 export interface RelationGroup {
 	name: string;
 	members: RelationGroupMember[];
+	displayProperties?: string[];
+	filters?: PropertyFilter[];
+	showConditions?: PropertyFilter[];
 }
 
 export interface RelationDefinition {

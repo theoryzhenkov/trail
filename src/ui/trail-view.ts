@@ -1,6 +1,6 @@
 import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
-import {RelationGroup} from "../types";
+import type {FileProperties, RelationGroup} from "../types";
 import {GroupTreeNode} from "../graph/store";
 
 export const TRAIL_VIEW_TYPE = "trail-view";
@@ -154,7 +154,15 @@ export class TrailView extends ItemView {
 			return;
 		}
 
+		let visibleCount = 0;
 		for (const group of groups) {
+			// Check show conditions against active file
+			const showConditions = group.showConditions ?? [];
+			if (!this.plugin.graph.matchesFilters(activeFile.path, showConditions)) {
+				continue;
+			}
+			visibleCount++;
+
 			const filteredGroup = this.filterGroupMembers(group);
 			const tree = this.plugin.graph.getGroupTree(activeFile.path, filteredGroup);
 			const section = this.createCollapsibleSection(
@@ -174,7 +182,11 @@ export class TrailView extends ItemView {
 				continue;
 			}
 
-			this.renderGroupTree(section.contentEl, tree, 0);
+			this.renderGroupTree(section.contentEl, tree, 0, group.displayProperties ?? []);
+		}
+
+		if (visibleCount === 0) {
+			containerEl.createDiv({cls: "trail-no-results", text: "No groups match this note"});
 		}
 	}
 
@@ -186,7 +198,12 @@ export class TrailView extends ItemView {
 		};
 	}
 
-	private renderGroupTree(containerEl: HTMLElement, nodes: GroupTreeNode[], depth: number) {
+	private renderGroupTree(
+		containerEl: HTMLElement,
+		nodes: GroupTreeNode[],
+		depth: number,
+		displayProperties: string[]
+	) {
 		for (const node of nodes) {
 			const itemEl = containerEl.createDiv({cls: "tree-item"});
 			itemEl.style.setProperty("--indent-level", String(depth));
@@ -200,10 +217,11 @@ export class TrailView extends ItemView {
 
 			const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
 			this.renderFileLink(innerEl, node.path);
+			this.renderPropertyBadges(innerEl, node.properties, displayProperties);
 
 			if (node.children.length > 0) {
 				const childrenEl = itemEl.createDiv({cls: "tree-item-children"});
-				this.renderGroupTree(childrenEl, node.children, depth + 1);
+				this.renderGroupTree(childrenEl, node.children, depth + 1, displayProperties);
 			}
 		}
 	}
@@ -257,5 +275,48 @@ export class TrailView extends ItemView {
 			e.preventDefault();
 			void this.plugin.app.workspace.openLinkText(path, "", false);
 		});
+	}
+
+	private renderPropertyBadges(
+		containerEl: HTMLElement,
+		properties: FileProperties | undefined,
+		displayProperties: string[]
+	) {
+		if (!properties || displayProperties.length === 0) {
+			return;
+		}
+
+		const badges: string[] = [];
+		for (const rawKey of displayProperties) {
+			const key = rawKey.trim().toLowerCase();
+			if (!key) {
+				continue;
+			}
+			const value = properties[key];
+			if (value === undefined) {
+				continue;
+			}
+			if (Array.isArray(value)) {
+				if (value.length === 0) {
+					continue;
+				}
+				badges.push(`${key}: ${value.join(", ")}`);
+				continue;
+			}
+			if (value === null) {
+				badges.push(`${key}: null`);
+				continue;
+			}
+			badges.push(`${key}: ${String(value)}`);
+		}
+
+		if (badges.length === 0) {
+			return;
+		}
+
+		const badgesEl = containerEl.createDiv({cls: "trail-property-badges"});
+		for (const badge of badges) {
+			badgesEl.createSpan({cls: "trail-property-badge", text: badge});
+		}
 	}
 }

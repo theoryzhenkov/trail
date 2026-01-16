@@ -2,6 +2,7 @@ import {App, Notice, PluginSettingTab, Setting} from "obsidian";
 import TrailPlugin from "./main";
 import {
 	ImpliedRelation,
+	PropertyFilter,
 	RelationAlias,
 	RelationAliasType,
 	RelationDefinition,
@@ -161,6 +162,9 @@ export class TrailSettingTab extends PluginSettingTab {
 			});
 
 		this.renderGroupMembers(content, group);
+		this.renderGroupProperties(content, group);
+		this.renderGroupFilters(content, group);
+		this.renderGroupShowConditions(content, group);
 
 		new Setting(content)
 			.addButton((button) => {
@@ -199,6 +203,162 @@ export class TrailSettingTab extends PluginSettingTab {
 					void this.plugin.saveSettings();
 					this.display();
 				});
+			});
+	}
+
+	private renderGroupProperties(containerEl: HTMLElement, group: RelationGroup) {
+		const section = containerEl.createDiv({cls: "trail-subsection"});
+		new Setting(section)
+			.setName("Display properties")
+			.setDesc("Frontmatter keys to show as badges on files.")
+			.addText((text) => {
+				const current = group.displayProperties ?? [];
+				text
+					.setPlaceholder("E.g., gender, age")
+					.setValue(current.join(", "))
+					.onChange((value) => {
+						const properties = value
+							.split(",")
+							.map((item) => item.trim().toLowerCase())
+							.filter((item) => item.length > 0);
+						group.displayProperties = properties;
+						void this.plugin.saveSettings();
+					});
+			});
+	}
+
+	private renderGroupFilters(containerEl: HTMLElement, group: RelationGroup) {
+		const section = containerEl.createDiv({cls: "trail-subsection"});
+		new Setting(section)
+			.setName("Filters")
+			.setDesc("Only include files that match these property filters.");
+
+		const filters = group.filters ?? [];
+		if (filters.length === 0) {
+			section.createEl("p", {text: "No filters defined.", cls: "trail-empty-state"});
+		} else {
+			for (const [filterIndex, filter] of filters.entries()) {
+				this.renderGroupFilterRow(section, group, filter, filterIndex);
+			}
+		}
+
+		new Setting(section)
+			.addButton((button) => {
+				button.setButtonText("Add filter").onClick(() => {
+					const next: PropertyFilter = {
+						key: "",
+						operator: "equals",
+						value: ""
+					};
+					group.filters = [...filters, next];
+					void this.plugin.saveSettings();
+					this.display();
+				});
+			});
+	}
+
+	private renderGroupFilterRow(
+		containerEl: HTMLElement,
+		group: RelationGroup,
+		filter: PropertyFilter,
+		index: number
+	) {
+		this.renderPropertyFilterRow(containerEl, filter, () => {
+			group.filters = (group.filters ?? []).filter((_, i) => i !== index);
+			void this.plugin.saveSettings();
+			this.display();
+		});
+	}
+
+	private renderGroupShowConditions(containerEl: HTMLElement, group: RelationGroup) {
+		const section = containerEl.createDiv({cls: "trail-subsection"});
+		new Setting(section)
+			.setName("Show conditions")
+			.setDesc("Only show this group when the active note matches these conditions.");
+
+		const conditions = group.showConditions ?? [];
+		if (conditions.length === 0) {
+			section.createEl("p", {text: "No conditions defined. Group always visible.", cls: "trail-empty-state"});
+		} else {
+			for (const [conditionIndex, condition] of conditions.entries()) {
+				this.renderShowConditionRow(section, group, condition, conditionIndex);
+			}
+		}
+
+		new Setting(section)
+			.addButton((button) => {
+				button.setButtonText("Add condition").onClick(() => {
+					const next: PropertyFilter = {
+						key: "",
+						operator: "equals",
+						value: ""
+					};
+					group.showConditions = [...conditions, next];
+					void this.plugin.saveSettings();
+					this.display();
+				});
+			});
+	}
+
+	private renderShowConditionRow(
+		containerEl: HTMLElement,
+		group: RelationGroup,
+		condition: PropertyFilter,
+		index: number
+	) {
+		this.renderPropertyFilterRow(containerEl, condition, () => {
+			group.showConditions = (group.showConditions ?? []).filter((_, i) => i !== index);
+			void this.plugin.saveSettings();
+			this.display();
+		});
+	}
+
+	private renderPropertyFilterRow(
+		containerEl: HTMLElement,
+		filter: PropertyFilter,
+		onDelete: () => void
+	) {
+		const setting = new Setting(containerEl);
+
+		setting
+			.addText((text) => {
+				text
+					.setPlaceholder("Property key")
+					.setValue(filter.key)
+					.onChange((value) => {
+						filter.key = value.trim().toLowerCase();
+						void this.plugin.saveSettings();
+					});
+			})
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("equals", "Equals")
+					.addOption("contains", "Contains")
+					.addOption("exists", "Exists")
+					.addOption("notExists", "Not exists")
+					.setValue(filter.operator)
+					.onChange((value) => {
+						filter.operator = value as PropertyFilter["operator"];
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			})
+			.addText((text) => {
+				const valueText = filter.value === undefined ? "" : String(filter.value);
+				text
+					.setPlaceholder("Value")
+					.setValue(valueText)
+					.setDisabled(filter.operator === "exists" || filter.operator === "notExists")
+					.onChange((value) => {
+						filter.value = value;
+						void this.plugin.saveSettings();
+					});
+			})
+			.addExtraButton((button) => {
+				button
+					.setIcon("trash")
+					.setTooltip("Remove")
+					.onClick(onDelete);
 			});
 	}
 

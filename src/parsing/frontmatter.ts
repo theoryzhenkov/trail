@@ -1,4 +1,4 @@
-import {ParsedRelation, RelationDefinition} from "../types";
+import {FileProperties, ParsedRelation, RelationDefinition} from "../types";
 import {dedupeRelations, extractWikiLinkTarget, isValidRelationName, normalizeRelationName} from "./index";
 
 type FrontmatterValue = string | string[] | null | undefined;
@@ -35,6 +35,44 @@ export function parseFrontmatterRelations(
 	}
 
 	return dedupeRelations(relations);
+}
+
+export function parseFileProperties(
+	frontmatter: Record<string, unknown> | undefined,
+	excludeKeys: Set<string>
+): FileProperties {
+	if (!frontmatter) {
+		return {};
+	}
+
+	const properties: FileProperties = {};
+	const frontmatterLowercase = normalizeFrontmatterKeys(frontmatter);
+	const excluded = new Set<string>([...excludeKeys, "relations"]);
+
+	for (const [key, value] of frontmatterLowercase.entries()) {
+		if (excluded.has(key)) {
+			continue;
+		}
+		if (value === undefined) {
+			continue;
+		}
+		if (value === null) {
+			properties[key] = null;
+			continue;
+		}
+		if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+			properties[key] = value;
+			continue;
+		}
+		if (Array.isArray(value)) {
+			const strings = value.filter((item): item is string => typeof item === "string");
+			if (strings.length > 0) {
+				properties[key] = strings;
+			}
+		}
+	}
+
+	return properties;
 }
 
 function parseRelationEntry(relationName: string, value: FrontmatterValue): ParsedRelation[] {

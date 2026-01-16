@@ -1,12 +1,14 @@
 import {App, TFile} from "obsidian";
 import {TrailSettings} from "../settings";
 import {
+	FileProperties,
+	PropertyFilter,
 	RelationDefinition,
 	RelationEdge,
 	RelationGroup
 } from "../types";
 import {parseInlineRelations} from "../parsing/inline";
-import {parseFrontmatterRelations} from "../parsing/frontmatter";
+import {parseFileProperties, parseFrontmatterRelations} from "../parsing/frontmatter";
 import {computeAncestors, AncestorNode} from "./traversal";
 
 export interface GroupTreeNode {
@@ -16,12 +18,14 @@ export interface GroupTreeNode {
 	implied: boolean;
 	impliedFrom?: string;
 	children: GroupTreeNode[];
+	properties?: FileProperties;
 }
 
 export class GraphStore {
 	private app: App;
 	private settings: TrailSettings;
 	private edgesBySource: Map<string, RelationEdge[]>;
+	private propertiesByPath: Map<string, FileProperties>;
 	private staleFiles: Set<string>;
 	private allStale: boolean;
 	private changeListeners: Set<() => void>;
@@ -30,6 +34,7 @@ export class GraphStore {
 		this.app = app;
 		this.settings = settings;
 		this.edgesBySource = new Map();
+		this.propertiesByPath = new Map();
 		this.staleFiles = new Set();
 		this.allStale = true;
 		this.changeListeners = new Set();
@@ -48,6 +53,7 @@ export class GraphStore {
 
 	async build() {
 		this.edgesBySource.clear();
+		this.propertiesByPath.clear();
 		const files = this.app.vault.getMarkdownFiles();
 		for (const file of files) {
 			await this.updateFile(file, false);
@@ -58,8 +64,9 @@ export class GraphStore {
 	}
 
 	async updateFile(file: TFile, emit = true) {
-		const edges = await this.parseFileEdges(file);
+		const {edges, properties} = await this.parseFileData(file);
 		this.edgesBySource.set(file.path, edges);
+		this.propertiesByPath.set(file.path, properties);
 		if (emit) {
 			this.emitChange();
 		}
@@ -92,6 +99,7 @@ export class GraphStore {
 				await this.updateFile(file, false);
 			} else {
 				this.edgesBySource.delete(path);
+				this.propertiesByPath.delete(path);
 			}
 		}
 		this.emitChange();
@@ -106,6 +114,11 @@ export class GraphStore {
 			}));
 			this.edgesBySource.set(newPath, updatedEdges);
 			this.edgesBySource.delete(oldPath);
+		}
+		const properties = this.propertiesByPath.get(oldPath);
+		if (properties) {
+			this.propertiesByPath.set(newPath, properties);
+			this.propertiesByPath.delete(oldPath);
 		}
 
 		for (const [source, list] of this.edgesBySource.entries()) {
@@ -131,6 +144,7 @@ export class GraphStore {
 
 	handleDelete(path: string) {
 		this.edgesBySource.delete(path);
+		this.propertiesByPath.delete(path);
 		for (const [source, list] of this.edgesBySource.entries()) {
 			const filtered = list.filter((edge) => edge.toPath !== path);
 			if (filtered.length !== list.length) {
@@ -195,6 +209,14 @@ export class GraphStore {
 		return this.evaluateGroup(path, group, edgesBySource, visited);
 	}
 
+	matchesFilters(path: string, filters: PropertyFilter[]): boolean {
+		if (filters.length === 0) {
+			return true;
+		}
+		const properties = this.propertiesByPath.get(path) ?? {};
+		return filters.every((filter) => evaluatePropertyFilter(properties, filter));
+	}
+
 	private evaluateGroup(
 		sourcePath: string,
 		group: RelationGroup,
@@ -206,13 +228,14 @@ export class GraphStore {
 			if (!member.relation) {
 				continue;
 			}
-			nodes.push(...this.evaluateMember(sourcePath, member, edgesBySource, visited, 1));
+			nodes.push(...this.evaluateMember(sourcePath, group, member, edgesBySource, visited, 1));
 		}
 		return nodes;
 	}
 
 	private evaluateMember(
 		sourcePath: string,
+		group: RelationGroup,
 		member: RelationGroup["members"][number],
 		edgesBySource: Map<string, RelationEdge[]>,
 		visited: Set<string>,
@@ -226,12 +249,15 @@ export class GraphStore {
 			if (visited.has(edge.toPath)) {
 				continue;
 			}
+			if (!this.matchesPropertyFilters(edge.toPath, group)) {
+				continue;
+			}
 			visited.add(edge.toPath);
 			const children: GroupTreeNode[] = [];
 
 			if (member.depth === 0 || currentDepth < member.depth) {
 				children.push(
-					...this.evaluateMember(edge.toPath, member, edgesBySource, visited, currentDepth + 1)
+					...this.evaluateMember(edge.toPath, group, member, edgesBySource, visited, currentDepth + 1)
 				);
 			}
 
@@ -248,7 +274,8 @@ export class GraphStore {
 				depth: currentDepth,
 				implied: edge.implied,
 				impliedFrom: edge.impliedFrom,
-				children
+				children,
+				properties: this.getFileProperties(edge.toPath)
 			});
 		}
 
@@ -271,7 +298,9 @@ export class GraphStore {
 		return applyImpliedRules(explicitEdges, this.settings.relations);
 	}
 
-	private async parseFileEdges(file: TFile): Promise<RelationEdge[]> {
+	private async parseFileData(
+		file: TFile
+	): Promise<{edges: RelationEdge[]; properties: FileProperties}> {
 		const content = await this.app.vault.read(file);
 		const allowedRelations = new Set(
 			this.settings.relations
@@ -284,6 +313,8 @@ export class GraphStore {
 			cache?.frontmatter,
 			this.settings.relations
 		);
+		const excludeKeys = buildPropertyExcludeKeys(this.settings.relations);
+		const properties = parseFileProperties(cache?.frontmatter, excludeKeys);
 
 		const combined = [...inlineRelations, ...frontmatterRelations];
 		const edges: RelationEdge[] = [];
@@ -301,7 +332,23 @@ export class GraphStore {
 			});
 		}
 
-		return edges;
+		return {edges, properties};
+	}
+
+	private getFileProperties(path: string): FileProperties {
+		return this.propertiesByPath.get(path) ?? {};
+	}
+
+	private matchesPropertyFilters(
+		path: string,
+		group: RelationGroup
+	): boolean {
+		const filters = group.filters;
+		if (!filters || filters.length === 0) {
+			return true;
+		}
+		const properties = this.getFileProperties(path);
+		return filters.every((filter) => evaluatePropertyFilter(properties, filter));
 	}
 }
 
@@ -395,4 +442,96 @@ function addImplied(edge: RelationEdge, impliedEdges: RelationEdge[], existing: 
 
 function edgeKey(edge: RelationEdge): string {
 	return `${edge.fromPath}|${edge.toPath}|${edge.relation}`;
+}
+
+function buildPropertyExcludeKeys(relations: RelationDefinition[]): Set<string> {
+	const keys = new Set<string>();
+	for (const relation of relations) {
+		for (const alias of relation.aliases) {
+			if (alias.type === "relationsMap") {
+				continue;
+			}
+			keys.add(alias.key.toLowerCase());
+		}
+	}
+	return keys;
+}
+
+function evaluatePropertyFilter(properties: FileProperties, filter: PropertyFilter): boolean {
+	const key = filter.key.trim().toLowerCase();
+	if (!key) {
+		return true;
+	}
+	const value = properties[key];
+
+	switch (filter.operator) {
+		case "exists":
+			return value !== undefined;
+		case "notExists":
+			return value === undefined;
+		case "equals":
+			return matchesEquals(value, filter.value);
+		case "contains":
+			return matchesContains(value, filter.value);
+		default:
+			return true;
+	}
+}
+
+function matchesEquals(
+	value: FileProperties[string] | undefined,
+	expected: PropertyFilter["value"]
+): boolean {
+	if (value === undefined) {
+		return false;
+	}
+	if (value === null) {
+		return expected === null;
+	}
+	if (expected === undefined) {
+		return false;
+	}
+	if (Array.isArray(value)) {
+		const expectedStr = String(expected);
+		return value.some((item) => item === expectedStr);
+	}
+	if (typeof value === "string") {
+		return value === String(expected);
+	}
+	if (typeof value === "number") {
+		if (typeof expected === "number") {
+			return value === expected;
+		}
+		if (typeof expected === "string") {
+			return String(value) === expected;
+		}
+		return false;
+	}
+	if (typeof value === "boolean") {
+		if (typeof expected === "boolean") {
+			return value === expected;
+		}
+		if (typeof expected === "string") {
+			return String(value) === expected;
+		}
+		return false;
+	}
+	return false;
+}
+
+function matchesContains(
+	value: FileProperties[string] | undefined,
+	expected: PropertyFilter["value"]
+): boolean {
+	if (value === undefined || value === null || expected === undefined) {
+		return false;
+	}
+	const expectedStr = String(expected);
+	if (Array.isArray(value)) {
+		return value.some((item) => item === expectedStr);
+	}
+	if (typeof value === "string") {
+		return value.includes(expectedStr);
+	}
+	return false;
 }
