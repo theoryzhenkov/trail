@@ -101,7 +101,7 @@
 
 .trail-section .tree-item-self {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: 6px;
 	padding: 4px 12px 4px calc(8px + var(--indent-level, 0) * 16px);
 	border-radius: var(--radius-s);
@@ -114,9 +114,18 @@
 
 .trail-section .tree-item-inner {
 	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 6px;
+}
+
+.trail-section .tree-item-inner .internal-link {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	max-width: 100%;
 }
 
 /* Relation tags */
@@ -138,10 +147,10 @@
 
 /* Property badges */
 .trail-property-badges {
-	display: inline-flex;
+	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 4px;
-	margin-left: 6px;
 }
 
 .trail-property-badge {
