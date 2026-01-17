@@ -409,7 +409,7 @@ class Executor {
 				return this.evaluateCall(expr, filePath, props, traversal);
 
 			case "property":
-				return this.evaluateProperty(expr, props, traversal);
+				return this.evaluateProperty(expr, props, traversal, filePath);
 
 			case "dateExpr":
 				return this.evaluateDateExpr(expr, filePath, props, traversal);
@@ -602,7 +602,8 @@ class Executor {
 	private evaluateProperty(
 		expr: PropertyAccess,
 		props: FileProperties,
-		traversal?: TraversalContext
+		traversal?: TraversalContext,
+		filePath?: string
 	): Value {
 		const path = expr.path;
 		
@@ -624,7 +625,38 @@ class Executor {
 			}
 		}
 		
+		// Handle file.* properties from file metadata
+		if (path[0] === "file" && filePath) {
+			return this.getFileProperty(filePath, path[1]);
+		}
+		
 		return this.getPropertyValue(props, path.join("."));
+	}
+
+	private getFileProperty(filePath: string, property: string | undefined): Value {
+		if (!property) return null;
+		
+		const metadata = this.ctx.getFileMetadata(filePath);
+		if (!metadata) return null;
+		
+		switch (property) {
+			case "name":
+				return metadata.name;
+			case "path":
+				return metadata.path;
+			case "folder":
+				return metadata.folder;
+			case "created":
+				return metadata.created;
+			case "modified":
+				return metadata.modified;
+			case "size":
+				return metadata.size;
+			case "tags":
+				return metadata.tags;
+			default:
+				return null;
+		}
 	}
 
 	private evaluateDateExpr(
@@ -640,7 +672,7 @@ class Executor {
 		} else if (expr.base.type === "date") {
 			base = expr.base.value;
 		} else if (expr.base.type === "property") {
-			base = this.evaluateProperty(expr.base, props, traversal);
+			base = this.evaluateProperty(expr.base, props, traversal, filePath);
 		} else {
 			// Should not happen with proper typing
 			base = null;
