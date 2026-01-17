@@ -531,3 +531,25 @@
 	border-radius: var(--radius-s);
 	margin: 4px 8px;
 }
+
+/* Visual editor styles */
+.trail-visual-relations {
+	margin-bottom: var(--size-4-2);
+}
+
+.trail-visual-relation {
+	margin-bottom: var(--size-4-1);
+}
+
+.trail-visual-relation .setting-item {
+	padding: var(--size-4-1) 0;
+	border: none;
+}
+
+.trail-visual-relation .setting-item-control {
+	gap: var(--size-4-2);
+}
+
+.trail-visual-relation .setting-item-control input[type="text"] {
+	width: 80px;
+}

@@ -18,7 +18,8 @@ import {
 import {isValidRelationName, normalizeRelationName} from "./validation";
 import {parse, TQLError} from "../query";
 import {migrateGroup} from "../query/migration";
-import {hasLegacyGroups} from "./index";
+import {hasLegacyGroups, EditorMode} from "./index";
+import {isVisualEditable, parseToVisual, visualToQuery, VisualQuery} from "./visual-editor";
 
 export class TrailSettingTab extends PluginSettingTab {
 	plugin: TrailPlugin;
@@ -257,9 +258,66 @@ export class TrailSettingTab extends PluginSettingTab {
 					});
 			});
 
-		// Query editor using TextArea
+		// Determine editor mode
+		const editorMode = this.plugin.settings.editorMode ?? "auto";
+		const canVisualEdit = isVisualEditable(group.query);
+		const showVisual = editorMode === "visual" || (editorMode === "auto" && canVisualEdit);
+
+		// Error container (shared by both editors)
 		const errorContainer = content.createDiv({cls: "trail-query-error"});
 
+		if (showVisual && canVisualEdit) {
+			this.renderVisualEditor(content, group, index, nameSpan, errorContainer);
+		} else {
+			this.renderQueryEditor(content, group, nameSpan, errorContainer);
+		}
+
+		// Mode toggle button
+		if (canVisualEdit || editorMode === "query") {
+			const modeLabel = showVisual && canVisualEdit ? "Edit as query" : "Edit visually";
+			const modeDesc = showVisual && canVisualEdit 
+				? "Switch to raw TQL query editor"
+				: canVisualEdit 
+					? "Switch to visual form editor"
+					: "Query is too complex for visual editing";
+
+			new Setting(content)
+				.setName(modeLabel)
+				.setDesc(modeDesc)
+				.addButton((button) => {
+					button
+						.setButtonText(showVisual && canVisualEdit ? "Query mode" : "Visual mode")
+						.setDisabled(!canVisualEdit && !showVisual)
+						.onClick(() => {
+							// Toggle between visual and query mode
+							const newMode: EditorMode = showVisual ? "query" : "visual";
+							this.plugin.settings.editorMode = newMode;
+							void this.plugin.saveSettings();
+							this.display();
+						});
+				});
+		}
+
+		// Delete button
+		new Setting(content)
+			.addButton((button) => {
+				button
+					.setButtonText("Delete group")
+					.setWarning()
+					.onClick(() => {
+						this.plugin.settings.tqlGroups.splice(index, 1);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
+	}
+
+	private renderQueryEditor(
+		content: HTMLElement,
+		group: GroupDefinition,
+		nameSpan: HTMLElement,
+		errorContainer: HTMLElement
+	) {
 		new Setting(content)
 			.setName("Query")
 			.setDesc("TQL query defining this group.")
@@ -278,19 +336,162 @@ export class TrailSettingTab extends PluginSettingTab {
 
 		// Initial validation
 		this.validateQuery(group.query, errorContainer, nameSpan);
+	}
 
-		// Delete button
+	private renderVisualEditor(
+		content: HTMLElement,
+		group: GroupDefinition,
+		index: number,
+		nameSpan: HTMLElement,
+		errorContainer: HTMLElement
+	) {
+		const visual = parseToVisual(group.query);
+		if (!visual) {
+			// Fall back to query editor
+			this.renderQueryEditor(content, group, nameSpan, errorContainer);
+			return;
+		}
+
+		// Group name
 		new Setting(content)
-			.addButton((button) => {
-				button
-					.setButtonText("Delete group")
-					.setWarning()
+			.setName("Name")
+			.setDesc("Display name for this group.")
+			.addText((text) => {
+				text
+					.setValue(visual.name)
+					.setPlaceholder("Group name")
+					.onChange((value) => {
+						visual.name = value;
+						this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+					});
+			});
+
+		// Relations
+		const relationsContainer = content.createDiv({cls: "trail-visual-relations"});
+		new Setting(relationsContainer)
+			.setName("Relations")
+			.setDesc("Relations to traverse.")
+			.setHeading();
+
+		for (const [i, rel] of visual.relations.entries()) {
+			const relEl = relationsContainer.createDiv({cls: "trail-visual-relation"});
+			
+			new Setting(relEl)
+				.addDropdown((dropdown) => {
+					// Add all relations from settings
+					for (const r of this.plugin.settings.relations) {
+						dropdown.addOption(r.name, r.name);
+					}
+					dropdown
+						.setValue(rel.name)
+						.onChange((value) => {
+							rel.name = value;
+							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+						});
+				})
+				.addText((text) => {
+					const depthVal = rel.depth === "unlimited" ? "" : String(rel.depth);
+					text
+						.setValue(depthVal)
+						.setPlaceholder("unlimited")
+						.onChange((value) => {
+							if (!value || value.toLowerCase() === "unlimited") {
+								rel.depth = "unlimited";
+							} else {
+								const parsed = parseInt(value, 10);
+								rel.depth = isNaN(parsed) ? "unlimited" : parsed;
+							}
+							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+						});
+					text.inputEl.style.width = "80px";
+				})
+				.addExtraButton((btn) => {
+					btn
+						.setIcon("x")
+						.setTooltip("Remove relation")
+						.onClick(() => {
+							visual.relations.splice(i, 1);
+							if (visual.relations.length === 0) {
+								// Keep at least one relation
+								visual.relations.push({name: "up", depth: "unlimited"});
+							}
+							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+							this.display();
+						});
+				});
+		}
+
+		// Add relation button
+		new Setting(relationsContainer)
+			.addButton((btn) => {
+				btn
+					.setButtonText("Add relation")
 					.onClick(() => {
-						this.plugin.settings.tqlGroups.splice(index, 1);
-						void this.plugin.saveSettings();
+						visual.relations.push({name: "up", depth: "unlimited"});
+						this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
 						this.display();
 					});
 			});
+
+		// Sort (optional)
+		new Setting(content)
+			.setName("Sort by")
+			.setDesc("Property to sort results by (optional).")
+			.addText((text) => {
+				text
+					.setValue(visual.sort?.property ?? "")
+					.setPlaceholder("No sorting")
+					.onChange((value) => {
+						if (value) {
+							visual.sort = {property: value, direction: visual.sort?.direction ?? "asc"};
+						} else {
+							visual.sort = undefined;
+						}
+						this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+					});
+			})
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("asc", "Ascending")
+					.addOption("desc", "Descending")
+					.setValue(visual.sort?.direction ?? "asc")
+					.onChange((value) => {
+						if (visual.sort) {
+							visual.sort.direction = value as "asc" | "desc";
+							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+						}
+					});
+			});
+
+		// Display properties (optional)
+		new Setting(content)
+			.setName("Display properties")
+			.setDesc("Comma-separated list of properties to show (optional).")
+			.addText((text) => {
+				text
+					.setValue(visual.display?.join(", ") ?? "")
+					.setPlaceholder("No extra properties")
+					.onChange((value) => {
+						if (value.trim()) {
+							visual.display = value.split(",").map(s => s.trim()).filter(Boolean);
+						} else {
+							visual.display = undefined;
+						}
+						this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+					});
+			});
+	}
+
+	private updateGroupFromVisual(
+		group: GroupDefinition,
+		visual: VisualQuery,
+		nameSpan: HTMLElement,
+		errorContainer: HTMLElement
+	) {
+		group.query = visualToQuery(visual);
+		nameSpan.textContent = visual.name || "(unnamed)";
+		this.validateQuery(group.query, errorContainer, nameSpan);
+		void this.plugin.saveSettings();
 	}
 
 	private validateQuery(query: string, errorEl: HTMLElement, nameEl: HTMLElement) {
