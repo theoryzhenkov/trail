@@ -426,7 +426,8 @@ class Executor {
 			}
 		}
 
-		return current as Value;
+		// Normalize undefined to null - TQL uses null as canonical "no value"
+		return (current === undefined ? null : current) as Value;
 	}
 
 	// =========================================================================
@@ -559,16 +560,25 @@ class Executor {
 			return !this.equals(left, right);
 		}
 
-		// Standard operators - null propagates
+		// Equality with null: x = null checks if x is null
+		// Note: undefined is normalized to null at property access layer
+		if (expr.op === "=" || expr.op === "!=") {
+			if (right === null) {
+				return expr.op === "=" ? left === null : left !== null;
+			}
+			if (left === null) {
+				return expr.op === "=" ? right === null : right !== null;
+			}
+			// Neither is null - compare normally
+			return expr.op === "=" ? this.equals(left, right) : !this.equals(left, right);
+		}
+
+		// Standard comparison operators - null propagates
 		if (left === null || right === null) {
 			return null;
 		}
 
 		switch (expr.op) {
-			case "=":
-				return this.equals(left, right);
-			case "!=":
-				return !this.equals(left, right);
 			case "<":
 				return this.compare(left, right) < 0;
 			case ">":
