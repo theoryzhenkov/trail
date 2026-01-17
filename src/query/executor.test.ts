@@ -234,7 +234,7 @@ describe("TQL Executor", () => {
 			
 			// Check ages are in ascending order
 			for (let i = 1; i < ages.length; i++) {
-				expect(ages[i]).toBeGreaterThanOrEqual(ages[i - 1]);
+				expect(ages[i]).toBeGreaterThanOrEqual(ages[i - 1]!);
 			}
 		});
 
@@ -250,7 +250,7 @@ describe("TQL Executor", () => {
 			
 			// Check ages are in descending order
 			for (let i = 1; i < ages.length; i++) {
-				expect(ages[i]).toBeLessThanOrEqual(ages[i - 1]);
+				expect(ages[i]).toBeLessThanOrEqual(ages[i - 1]!);
 			}
 		});
 	});
