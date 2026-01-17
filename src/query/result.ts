@@ -30,6 +30,10 @@ export interface QueryResultNode {
 	implied: boolean;
 	/** Source relation if implied */
 	impliedFrom?: string;
+	/** Parent node path (null for root) */
+	parent: string | null;
+	/** Full path from active file to this node */
+	traversalPath: string[];
 	/** File properties */
 	properties: FileProperties;
 	/** Properties to display (filtered by DISPLAY clause) */
@@ -40,6 +44,22 @@ export interface QueryResultNode {
 	hasFilteredAncestor: boolean;
 	/** Child nodes */
 	children: QueryResultNode[];
+}
+
+/**
+ * Traversal context available during expression evaluation
+ */
+export interface TraversalContext {
+	/** Depth from active file (1-indexed) */
+	depth: number;
+	/** Relation name that led to this node */
+	relation: string;
+	/** Whether the edge is implied */
+	isImplied: boolean;
+	/** Parent node path (null for root) */
+	parent: string | null;
+	/** Full path from active file to this node */
+	path: string[];
 }
 
 /**

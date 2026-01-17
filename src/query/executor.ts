@@ -13,7 +13,7 @@ import type {
 } from "./ast";
 import type {ValidatedQuery} from "./validator";
 import type {QueryContext} from "./context";
-import type {QueryResult, QueryResultNode, QueryWarning} from "./result";
+import type {QueryResult, QueryResultNode, QueryWarning, TraversalContext} from "./result";
 import {emptyResult} from "./result";
 import type {RelationEdge, FileProperties, VisualDirection} from "../types";
 import {callBuiltin, FunctionContext} from "./builtins";
@@ -83,6 +83,7 @@ class Executor {
 	private traverse(): QueryResultNode[] {
 		const results: QueryResultNode[] = [];
 		const ancestorPaths = new Set<string>([this.ctx.activeFilePath]);
+		const traversalPath = [this.ctx.activeFilePath];
 
 		for (const relSpec of this.query.from.relations) {
 			const nodes = this.traverseRelation(
@@ -91,6 +92,7 @@ class Executor {
 				relSpec.depth === "unlimited" ? Infinity : relSpec.depth,
 				1,
 				ancestorPaths,
+				traversalPath,
 				relSpec.extend
 			);
 			results.push(...nodes);
@@ -105,12 +107,13 @@ class Executor {
 		maxDepth: number,
 		currentDepth: number,
 		ancestorPaths: Set<string>,
+		traversalPath: string[],
 		extendGroup?: string
 	): QueryResultNode[] {
 		if (currentDepth > maxDepth) {
 			// At leaf - check for extend
 			if (extendGroup) {
-				return this.extendFromGroup(sourcePath, extendGroup, ancestorPaths);
+				return this.extendFromGroup(sourcePath, extendGroup, ancestorPaths, traversalPath);
 			}
 			return [];
 		}
@@ -124,16 +127,26 @@ class Executor {
 				continue;
 			}
 
+			const props = this.ctx.getProperties(edge.toPath);
+			const newPath = [...traversalPath, edge.toPath];
+			
+			// Build traversal context for expression evaluation
+			const traversalCtx: TraversalContext = {
+				depth: currentDepth,
+				relation: edge.relation,
+				isImplied: edge.implied,
+				parent: sourcePath,
+				path: newPath,
+			};
+
 			// Apply PRUNE filter
 			if (this.query.prune) {
-				const props = this.ctx.getProperties(edge.toPath);
-				const pruneResult = this.evaluateExpr(this.query.prune, edge.toPath, props);
+				const pruneResult = this.evaluateExpr(this.query.prune, edge.toPath, props, traversalCtx);
 				if (this.isTruthy(pruneResult)) {
 					continue; // Skip this node and its subtree
 				}
 			}
 
-			const props = this.ctx.getProperties(edge.toPath);
 			const visualDirection = this.ctx.getVisualDirection(edge.relation);
 
 			// Traverse children
@@ -146,6 +159,7 @@ class Executor {
 				maxDepth,
 				currentDepth + 1,
 				newAncestors,
+				newPath,
 				extendGroup
 			);
 
@@ -155,6 +169,8 @@ class Executor {
 				depth: currentDepth,
 				implied: edge.implied,
 				impliedFrom: edge.impliedFrom,
+				parent: sourcePath,
+				traversalPath: newPath,
 				properties: props,
 				displayProperties: [],
 				visualDirection,
@@ -169,7 +185,8 @@ class Executor {
 	private extendFromGroup(
 		sourcePath: string,
 		groupName: string,
-		ancestorPaths: Set<string>
+		ancestorPaths: Set<string>,
+		traversalPath: string[]
 	): QueryResultNode[] {
 		const groupQuery = this.ctx.resolveGroupQuery(groupName);
 		if (!groupQuery) {
@@ -186,6 +203,7 @@ class Executor {
 				relSpec.depth === "unlimited" ? Infinity : relSpec.depth,
 				1,
 				ancestorPaths,
+				traversalPath,
 				relSpec.extend
 			);
 			results.push(...nodes);
@@ -201,10 +219,20 @@ class Executor {
 		const result: QueryResultNode[] = [];
 
 		for (const node of nodes) {
+			// Build traversal context from node
+			const traversalCtx: TraversalContext = {
+				depth: node.depth,
+				relation: node.relation,
+				isImplied: node.implied,
+				parent: node.parent,
+				path: node.traversalPath,
+			};
+
 			const whereResult = this.evaluateExpr(
 				this.query.where!,
 				node.path,
-				node.properties
+				node.properties,
+				traversalCtx
 			);
 
 			// Filter children first
@@ -352,34 +380,39 @@ class Executor {
 	// Expression Evaluation
 	// =========================================================================
 
-	private evaluateExpr(expr: Expr, filePath: string, props: FileProperties): Value {
+	private evaluateExpr(
+		expr: Expr,
+		filePath: string,
+		props: FileProperties,
+		traversal?: TraversalContext
+	): Value {
 		switch (expr.type) {
 			case "logical":
-				return this.evaluateLogical(expr, filePath, props);
+				return this.evaluateLogical(expr, filePath, props, traversal);
 
 			case "compare":
-				return this.evaluateCompare(expr, filePath, props);
+				return this.evaluateCompare(expr, filePath, props, traversal);
 
 			case "arith":
-				return this.evaluateArith(expr, filePath, props);
+				return this.evaluateArith(expr, filePath, props, traversal);
 
 			case "unary":
-				return this.evaluateUnary(expr, filePath, props);
+				return this.evaluateUnary(expr, filePath, props, traversal);
 
 			case "in":
-				return this.evaluateIn(expr, filePath, props);
+				return this.evaluateIn(expr, filePath, props, traversal);
 
 			case "range":
-				return this.evaluateRange(expr, filePath, props);
+				return this.evaluateRange(expr, filePath, props, traversal);
 
 			case "call":
-				return this.evaluateCall(expr, filePath, props);
+				return this.evaluateCall(expr, filePath, props, traversal);
 
 			case "property":
-				return this.evaluateProperty(expr, props);
+				return this.evaluateProperty(expr, props, traversal);
 
 			case "dateExpr":
-				return this.evaluateDateExpr(expr, filePath, props);
+				return this.evaluateDateExpr(expr, filePath, props, traversal);
 
 			case "string":
 				return expr.value;
@@ -397,6 +430,9 @@ class Executor {
 				// Return as milliseconds for arithmetic
 				return this.durationToMs(expr.value, expr.unit);
 
+			case "date":
+				return expr.value;
+
 			default:
 				throw new RuntimeError(`Unknown expression type: ${(expr as Expr).type}`);
 		}
@@ -405,26 +441,28 @@ class Executor {
 	private evaluateLogical(
 		expr: {op: "and" | "or"; left: Expr; right: Expr},
 		filePath: string,
-		props: FileProperties
+		props: FileProperties,
+		traversal?: TraversalContext
 	): Value {
-		const left = this.evaluateExpr(expr.left, filePath, props);
+		const left = this.evaluateExpr(expr.left, filePath, props, traversal);
 
 		if (expr.op === "and") {
 			if (!this.isTruthy(left)) return false;
-			return this.isTruthy(this.evaluateExpr(expr.right, filePath, props));
+			return this.isTruthy(this.evaluateExpr(expr.right, filePath, props, traversal));
 		} else {
 			if (this.isTruthy(left)) return true;
-			return this.isTruthy(this.evaluateExpr(expr.right, filePath, props));
+			return this.isTruthy(this.evaluateExpr(expr.right, filePath, props, traversal));
 		}
 	}
 
 	private evaluateCompare(
 		expr: {op: string; left: Expr; right: Expr},
 		filePath: string,
-		props: FileProperties
+		props: FileProperties,
+		traversal?: TraversalContext
 	): Value {
-		const left = this.evaluateExpr(expr.left, filePath, props);
-		const right = this.evaluateExpr(expr.right, filePath, props);
+		const left = this.evaluateExpr(expr.left, filePath, props, traversal);
+		const right = this.evaluateExpr(expr.right, filePath, props, traversal);
 
 		// Null-safe operators
 		if (expr.op === "=?") {
@@ -462,10 +500,11 @@ class Executor {
 	private evaluateArith(
 		expr: {op: "+" | "-"; left: Expr; right: Expr},
 		filePath: string,
-		props: FileProperties
+		props: FileProperties,
+		traversal?: TraversalContext
 	): Value {
-		const left = this.evaluateExpr(expr.left, filePath, props);
-		const right = this.evaluateExpr(expr.right, filePath, props);
+		const left = this.evaluateExpr(expr.left, filePath, props, traversal);
+		const right = this.evaluateExpr(expr.right, filePath, props, traversal);
 
 		if (left === null || right === null) {
 			return null;
@@ -493,19 +532,21 @@ class Executor {
 	private evaluateUnary(
 		expr: {op: "not"; operand: Expr},
 		filePath: string,
-		props: FileProperties
+		props: FileProperties,
+		traversal?: TraversalContext
 	): Value {
-		const operand = this.evaluateExpr(expr.operand, filePath, props);
+		const operand = this.evaluateExpr(expr.operand, filePath, props, traversal);
 		return !this.isTruthy(operand);
 	}
 
 	private evaluateIn(
 		expr: {value: Expr; collection: Expr},
 		filePath: string,
-		props: FileProperties
+		props: FileProperties,
+		traversal?: TraversalContext
 	): Value {
-		const value = this.evaluateExpr(expr.value, filePath, props);
-		const collection = this.evaluateExpr(expr.collection, filePath, props);
+		const value = this.evaluateExpr(expr.value, filePath, props, traversal);
+		const collection = this.evaluateExpr(expr.collection, filePath, props, traversal);
 
 		if (collection === null) {
 			return false;
@@ -527,11 +568,12 @@ class Executor {
 	private evaluateRange(
 		expr: {value: Expr; lower: Expr; upper: Expr},
 		filePath: string,
-		props: FileProperties
+		props: FileProperties,
+		traversal?: TraversalContext
 	): Value {
-		const value = this.evaluateExpr(expr.value, filePath, props);
-		const lower = this.evaluateExpr(expr.lower, filePath, props);
-		const upper = this.evaluateExpr(expr.upper, filePath, props);
+		const value = this.evaluateExpr(expr.value, filePath, props, traversal);
+		const lower = this.evaluateExpr(expr.lower, filePath, props, traversal);
+		const upper = this.evaluateExpr(expr.upper, filePath, props, traversal);
 
 		if (value === null || lower === null || upper === null) {
 			return null;
@@ -543,9 +585,10 @@ class Executor {
 	private evaluateCall(
 		expr: {name: string; args: Expr[]},
 		filePath: string,
-		props: FileProperties
+		props: FileProperties,
+		traversal?: TraversalContext
 	): Value {
-		const args = expr.args.map((arg) => this.evaluateExpr(arg, filePath, props));
+		const args = expr.args.map((arg) => this.evaluateExpr(arg, filePath, props, traversal));
 
 		const fnCtx: FunctionContext = {
 			filePath,
@@ -556,14 +599,39 @@ class Executor {
 		return callBuiltin(expr.name, args, fnCtx);
 	}
 
-	private evaluateProperty(expr: PropertyAccess, props: FileProperties): Value {
-		return this.getPropertyValue(props, expr.path.join("."));
+	private evaluateProperty(
+		expr: PropertyAccess,
+		props: FileProperties,
+		traversal?: TraversalContext
+	): Value {
+		const path = expr.path;
+		
+		// Handle traversal.* properties
+		if (path[0] === "traversal" && traversal) {
+			switch (path[1]) {
+				case "depth":
+					return traversal.depth;
+				case "relation":
+					return traversal.relation;
+				case "isImplied":
+					return traversal.isImplied;
+				case "parent":
+					return traversal.parent;
+				case "path":
+					return traversal.path;
+				default:
+					return null;
+			}
+		}
+		
+		return this.getPropertyValue(props, path.join("."));
 	}
 
 	private evaluateDateExpr(
 		expr: DateExpr,
 		filePath: string,
-		props: FileProperties
+		props: FileProperties,
+		traversal?: TraversalContext
 	): Value {
 		let base: Value;
 
@@ -572,7 +640,7 @@ class Executor {
 		} else if (expr.base.type === "date") {
 			base = expr.base.value;
 		} else if (expr.base.type === "property") {
-			base = this.evaluateProperty(expr.base, props);
+			base = this.evaluateProperty(expr.base, props, traversal);
 		} else {
 			// Should not happen with proper typing
 			base = null;
