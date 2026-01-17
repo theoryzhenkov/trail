@@ -3,6 +3,11 @@
  * 
  * Provides a complete TQL editor with syntax highlighting,
  * autocomplete, linting, and hover tooltips.
+ * 
+ * NOTE: Syntax highlighting uses a ViewPlugin-based approach that manually
+ * applies decorations. CM6's native highlighting (tokenTable + HighlightStyle)
+ * does NOT work in Obsidian plugins due to @lezer/highlight module instance
+ * fragmentation between the plugin and Obsidian's bundled CM6.
  */
 
 import {EditorState, Extension} from "@codemirror/state";
@@ -12,14 +17,14 @@ import {closeBrackets, closeBracketsKeymap} from "@codemirror/autocomplete";
 import {bracketMatching} from "@codemirror/language";
 
 import {tql} from "./language";
-import {tqlEditorTheme, tqlSyntaxHighlighting} from "./theme";
+import {tqlEditorTheme} from "./theme";
 import {createTQLAutocomplete} from "./autocomplete";
 import {createTQLLinter} from "./linter";
 import {createTQLHover} from "./hover";
 
 // Re-export for external use
-export {tql, tqlLanguage} from "./language";
-export {tqlEditorTheme, tqlSyntaxHighlighting} from "./theme";
+export {tql, tqlLanguage, tqlHighlightPlugin} from "./language";
+export {tqlEditorTheme} from "./theme";
 export {createTQLAutocomplete, FUNCTION_DOCS, FILE_PROPERTIES, TRAVERSAL_PROPERTIES} from "./autocomplete";
 export type {TQLAutocompleteConfig} from "./autocomplete";
 export {createTQLLinter} from "./linter";
@@ -61,9 +66,8 @@ export function createTQLEditor(config: TQLEditorConfig): EditorView {
 			...closeBracketsKeymap,
 		]),
 		
-		// TQL language support
+		// TQL language support (includes ViewPlugin-based syntax highlighting)
 		tql(),
-		tqlSyntaxHighlighting,
 		tqlEditorTheme,
 		
 		// Autocomplete

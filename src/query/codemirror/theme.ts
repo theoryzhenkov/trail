@@ -2,11 +2,14 @@
  * TQL Editor Theme for CodeMirror 6
  * 
  * Integrates with Obsidian's CSS variables for consistent theming.
+ * 
+ * NOTE: Syntax highlighting is NOT handled here. CM6's native highlighting
+ * (HighlightStyle + syntaxHighlighting) doesn't work in Obsidian plugins due to
+ * @lezer/highlight module instance fragmentation. Instead, highlighting is done
+ * via a ViewPlugin in language.ts that applies CSS classes directly.
  */
 
 import {EditorView} from "@codemirror/view";
-import {HighlightStyle, syntaxHighlighting} from "@codemirror/language";
-import {tags as t} from "@lezer/highlight";
 
 /**
  * Base editor theme that integrates with Obsidian's styles
@@ -106,34 +109,3 @@ export const tqlEditorTheme = EditorView.theme({
 		maxWidth: "400px",
 	},
 }, {dark: false});
-
-/**
- * Syntax highlighting for TQL
- */
-export const tqlHighlightStyle = HighlightStyle.define([
-	// Keywords (clauses)
-	{tag: t.keyword, color: "var(--text-accent)"},
-	// Strings
-	{tag: t.string, color: "var(--color-green)"},
-	// Numbers and durations
-	{tag: t.number, color: "var(--color-cyan)"},
-	// Booleans and null
-	{tag: t.atom, color: "var(--color-orange)"},
-	// Operators
-	{tag: t.operator, color: "var(--text-accent)"},
-	// Functions
-	{tag: t.function(t.variableName), color: "var(--color-yellow)"},
-	// Property names
-	{tag: t.propertyName, color: "var(--color-purple)"},
-	// Variables (relation names, identifiers)
-	{tag: t.variableName, color: "var(--text-normal)"},
-	// Punctuation
-	{tag: t.punctuation, color: "var(--text-muted)"},
-	// Comments (if we add them later)
-	{tag: t.comment, color: "var(--text-faint)", fontStyle: "italic"},
-]);
-
-/**
- * Combined syntax highlighting extension
- */
-export const tqlSyntaxHighlighting = syntaxHighlighting(tqlHighlightStyle);

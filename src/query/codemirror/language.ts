@@ -2,23 +2,24 @@
  * TQL Language Definition for CodeMirror 6
  * 
  * Provides syntax highlighting for TQL queries using a stream parser.
+ * 
+ * NOTE: CM6's native highlighting (via tokenTable + HighlightStyle) does NOT work
+ * in Obsidian plugins due to module instance fragmentation. The @lezer/highlight
+ * module used by StreamLanguage to create NodeTypes with styleTags is a different
+ * instance than the one used by TreeHighlighter to read those props.
+ * 
+ * Instead, we use a ViewPlugin that manually tokenizes and applies decorations,
+ * bypassing CM6's native highlighting system entirely.
  */
 
 import {
 	StreamLanguage,
+	StreamParser,
 	StringStream,
 	LanguageSupport,
 } from "@codemirror/language";
-import {Tag} from "@lezer/highlight";
-
-// Custom tags for TQL-specific tokens
-export const tqlTags = {
-	clause: Tag.define(),
-	relationName: Tag.define(),
-	propertyPath: Tag.define(),
-	duration: Tag.define(),
-	dateKeyword: Tag.define(),
-};
+import {Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate} from "@codemirror/view";
+import {RangeSetBuilder} from "@codemirror/state";
 
 /**
  * TQL keywords categorized by type
@@ -87,9 +88,10 @@ interface TQLState {
 }
 
 /**
- * TQL stream parser for CodeMirror
+ * TQL stream parser for CodeMirror.
+ * Returns token type names that are mapped to Lezer tags via tokenTable.
  */
-const tqlParser = {
+const tqlParserBase = {
 	name: "tql",
 	
 	startState(): TQLState {
@@ -163,6 +165,14 @@ const tqlParser = {
 	},
 };
 
+/**
+ * Complete stream parser.
+ * Note: tokenTable is not used since we use ViewPlugin-based highlighting.
+ */
+const tqlStreamParser: StreamParser<TQLState> = {
+	...tqlParserBase,
+};
+
 function tokenizeString(stream: StringStream, state: TQLState): string {
 	let escaped = false;
 	
@@ -212,21 +222,21 @@ function tokenizeIdentifier(stream: StringStream, state: TQLState): string {
 	stream.match(/^[a-zA-Z_][a-zA-Z0-9_-]*/);
 	const word = stream.current().toLowerCase();
 	
-	// Check for clause keywords
+	// Check for clause keywords (structural - use "keyword" → t.keyword)
 	if (CLAUSE_KEYWORDS.has(word)) {
 		state.context = word === "from" ? "afterFrom" : 
 		               word === "sort" ? "afterSort" : "afterClause";
 		return "keyword";
 	}
 	
-	// Check for modifier keywords
+	// Check for modifier keywords (secondary - maps to tags.typeName)
 	if (MODIFIER_KEYWORDS.has(word)) {
-		return "keyword";
+		return "typeName";
 	}
 	
-	// Check for logical keywords
+	// Check for logical keywords (maps to tags.operatorKeyword)
 	if (LOGICAL_KEYWORDS.has(word)) {
-		return "keyword";
+		return "operatorKeyword";
 	}
 	
 	// Check for literal keywords
@@ -240,11 +250,9 @@ function tokenizeIdentifier(stream: StringStream, state: TQLState): string {
 	}
 	
 	// Check if it's a function call (followed by parenthesis)
+	// Use "variableName.function" to get tags.function(tags.variableName)
 	if (stream.peek() === "(") {
-		if (BUILTIN_FUNCTIONS.has(word)) {
-			return "function";
-		}
-		return "function";
+		return "variableName.function";
 	}
 	
 	// Check for property prefixes (file., traversal.)
@@ -263,13 +271,153 @@ function tokenizeIdentifier(stream: StringStream, state: TQLState): string {
 }
 
 /**
- * Create the TQL language support
+ * Create the TQL language.
  */
-export const tqlLanguage = StreamLanguage.define(tqlParser);
+export const tqlLanguage = StreamLanguage.define(tqlStreamParser);
 
 /**
- * TQL language support with highlighting
+ * Decoration marks for different token types.
+ * These CSS classes are styled in styles.css.
+ */
+const keywordMark = Decoration.mark({class: "tql-keyword"});
+const typeMark = Decoration.mark({class: "tql-type"});
+const logicMark = Decoration.mark({class: "tql-logic"});
+const stringMark = Decoration.mark({class: "tql-string"});
+const numberMark = Decoration.mark({class: "tql-number"});
+const atomMark = Decoration.mark({class: "tql-atom"});
+const operatorMark = Decoration.mark({class: "tql-operator"});
+const functionMark = Decoration.mark({class: "tql-function"});
+const propertyMark = Decoration.mark({class: "tql-property"});
+const variableMark = Decoration.mark({class: "tql-variable"});
+const punctuationMark = Decoration.mark({class: "tql-punctuation"});
+
+/**
+ * Map token types to decoration marks
+ */
+const tokenToMark: {[key: string]: Decoration} = {
+	keyword: keywordMark,
+	typeName: typeMark,
+	operatorKeyword: logicMark,
+	string: stringMark,
+	number: numberMark,
+	atom: atomMark,
+	operator: operatorMark,
+	"variableName.function": functionMark,
+	propertyName: propertyMark,
+	variableName: variableMark,
+	punctuation: punctuationMark,
+};
+
+/**
+ * ViewPlugin that creates decorations by re-running the tokenizer.
+ * This bypasses CM6's native highlighting which doesn't work in Obsidian plugins
+ * due to @lezer/highlight module instance fragmentation.
+ */
+function buildDecorations(view: EditorView): DecorationSet {
+	const builder = new RangeSetBuilder<Decoration>();
+	
+	for (const {from, to} of view.visibleRanges) {
+		const text = view.state.doc.sliceString(from, to);
+		let state = tqlParserBase.startState();
+		
+		// Simple stream implementation for tokenization
+		let lineStart = 0;
+		const lines = text.split("\n");
+		
+		for (const line of lines) {
+			const stream = {
+				string: line,
+				pos: 0,
+				start: 0,
+				eol: () => stream.pos >= line.length,
+				sol: () => stream.pos === 0,
+				peek: () => line[stream.pos] ?? "",
+				next: () => line[stream.pos++],
+				eat: (match: string | RegExp) => {
+					const ch = line[stream.pos] ?? "";
+					if (typeof match === "string" ? ch === match : match.test(ch)) {
+						stream.pos++;
+						return ch;
+					}
+					return undefined;
+				},
+				eatWhile: (match: RegExp) => {
+					const start = stream.pos;
+					while (stream.pos < line.length && match.test(line[stream.pos] ?? "")) {
+						stream.pos++;
+					}
+					return stream.pos > start;
+				},
+				eatSpace: () => {
+					const start = stream.pos;
+					while (stream.pos < line.length && /\s/.test(line[stream.pos] ?? "")) {
+						stream.pos++;
+					}
+					return stream.pos > start;
+				},
+				match: (pattern: RegExp | string, consume = true) => {
+					if (typeof pattern === "string") {
+						if (line.slice(stream.pos).startsWith(pattern)) {
+							if (consume) stream.pos += pattern.length;
+							return true;
+						}
+						return false;
+					}
+					const match = line.slice(stream.pos).match(pattern);
+					if (match && match.index === 0) {
+						if (consume) stream.pos += match[0].length;
+						return match;
+					}
+					return null;
+				},
+				current: () => line.slice(stream.start, stream.pos),
+				skipToEnd: () => { stream.pos = line.length; },
+			} as unknown as StringStream;
+			
+			while (!stream.eol()) {
+				stream.start = stream.pos;
+				const tokenType = tqlParserBase.token(stream, state);
+				
+				if (tokenType && tokenToMark[tokenType]) {
+					const tokenStart = from + lineStart + stream.start;
+					const tokenEnd = from + lineStart + stream.pos;
+					builder.add(tokenStart, tokenEnd, tokenToMark[tokenType]);
+				}
+			}
+			
+			lineStart += line.length + 1; // +1 for newline
+		}
+	}
+	
+	return builder.finish();
+}
+
+/**
+ * ViewPlugin for TQL syntax highlighting.
+ * Manually applies decorations based on tokenization.
+ */
+export const tqlHighlightPlugin = ViewPlugin.fromClass(class {
+	decorations: DecorationSet;
+	
+	constructor(view: EditorView) {
+		this.decorations = buildDecorations(view);
+	}
+	
+	update(update: ViewUpdate) {
+		if (update.docChanged || update.viewportChanged) {
+			this.decorations = buildDecorations(update.view);
+		}
+	}
+}, {
+	decorations: v => v.decorations
+});
+
+/**
+ * TQL language support with ViewPlugin-based highlighting.
+ * 
+ * Uses manual decoration instead of CM6's native highlighting
+ * because the native system doesn't work in Obsidian plugins.
  */
 export function tql(): LanguageSupport {
-	return new LanguageSupport(tqlLanguage);
+	return new LanguageSupport(tqlLanguage, [tqlHighlightPlugin]);
 }

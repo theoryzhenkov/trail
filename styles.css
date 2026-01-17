@@ -668,3 +668,68 @@
 .trail-depth-input {
 	width: 80px;
 }
+
+/* ============================================
+   TQL Syntax Highlighting (ViewPlugin-based)
+   ============================================
+   Uses custom CSS classes applied by tqlHighlightPlugin (ViewPlugin).
+   CM6's native highlighting doesn't work in Obsidian plugins due to
+   @lezer/highlight module instance fragmentation.
+*/
+
+/* Clause keywords (group, from, where, sort, display, prune, when) - Bold accent */
+.tql-keyword {
+	color: var(--text-accent) !important;
+	font-weight: bold !important;
+}
+
+/* Modifier keywords (depth, unlimited, asc, desc, by, all, extend, chain) - Cyan */
+.tql-type {
+	color: var(--color-cyan) !important;
+}
+
+/* Logical keywords (and, or, not, in) - Pink italic */
+.tql-logic {
+	color: var(--color-pink) !important;
+	font-style: italic !important;
+}
+
+/* Strings - Green */
+.tql-string {
+	color: var(--color-green) !important;
+}
+
+/* Numbers and durations - Orange */
+.tql-number {
+	color: var(--color-orange) !important;
+}
+
+/* Booleans, null, date keywords (true, false, null, today, etc.) - Purple */
+.tql-atom {
+	color: var(--color-purple) !important;
+}
+
+/* Operators (=, !=, <, >, etc.) - Muted */
+.tql-operator {
+	color: var(--text-muted) !important;
+}
+
+/* Functions - Yellow */
+.tql-function {
+	color: var(--color-yellow) !important;
+}
+
+/* Property names (file., traversal.) - Blue */
+.tql-property {
+	color: var(--color-blue) !important;
+}
+
+/* Variables (relation names, identifiers) - Normal text */
+.tql-variable {
+	color: var(--text-normal) !important;
+}
+
+/* Punctuation - Muted */
+.tql-punctuation {
+	color: var(--text-muted) !important;
+}
