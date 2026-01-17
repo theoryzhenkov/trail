@@ -7,7 +7,7 @@ export interface RelationAlias {
 	key: string;
 }
 
-export type ImpliedDirection = "forward" | "reverse" | "both";
+export type ImpliedDirection = "forward" | "reverse" | "both" | "sibling";
 
 export interface ImpliedRelation {
 	targetRelation: RelationName;
