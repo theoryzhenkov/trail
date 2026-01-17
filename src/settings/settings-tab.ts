@@ -1,4 +1,5 @@
 import {App, Notice, PluginSettingTab, setIcon, Setting, TextAreaComponent} from "obsidian";
+import type {EditorView} from "@codemirror/view";
 import TrailPlugin from "../main";
 import {
 	ChainSortMode,
@@ -20,11 +21,13 @@ import {parse, TQLError} from "../query";
 import {migrateGroup} from "../query/migration";
 import {hasLegacyGroups, EditorMode} from "./index";
 import {isVisualEditable, parseToVisual, visualToQuery, VisualQuery} from "./visual-editor";
+import {createTQLEditor, setEditorContent} from "../query/codemirror";
 
 export class TrailSettingTab extends PluginSettingTab {
 	plugin: TrailPlugin;
 	private openSections: Set<number> = new Set();
 	private openGroupSections: Set<number> = new Set();
+	private editorViews: Map<number, EditorView> = new Map();
 
 	constructor(app: App, plugin: TrailPlugin) {
 		super(app, plugin);
@@ -37,6 +40,12 @@ export class TrailSettingTab extends PluginSettingTab {
 		// Save current open state before clearing
 		this.saveOpenState(containerEl);
 		this.saveGroupOpenState(containerEl);
+
+		// Clean up existing CodeMirror editors
+		for (const view of this.editorViews.values()) {
+			view.destroy();
+		}
+		this.editorViews.clear();
 
 		containerEl.empty();
 		containerEl.addClass("trail-settings");
@@ -269,7 +278,7 @@ export class TrailSettingTab extends PluginSettingTab {
 		if (showVisual && canVisualEdit) {
 			this.renderVisualEditor(content, group, index, nameSpan, errorContainer);
 		} else {
-			this.renderQueryEditor(content, group, nameSpan, errorContainer);
+			this.renderQueryEditor(content, group, index, nameSpan, errorContainer);
 		}
 
 		// Mode toggle button
@@ -315,24 +324,33 @@ export class TrailSettingTab extends PluginSettingTab {
 	private renderQueryEditor(
 		content: HTMLElement,
 		group: GroupDefinition,
+		index: number,
 		nameSpan: HTMLElement,
 		errorContainer: HTMLElement
 	) {
-		new Setting(content)
+		// Create setting with label
+		const setting = new Setting(content)
 			.setName("Query")
-			.setDesc("TQL query defining this group.")
-			.addTextArea((textarea: TextAreaComponent) => {
-				textarea
-					.setValue(group.query)
-					.setPlaceholder('group "My group"\nfrom up depth unlimited')
-					.onChange((value) => {
-						group.query = value;
-						this.validateQuery(value, errorContainer, nameSpan);
-						void this.plugin.saveSettings();
-					});
-				textarea.inputEl.rows = 6;
-				textarea.inputEl.addClass("trail-query-textarea");
-			});
+			.setDesc("TQL query defining this group.");
+		
+		// Create container for CodeMirror editor
+		const editorContainer = content.createDiv({cls: "trail-codemirror-container"});
+		
+		// Create CodeMirror editor
+		const editorView = createTQLEditor({
+			doc: group.query,
+			parent: editorContainer,
+			onChange: (value) => {
+				group.query = value;
+				this.validateQuery(value, errorContainer, nameSpan);
+				void this.plugin.saveSettings();
+			},
+			getRelationNames: () => this.plugin.settings.relations.map(r => r.name),
+			minHeight: "120px",
+		});
+		
+		// Store editor view for cleanup
+		this.editorViews.set(index, editorView);
 
 		// Initial validation
 		this.validateQuery(group.query, errorContainer, nameSpan);
@@ -348,7 +366,7 @@ export class TrailSettingTab extends PluginSettingTab {
 		const visual = parseToVisual(group.query);
 		if (!visual) {
 			// Fall back to query editor
-			this.renderQueryEditor(content, group, nameSpan, errorContainer);
+			this.renderQueryEditor(content, group, index, nameSpan, errorContainer);
 			return;
 		}
 

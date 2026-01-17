@@ -301,8 +301,93 @@ class Executor {
 
 	private compareChain(a: QueryResultNode, b: QueryResultNode): number {
 		// Chain comparison based on sequential relations
-		// For now, just compare by path as fallback
-		return a.path.localeCompare(b.path);
+		// Use the traversal relation to determine sequence order
+		const relation = a.relation || b.relation;
+		
+		if (!relation) {
+			// No relation info - fall back to path comparison
+			return a.path.localeCompare(b.path);
+		}
+		
+		// Get chain positions for both nodes
+		const aPos = this.getChainPosition(a.path, relation);
+		const bPos = this.getChainPosition(b.path, relation);
+		
+		// Nodes with position sort before nodes without
+		if (aPos === null && bPos === null) {
+			return a.path.localeCompare(b.path);
+		}
+		if (aPos === null) return 1;
+		if (bPos === null) return -1;
+		
+		return aPos - bPos;
+	}
+
+	/**
+	 * Get the chain position of a node by following predecessor links
+	 * Returns the number of "prev" hops from the start of the chain
+	 */
+	private getChainPosition(path: string, relation: string): number | null {
+		// Try to find a "prev" or reverse relation to determine position
+		// We check if there's an implied inverse (e.g., "prev" for "next")
+		const inverseRelation = this.findInverseRelation(relation);
+		
+		if (!inverseRelation) {
+			// No inverse relation - can't determine chain position
+			// Use discovery order (traversalPath length as approximation)
+			return null;
+		}
+		
+		// Follow the inverse relation backwards to count position
+		let position = 0;
+		let currentPath = path;
+		const visited = new Set<string>();
+		
+		while (position < 1000) { // Safety limit
+			visited.add(currentPath);
+			
+			// Get predecessor via inverse relation
+			const edges = this.ctx.getOutgoingEdges(currentPath, inverseRelation);
+			const prevEdge = edges[0];
+			
+			if (!prevEdge || visited.has(prevEdge.toPath)) {
+				// Reached start of chain or cycle
+				break;
+			}
+			
+			currentPath = prevEdge.toPath;
+			position++;
+		}
+		
+		return position;
+	}
+
+	/**
+	 * Find the inverse relation for chain sorting
+	 * e.g., "next" -> "prev", "after" -> "before"
+	 */
+	private findInverseRelation(relation: string): string | null {
+		// Check relation definitions for aliases that define inverses
+		const relationNames = this.ctx.getRelationNames();
+		
+		// Common inverse patterns
+		const inversePatterns: Record<string, string> = {
+			next: "prev",
+			prev: "next",
+			after: "before",
+			before: "after",
+			child: "parent",
+			parent: "child",
+		};
+		
+		// Check if relation has a known inverse
+		const knownInverse = inversePatterns[relation.toLowerCase()];
+		if (knownInverse && relationNames.includes(knownInverse)) {
+			return knownInverse;
+		}
+		
+		// No inverse found
+		return null;
 	}
 
 	private compareValues(a: Value, b: Value): number {

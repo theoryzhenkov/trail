@@ -553,3 +553,68 @@
 .trail-visual-relation .setting-item-control input[type="text"] {
 	width: 80px;
 }
+
+/* TQL CodeMirror Editor */
+.trail-codemirror-container {
+	margin-top: var(--size-4-2);
+}
+
+.trail-codemirror-container .cm-editor {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+
+.trail-codemirror-container .cm-editor.cm-focused {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+}
+
+/* TQL Hover Tooltip */
+.tql-hover-tooltip {
+	font-size: var(--font-ui-small);
+	max-width: 350px;
+}
+
+.tql-hover-title {
+	font-family: var(--font-monospace);
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+	margin-bottom: var(--size-4-1);
+}
+
+.tql-hover-description {
+	color: var(--text-muted);
+	line-height: 1.4;
+}
+
+.tql-hover-extra {
+	margin-top: var(--size-4-1);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+/* TQL Autocomplete Icons */
+.cm-completionIcon-keyword::after {
+	content: "K";
+	color: var(--text-accent);
+}
+
+.cm-completionIcon-function::after {
+	content: "ƒ";
+	color: var(--color-yellow);
+}
+
+.cm-completionIcon-property::after {
+	content: "P";
+	color: var(--color-purple);
+}
+
+.cm-completionIcon-variable::after {
+	content: "V";
+	color: var(--text-normal);
+}
+
+.cm-completionIcon-constant::after {
+	content: "C";
+	color: var(--color-orange);
+}
