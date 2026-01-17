@@ -1,4 +1,5 @@
 import type {GroupTreeNode} from "../graph/store";
+import type {QueryResultNode} from "../query/result";
 
 /**
  * Inverts a tree chain so the deepest node becomes the root.
@@ -53,6 +54,55 @@ export function flattenTree(nodes: GroupTreeNode[]): GroupTreeNode[] {
 		result.push({ ...node, children: [] });
 		if (node.children.length > 0) {
 			result.push(...flattenTree(node.children));
+		}
+	}
+	return result;
+}
+
+/**
+ * Inverts TQL result tree chains so the deepest node becomes the root.
+ */
+export function invertTqlTree(nodes: QueryResultNode[]): QueryResultNode[] {
+	const result: QueryResultNode[] = [];
+	for (const node of nodes) {
+		result.push(...invertTqlChain(node));
+	}
+	return result;
+}
+
+function invertTqlChain(node: QueryResultNode): QueryResultNode[] {
+	const chain: QueryResultNode[] = [];
+	let current: QueryResultNode | undefined = node;
+	while (current) {
+		chain.push(current);
+		current = current.children[0];
+	}
+	
+	if (chain.length <= 1) {
+		return [{ ...node, children: [] }];
+	}
+	
+	let result: QueryResultNode | undefined;
+	for (const item of chain) {
+		const newNode: QueryResultNode = {
+			...item,
+			children: result ? [result] : []
+		};
+		result = newNode;
+	}
+	
+	return result ? [result] : [];
+}
+
+/**
+ * Flattens TQL result tree into a flat array of siblings.
+ */
+export function flattenTqlTree(nodes: QueryResultNode[]): QueryResultNode[] {
+	const result: QueryResultNode[] = [];
+	for (const node of nodes) {
+		result.push({ ...node, children: [] });
+		if (node.children.length > 0) {
+			result.push(...flattenTqlTree(node.children));
 		}
 	}
 	return result;

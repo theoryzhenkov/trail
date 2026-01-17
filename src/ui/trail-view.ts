@@ -2,7 +2,7 @@ import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
 import type {GroupDefinition, RelationGroup} from "../types";
 import type {GroupTreeNode} from "../graph/store";
-import {invertTree, flattenTree} from "./tree-transforms";
+import {invertTree, flattenTree, invertTqlTree, flattenTqlTree} from "./tree-transforms";
 import {
 	renderEmptyState,
 	renderFileLink,
@@ -239,7 +239,8 @@ export class TrailView extends ItemView {
 				// Ignore parse errors for display properties
 			}
 
-			this.renderTqlResults(section.contentEl, result.results, 0, displayProperties);
+			const transformedResults = this.transformTqlResultsByDirection(result.results);
+			this.renderTqlResults(section.contentEl, transformedResults, 0, displayProperties);
 			return true;
 		} catch (e) {
 			// Show error in UI
@@ -441,6 +442,27 @@ export class TrailView extends ItemView {
 				return invertTree(nodes);
 			case "sequential":
 				return flattenTree(nodes);
+			case "descending":
+			default:
+				return nodes;
+		}
+	}
+
+	/**
+	 * Transforms TQL results based on the dominant visual direction of nodes.
+	 */
+	private transformTqlResultsByDirection(nodes: QueryResultNode[]): QueryResultNode[] {
+		if (nodes.length === 0) {
+			return nodes;
+		}
+		
+		const direction = nodes[0]?.visualDirection ?? "descending";
+		
+		switch (direction) {
+			case "ascending":
+				return invertTqlTree(nodes);
+			case "sequential":
+				return flattenTqlTree(nodes);
 			case "descending":
 			default:
 				return nodes;
