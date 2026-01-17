@@ -45,9 +45,51 @@ export interface BuiltinFunction {
 }
 
 /**
+ * Property access function for reserved names
+ * prop("name") returns the value of the property "name"
+ * Supports dot notation: prop("file.name") accesses nested properties
+ */
+const propFunction: BuiltinFunction = {
+	minArity: 1,
+	maxArity: 1,
+	call: (args: Value[], ctx: FunctionContext): Value => {
+		const name = args[0];
+		if (typeof name !== "string") {
+			throw new RuntimeError("prop() requires a string argument");
+		}
+		
+		const props = ctx.getProperties(ctx.filePath);
+		
+		// Support dot notation for nested access
+		const parts = name.split(".");
+		let current: Record<string, Value> | Value = props;
+		
+		for (const part of parts) {
+			if (current === null || current === undefined) {
+				return null;
+			}
+			if (typeof current !== "object" || Array.isArray(current) || current instanceof Date) {
+				return null;
+			}
+			current = (current as Record<string, Value>)[part] ?? null;
+		}
+		
+		// Final value can be any Value type
+		if (typeof current === "object" && current !== null && !Array.isArray(current) && !(current instanceof Date)) {
+			// Nested object - return null as we don't support object values
+			return null;
+		}
+		
+		return current as Value;
+	},
+};
+
+/**
  * Registry of all built-in functions
  */
 export const BUILTIN_FUNCTIONS: Record<string, BuiltinFunction> = {
+	// Property access
+	prop: propFunction,
 	// String functions
 	...stringFunctions,
 	// File functions
