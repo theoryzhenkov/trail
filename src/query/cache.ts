@@ -20,6 +20,8 @@ interface CachedQuery {
 interface CachedResult {
 	result: QueryResult;
 	filePath: string;
+	/** Set of file paths included in this result (for smart invalidation) */
+	includedPaths: Set<string>;
 	timestamp: number;
 }
 
@@ -92,19 +94,38 @@ export class QueryCache {
 	setResult(queryString: string, filePath: string, result: QueryResult): void {
 		const key = this.resultKey(queryString, filePath);
 		this.evictResultIfNeeded();
+		
+		// Collect all file paths in the result for smart invalidation
+		const includedPaths = new Set<string>();
+		includedPaths.add(filePath);
+		this.collectResultPaths(result.results, includedPaths);
+		
 		this.resultCache.set(key, {
 			result,
 			filePath,
+			includedPaths,
 			timestamp: Date.now(),
 		});
 	}
 
 	/**
+	 * Recursively collect file paths from result nodes
+	 */
+	private collectResultPaths(nodes: QueryResult["results"], paths: Set<string>): void {
+		for (const node of nodes) {
+			paths.add(node.path);
+			this.collectResultPaths(node.children, paths);
+		}
+	}
+
+	/**
 	 * Invalidate results for a specific file
+	 * This invalidates any cached result that includes this file (as active or in results)
 	 */
 	invalidateFile(filePath: string): void {
 		for (const [key, entry] of this.resultCache) {
-			if (entry.filePath === filePath) {
+			// Invalidate if this file is the active file OR appears in the result tree
+			if (entry.filePath === filePath || entry.includedPaths.has(filePath)) {
 				this.resultCache.delete(key);
 			}
 		}
