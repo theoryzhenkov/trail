@@ -901,6 +901,7 @@ export class TrailSettingTab extends PluginSettingTab {
 					.addOption("forward", "Forward (→)")
 					.addOption("reverse", "Reverse (←)")
 					.addOption("both", "Both (↔)")
+					.addOption("sibling", "Sibling (⇌)")
 					.setValue(implied.direction)
 					.onChange((value) => {
 						implied.direction = value as ImpliedRelation["direction"];

@@ -30,19 +30,23 @@ export class GraphStore {
 	private app: App;
 	private settings: TrailSettings;
 	private edgesBySource: Map<string, RelationEdge[]>;
+	private edgesByTarget: Map<string, RelationEdge[]>;
 	private propertiesByPath: Map<string, FileProperties>;
 	private staleFiles: Set<string>;
 	private allStale: boolean;
 	private changeListeners: Set<() => void>;
+	private cachedEdgesWithImplied: RelationEdge[] | null;
 
 	constructor(app: App, settings: TrailSettings) {
 		this.app = app;
 		this.settings = settings;
 		this.edgesBySource = new Map();
+		this.edgesByTarget = new Map();
 		this.propertiesByPath = new Map();
 		this.staleFiles = new Set();
 		this.allStale = true;
 		this.changeListeners = new Set();
+		this.cachedEdgesWithImplied = null;
 	}
 
 	onDidChange(callback: () => void) {
@@ -54,15 +58,20 @@ export class GraphStore {
 
 	updateSettings(settings: TrailSettings) {
 		this.settings = settings;
+		this.invalidateImpliedCache();
+		this.rebuildTargetIndex();
 	}
 
 	async build() {
 		this.edgesBySource.clear();
+		this.edgesByTarget.clear();
 		this.propertiesByPath.clear();
+		this.cachedEdgesWithImplied = null;
 		const files = this.app.vault.getMarkdownFiles();
 		for (const file of files) {
 			await this.updateFile(file, false);
 		}
+		this.rebuildTargetIndex();
 		this.staleFiles.clear();
 		this.allStale = false;
 		this.emitChange();
@@ -72,7 +81,9 @@ export class GraphStore {
 		const {edges, properties} = await this.parseFileData(file);
 		this.edgesBySource.set(file.path, edges);
 		this.propertiesByPath.set(file.path, properties);
+		this.invalidateImpliedCache();
 		if (emit) {
+			this.rebuildTargetIndex();
 			this.emitChange();
 		}
 	}
@@ -105,8 +116,10 @@ export class GraphStore {
 			} else {
 				this.edgesBySource.delete(path);
 				this.propertiesByPath.delete(path);
+				this.invalidateImpliedCache();
 			}
 		}
+		this.rebuildTargetIndex();
 		this.emitChange();
 	}
 
@@ -144,6 +157,8 @@ export class GraphStore {
 			this.staleFiles.delete(oldPath);
 			this.staleFiles.add(newPath);
 		}
+		this.invalidateImpliedCache();
+		this.rebuildTargetIndex();
 		this.emitChange();
 	}
 
@@ -157,6 +172,8 @@ export class GraphStore {
 			}
 		}
 		this.staleFiles.delete(path);
+		this.invalidateImpliedCache();
+		this.rebuildTargetIndex();
 		this.emitChange();
 	}
 
@@ -190,15 +207,11 @@ export class GraphStore {
 	}
 
 	getIncomingEdges(path: string, relationFilter?: Set<string>): RelationEdge[] {
-		return this.getEdgesWithImplied().filter((edge) => {
-			if (edge.toPath !== path) {
-				return false;
-			}
-			if (!relationFilter || relationFilter.size === 0) {
-				return true;
-			}
-			return relationFilter.has(edge.relation);
-		});
+		const edges = this.edgesByTarget.get(path) ?? [];
+		if (!relationFilter || relationFilter.size === 0) {
+			return edges;
+		}
+		return edges.filter((edge) => relationFilter.has(edge.relation));
 	}
 
 	getOutgoingEdges(path: string, relationFilter?: Set<string>): RelationEdge[] {
@@ -218,7 +231,7 @@ export class GraphStore {
 	}
 
 	getGroupTree(path: string, group: RelationGroup): GroupTreeNode[] {
-		const edgesBySource = this.buildEdgesBySource();
+		const edgesBySource = this.buildEdgesBySourceFromImplied();
 		const visited = new Set<string>();
 		visited.add(path);
 		return this.evaluateGroup(path, group, edgesBySource, visited);
@@ -326,7 +339,21 @@ export class GraphStore {
 		return nodes;
 	}
 
-	private buildEdgesBySource(): Map<string, RelationEdge[]> {
+	private invalidateImpliedCache() {
+		this.cachedEdgesWithImplied = null;
+	}
+
+	private rebuildTargetIndex() {
+		this.edgesByTarget.clear();
+		const edges = this.getEdgesWithImplied();
+		for (const edge of edges) {
+			const list = this.edgesByTarget.get(edge.toPath) ?? [];
+			list.push(edge);
+			this.edgesByTarget.set(edge.toPath, list);
+		}
+	}
+
+	private buildEdgesBySourceFromImplied(): Map<string, RelationEdge[]> {
 		const edges = this.getEdgesWithImplied();
 		const edgesBySource = new Map<string, RelationEdge[]>();
 		for (const edge of edges) {
@@ -338,8 +365,16 @@ export class GraphStore {
 	}
 
 	private getEdgesWithImplied(): RelationEdge[] {
+		if (this.cachedEdgesWithImplied !== null) {
+			return this.cachedEdgesWithImplied;
+		}
 		const explicitEdges = Array.from(this.edgesBySource.values()).flat();
-		return applyImpliedRules(explicitEdges, this.settings.relations);
+		this.cachedEdgesWithImplied = applyImpliedRules(explicitEdges, this.settings.relations);
+		return this.cachedEdgesWithImplied;
+	}
+
+	getEdgesByTarget(): Map<string, RelationEdge[]> {
+		return this.edgesByTarget;
 	}
 
 	private async parseFileData(
