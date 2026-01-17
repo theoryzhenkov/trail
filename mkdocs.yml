@@ -60,6 +60,7 @@ nav:
     - syntax/index.md
     - Inline Syntax: syntax/inline.md
     - Frontmatter: syntax/frontmatter.md
+    - Query Language (TQL): syntax/query.md
   - Configuration:
     - configuration/index.md
     - Relations: configuration/relations.md

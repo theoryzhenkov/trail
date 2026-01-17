@@ -2,6 +2,9 @@
 
 Groups organize relations in the Trail pane. Instead of a flat list of all connections, you see organized sections like "Ancestors", "Children", and "Siblings"—each with its own configuration for what to show and how.
 
+!!! tip "Power User Option"
+    For advanced group configuration with rich filtering, date arithmetic, and complex expressions, see the [Trail Query Language (TQL)](../syntax/query.md).
+
 ---
 
 ## Creating a Group
@@ -239,3 +242,7 @@ Put the most useful groups first. You'll see them without scrolling.
 ### Use Extend Sparingly
 
 Extend is powerful but can create complex traversals. Make sure you understand what it does before using it.
+
+### Consider TQL for Complex Groups
+
+If you need advanced filtering (date ranges, complex boolean logic, regex matching), consider using the [Trail Query Language](../syntax/query.md) instead of the visual editor.

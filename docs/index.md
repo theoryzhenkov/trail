@@ -74,6 +74,14 @@ Open the Trail pane, and you'll see Charlie's full ancestry—Alice and Bob as p
 
     [:octicons-arrow-right-24: Explore filtering](configuration/filtering.md)
 
+-   :material-code-braces:{ .lg .middle } **Query Language**
+
+    ---
+
+    Write powerful TQL queries with filtering, sorting, date arithmetic, and more.
+
+    [:octicons-arrow-right-24: Learn TQL](syntax/query.md)
+
 </div>
 
 ---
@@ -95,7 +103,7 @@ If you find Trail useful, consider [buying me a coffee](https://buymeacoffee.com
 | Section | Description |
 |---------|-------------|
 | [Getting Started](getting-started.md) | Install and create your first relation |
-| [Syntax](syntax/index.md) | Inline and frontmatter syntax reference |
+| [Syntax](syntax/index.md) | Inline, frontmatter, and query language reference |
 | [Configuration](configuration/index.md) | Relations, groups, filters, and sorting |
 | [Usage](usage/trail-pane.md) | Using the Trail pane |
 | [Concepts](concepts/index.md) | How Trail works under the hood |

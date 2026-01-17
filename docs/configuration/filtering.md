@@ -283,6 +283,7 @@ Complex filter combinations can be hard to debug. If you need many filters, cons
 - Splitting into multiple groups
 - Using a single property with clear values
 - Simplifying your note schema
+- Using [TQL queries](../syntax/query.md) for complex boolean logic, date ranges, or regex matching
 
 ### Test Your Filters
 

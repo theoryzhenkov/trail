@@ -1,10 +1,18 @@
 # Syntax Overview
 
-Trail supports two ways to define relations between notes: **inline syntax** within your note content, and **frontmatter syntax** in YAML. Both approaches create identical relations—choose the one that fits your workflow.
+Trail supports multiple ways to define and configure relationships between notes:
+
+- **Inline syntax**: Add relations directly in note content with `::` notation
+- **Frontmatter syntax**: Define relations in YAML frontmatter
+- **Query Language (TQL)**: Write powerful queries to configure groups
+
+The first two define relations between notes. TQL configures how those relations are displayed in the Trail pane.
 
 ---
 
 ## At a Glance
+
+### Relation Syntax
 
 | Format | Example | Best For |
 |--------|---------|----------|
@@ -13,6 +21,12 @@ Trail supports two ways to define relations between notes: **inline syntax** wit
 | [Frontmatter property](frontmatter.md#property-format) | `up: "[[Parent]]"` | Simple, single relations |
 | [Frontmatter dot property](frontmatter.md#dot-property-format) | `relations.up: "[[Parent]]"` | Namespaced properties |
 | [Frontmatter map](frontmatter.md#map-format) | `relations: { up: ... }` | Multiple relations, organized |
+
+### Query Language
+
+| Format | Example | Best For |
+|--------|---------|----------|
+| [TQL Query](query.md) | `from up where status = "active"` | Advanced group configuration |
 
 ---
 
@@ -84,3 +98,4 @@ Relation names must follow these rules:
 
 - [Inline syntax](inline.md) — Detailed guide to `::` syntax
 - [Frontmatter syntax](frontmatter.md) — YAML formats and examples
+- [Trail Query Language](query.md) — Powerful query language for group configuration
