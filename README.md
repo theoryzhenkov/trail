@@ -8,7 +8,7 @@ Trail is an Obsidian plugin for adding named relations between notes and travers
 
 - Inline typed relations using a concise `::` syntax.
 - Frontmatter relations via `relations` map and `relations.<type>` properties.
-- Implied relations with forward/reverse/both direction rules.
+- Implied relations with forward/reverse/both/sibling direction rules.
 - Hierarchy view to browse all ancestors of the active note.
 
 ## Inline syntax
@@ -42,17 +42,19 @@ In **Settings → Trail**, add implied relation rules:
 
 - Base relation
 - Implied relation
-- Direction: `forward`, `reverse`, or `both`
+- Direction: `forward`, `reverse`, `both`, or `sibling`
 
 Examples:
 
 - `up -> parent (forward)` makes `A -up-> B` imply `A -parent-> B`
 - `up -> parent (reverse)` makes `A -up-> B` imply `B -parent-> A`
+- `up -> sibling (sibling)` makes notes sharing the same target siblings of each other
 
 ## Using the Trail pane
 
-- Open with the **Open Trail pane** command.
-- Select which relation types to include.
+- Open with the **Trail: Open pane** command.
+- Use **Trail: Refresh graph** to rebuild all relations.
+- Filter which relation types to include using the filter button.
 - Browse the full ancestor chain of the active note.
 
 ## Installation
