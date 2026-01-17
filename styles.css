@@ -572,7 +572,7 @@
 /* TQL Hover Tooltip */
 .tql-hover-tooltip {
 	font-size: var(--font-ui-small);
-	max-width: 350px;
+	max-width: 400px;
 }
 
 .tql-hover-title {
@@ -587,8 +587,53 @@
 	line-height: 1.4;
 }
 
+.tql-hover-section {
+	margin-top: var(--size-4-2);
+	padding-top: var(--size-4-2);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.tql-hover-label {
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
+	color: var(--text-faint);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin-bottom: var(--size-4-1);
+}
+
+.tql-hover-syntax {
+	display: block;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-accent);
+	background: var(--background-secondary);
+	padding: var(--size-4-1) var(--size-4-2);
+	border-radius: var(--radius-s);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.tql-hover-examples {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+}
+
+.tql-hover-example {
+	display: block;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	background: var(--background-secondary);
+	padding: var(--size-2-2) var(--size-4-2);
+	border-radius: var(--radius-s);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
 .tql-hover-extra {
-	margin-top: var(--size-4-1);
+	margin-top: var(--size-4-2);
 	color: var(--text-faint);
 	font-size: var(--font-ui-smaller);
 }
