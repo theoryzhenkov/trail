@@ -1,3 +1,6 @@
+> [!WARNING]
+> This plugin is currently in **beta**. Breaking changes may occur between versions without prior notice.
+
 # Trail
 
 Trail is an Obsidian plugin for adding named relations between notes and traversing them through a dedicated pane.
