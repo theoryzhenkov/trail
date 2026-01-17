@@ -401,3 +401,133 @@
 	width: 14px;
 	height: 14px;
 }
+
+/* TQL-specific styles */
+
+/* TQL badge in settings */
+.trail-badge-tql {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.trail-badge-disabled {
+	background: var(--background-modifier-border);
+	color: var(--text-faint);
+}
+
+/* TQL query textarea */
+.trail-query-textarea {
+	width: 100%;
+	min-height: 120px;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+	resize: vertical;
+}
+
+/* TQL query error display */
+.trail-query-error {
+	display: none;
+	margin-top: 8px;
+	padding: 8px 12px;
+	border-radius: var(--radius-s);
+	background: rgba(var(--color-red-rgb), 0.1);
+	color: var(--text-error);
+	font-size: var(--font-ui-small);
+	font-family: var(--font-monospace);
+}
+
+.trail-query-error-visible {
+	display: block;
+}
+
+/* Migration banner */
+.trail-migration-banner {
+	margin: 12px 0;
+	padding: 12px 16px;
+	border-radius: var(--radius-m);
+	background: rgba(var(--color-orange-rgb), 0.1);
+	border: 1px solid rgba(var(--color-orange-rgb), 0.3);
+}
+
+.trail-migration-banner .setting-item {
+	border: none;
+	padding: 0;
+}
+
+.trail-migration-banner .setting-item-name {
+	color: var(--text-warning);
+}
+
+/* Legacy groups section */
+.trail-legacy-groups {
+	margin-top: 24px;
+	padding-top: 16px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.trail-legacy-group-item {
+	margin: 8px 0;
+	padding: 12px;
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.trail-legacy-group-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.trail-legacy-group-name {
+	font-weight: 600;
+}
+
+.trail-legacy-group-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.trail-legacy-preview {
+	margin-top: 8px;
+}
+
+.trail-legacy-preview-content {
+	margin-top: 8px;
+	padding: 8px 12px;
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	white-space: pre-wrap;
+	overflow-x: auto;
+}
+
+.trail-legacy-preview-content pre {
+	margin: 0;
+}
+
+/* Hidden utility class */
+.trail-hidden {
+	display: none !important;
+}
+
+/* Gap indicator for filtered ancestors */
+.trail-gap-indicator {
+	padding: 2px 12px 2px calc(8px + var(--indent-level, 0) * 16px);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-style: italic;
+}
+
+/* Error message in trail view */
+.trail-error {
+	padding: 8px 12px;
+	color: var(--text-error);
+	font-size: var(--font-ui-small);
+	background: rgba(var(--color-red-rgb), 0.1);
+	border-radius: var(--radius-s);
+	margin: 4px 8px;
+}

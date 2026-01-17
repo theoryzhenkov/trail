@@ -414,7 +414,7 @@ export class GraphStore {
 		return {edges, properties};
 	}
 
-	private getFileProperties(path: string): FileProperties {
+	getFileProperties(path: string): FileProperties {
 		return this.propertiesByPath.get(path) ?? {};
 	}
 

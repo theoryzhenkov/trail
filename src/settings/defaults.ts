@@ -1,4 +1,5 @@
 import {
+	GroupDefinition,
 	ImpliedRelation,
 	RelationAlias,
 	RelationDefinition,
@@ -53,6 +54,26 @@ export function createDefaultGroups(): RelationGroup[] {
 			{relation: "next", depth: 1},
 			{relation: "prev", depth: 1}
 		])
+	];
+}
+
+export function createDefaultTqlGroups(): GroupDefinition[] {
+	return [
+		{
+			query: `group "Ancestors"
+from up depth unlimited`,
+			enabled: true,
+		},
+		{
+			query: `group "Children"
+from down depth unlimited`,
+			enabled: true,
+		},
+		{
+			query: `group "Siblings"
+from next depth 1, prev depth 1`,
+			enabled: true,
+		},
 	];
 }
 

@@ -1,6 +1,6 @@
 import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
-import type {RelationGroup} from "../types";
+import type {GroupDefinition, RelationGroup} from "../types";
 import type {GroupTreeNode} from "../graph/store";
 import {invertTree, flattenTree} from "./tree-transforms";
 import {
@@ -9,6 +9,8 @@ import {
 	renderPropertyBadges,
 	createCollapsibleSection
 } from "./renderers";
+import {parse, execute, createValidationContext, validate, TQLError} from "../query";
+import type {QueryResult, QueryResultNode} from "../query";
 
 export const TRAIL_VIEW_TYPE = "trail-view";
 
@@ -153,14 +155,29 @@ export class TrailView extends ItemView {
 	}
 
 	private renderGroups(containerEl: HTMLElement, activeFile: TFile) {
-		const groups = this.plugin.settings.groups;
-		if (groups.length === 0) {
+		const tqlGroups = this.plugin.settings.tqlGroups;
+		const legacyGroups = this.plugin.settings.groups;
+
+		if (tqlGroups.length === 0 && legacyGroups.length === 0) {
 			containerEl.createDiv({cls: "trail-no-results", text: "No groups configured"});
 			return;
 		}
 
 		let visibleCount = 0;
-		for (const group of groups) {
+
+		// Render TQL groups first
+		for (const group of tqlGroups) {
+			if (group.enabled === false) {
+				continue;
+			}
+			const wasRendered = this.renderTqlGroup(containerEl, group, activeFile.path);
+			if (wasRendered) {
+				visibleCount++;
+			}
+		}
+
+		// Render legacy groups
+		for (const group of legacyGroups) {
 			if (!this.shouldShowGroup(group, activeFile.path)) {
 				continue;
 			}
@@ -172,6 +189,192 @@ export class TrailView extends ItemView {
 
 		if (visibleCount === 0) {
 			containerEl.createDiv({cls: "trail-no-results", text: "No groups match this note"});
+		}
+	}
+
+	private renderTqlGroup(containerEl: HTMLElement, group: GroupDefinition, filePath: string): boolean {
+		try {
+			const result = this.executeTqlQuery(group.query, filePath);
+
+			if (!result.visible) {
+				return false;
+			}
+
+			const isEmpty = result.results.length === 0;
+			if (isEmpty && this.plugin.settings.hideEmptyGroups) {
+				return false;
+			}
+
+			// Extract group name from query
+			let groupName = group.name;
+			if (!groupName) {
+				try {
+					const ast = parse(group.query);
+					groupName = ast.group;
+				} catch {
+					groupName = "TQL Group";
+				}
+			}
+
+			const section = createCollapsibleSection(
+				containerEl,
+				groupName,
+				"layers",
+				result.results.length
+			);
+
+			if (isEmpty) {
+				section.contentEl.createDiv({cls: "trail-no-results", text: "No relations found"});
+				return true;
+			}
+
+			// Get display properties from parsed query
+			let displayProperties: string[] = [];
+			try {
+				const ast = parse(group.query);
+				if (ast.display) {
+					displayProperties = ast.display.properties.map(p => p.path.join("."));
+				}
+			} catch {
+				// Ignore parse errors for display properties
+			}
+
+			this.renderTqlResults(section.contentEl, result.results, 0, displayProperties);
+			return true;
+		} catch (e) {
+			// Show error in UI
+			const section = createCollapsibleSection(
+				containerEl,
+				group.name ?? "TQL Group",
+				"alert-triangle",
+				0
+			);
+			const errorMsg = e instanceof TQLError ? e.message : String(e);
+			section.contentEl.createDiv({cls: "trail-error", text: `Query error: ${errorMsg}`});
+			return true;
+		}
+	}
+
+	private executeTqlQuery(query: string, filePath: string): QueryResult {
+		const ast = parse(query);
+		const relationNames = this.plugin.settings.relations.map(r => r.name);
+		const groupNames = this.plugin.settings.tqlGroups
+			.map(g => {
+				try {
+					return parse(g.query).group;
+				} catch {
+					return null;
+				}
+			})
+			.filter((n): n is string => n !== null);
+
+		const validationCtx = createValidationContext(relationNames, groupNames);
+		const validated = validate(ast, validationCtx);
+
+		const queryCtx = this.createQueryContext(filePath);
+		return execute(validated, queryCtx);
+	}
+
+	private createQueryContext(filePath: string) {
+		const graph = this.plugin.graph;
+		const settings = this.plugin.settings;
+		const props = graph.getFileProperties?.(filePath) ?? {};
+
+		return {
+			activeFilePath: filePath,
+			activeFileProperties: props,
+			getOutgoingEdges: (path: string, relation?: string) => {
+				const filter = relation ? new Set([relation]) : undefined;
+				return graph.getOutgoingEdges(path, filter);
+			},
+			getIncomingEdges: (path: string, relation?: string) => {
+				const filter = relation ? new Set([relation]) : undefined;
+				return graph.getIncomingEdges(path, filter);
+			},
+			getProperties: (path: string) => graph.getFileProperties?.(path) ?? {},
+			getFileMetadata: (path: string) => {
+				const file = this.plugin.app.vault.getAbstractFileByPath(path);
+				if (!(file instanceof TFile)) return undefined;
+				const cache = this.plugin.app.metadataCache.getFileCache(file);
+				return {
+					name: file.basename,
+					path: file.path,
+					folder: file.parent?.path ?? "",
+					created: new Date(file.stat.ctime),
+					modified: new Date(file.stat.mtime),
+					size: file.stat.size,
+					tags: cache?.tags?.map(t => t.tag) ?? [],
+				};
+			},
+			getRelationNames: () => settings.relations.map(r => r.name),
+			getVisualDirection: (relation: string) => {
+				const def = settings.relations.find(r => r.name === relation);
+				return def?.visualDirection ?? "descending";
+			},
+			resolveGroupQuery: (name: string) => {
+				const group = settings.tqlGroups.find(g => {
+					try {
+						return parse(g.query).group === name;
+					} catch {
+						return false;
+					}
+				});
+				if (!group) return undefined;
+				try {
+					const ast = parse(group.query);
+					const relationNames = settings.relations.map(r => r.name);
+					const groupNames = settings.tqlGroups
+						.map(g => {
+							try { return parse(g.query).group; } catch { return null; }
+						})
+						.filter((n): n is string => n !== null);
+					return validate(ast, createValidationContext(relationNames, groupNames));
+				} catch {
+					return undefined;
+				}
+			},
+		};
+	}
+
+	private renderTqlResults(
+		containerEl: HTMLElement,
+		nodes: QueryResultNode[],
+		depth: number,
+		displayProperties: string[]
+	) {
+		for (const node of nodes) {
+			this.renderTqlNode(containerEl, node, depth, displayProperties);
+		}
+	}
+
+	private renderTqlNode(
+		containerEl: HTMLElement,
+		node: QueryResultNode,
+		depth: number,
+		displayProperties: string[]
+	) {
+		const itemEl = containerEl.createDiv({cls: "tree-item"});
+		itemEl.style.setProperty("--indent-level", String(depth));
+
+		if (node.hasFilteredAncestor) {
+			itemEl.createDiv({cls: "trail-gap-indicator", text: "..."});
+		}
+
+		const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
+
+		const relationEl = selfEl.createSpan({cls: "trail-relation-tag"});
+		relationEl.setText(node.relation);
+		if (node.implied) {
+			relationEl.addClass("is-implied");
+		}
+
+		const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
+		renderFileLink(innerEl, this.plugin.app, node.path);
+		renderPropertyBadges(innerEl, node.properties, displayProperties);
+
+		if (node.children.length > 0) {
+			const childrenEl = itemEl.createDiv({cls: "tree-item-children"});
+			this.renderTqlResults(childrenEl, node.children, depth + 1, displayProperties);
 		}
 	}
 

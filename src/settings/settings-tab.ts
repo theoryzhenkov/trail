@@ -1,8 +1,9 @@
-import {App, Notice, PluginSettingTab, setIcon, Setting} from "obsidian";
+import {App, Notice, PluginSettingTab, setIcon, Setting, TextAreaComponent} from "obsidian";
 import TrailPlugin from "../main";
 import {
 	ChainSortMode,
 	FilterMatchMode,
+	GroupDefinition,
 	ImpliedRelation,
 	PropertyFilter,
 	PropertySortKey,
@@ -15,6 +16,9 @@ import {
 	VisualDirection
 } from "../types";
 import {isValidRelationName, normalizeRelationName} from "./validation";
+import {parse, TQLError} from "../query";
+import {migrateGroup} from "../query/migration";
+import {hasLegacyGroups} from "./index";
 
 export class TrailSettingTab extends PluginSettingTab {
 	plugin: TrailPlugin;
@@ -138,7 +142,7 @@ export class TrailSettingTab extends PluginSettingTab {
 	private renderGroups(containerEl: HTMLElement) {
 		new Setting(containerEl)
 			.setName("Groups")
-			.setDesc("Configure relation groups shown in the trail pane.");
+			.setDesc("Configure relation groups shown in the trail pane using TQL queries.");
 
 		new Setting(containerEl)
 			.setName("Hide empty groups")
@@ -152,26 +156,213 @@ export class TrailSettingTab extends PluginSettingTab {
 					});
 			});
 
-		for (const [index, group] of this.plugin.settings.groups.entries()) {
-			this.renderGroupSection(containerEl, group, index);
+		// Migration banner if legacy groups exist
+		if (hasLegacyGroups(this.plugin.settings)) {
+			this.renderMigrationBanner(containerEl);
+		}
+
+		// TQL Groups
+		for (const [index, group] of this.plugin.settings.tqlGroups.entries()) {
+			this.renderTqlGroupSection(containerEl, group, index);
 		}
 
 		new Setting(containerEl)
 			.addButton((button) => {
 				button
-					.setButtonText("Add group")
+					.setButtonText("Add TQL group")
 					.setCta()
 					.onClick(() => {
-						const newIndex = this.plugin.settings.groups.length;
-						this.plugin.settings.groups.push({
-							name: "",
-							members: []
+						const newIndex = this.plugin.settings.tqlGroups.length;
+						this.plugin.settings.tqlGroups.push({
+							query: `group "New group"\nfrom up depth unlimited`,
+							enabled: true,
 						});
 						this.openGroupSections.add(newIndex);
 						void this.plugin.saveSettings();
 						this.display();
 					});
 			});
+
+		// Legacy Groups section (if any exist)
+		if (hasLegacyGroups(this.plugin.settings)) {
+			this.renderLegacyGroupsSection(containerEl);
+		}
+	}
+
+	private renderMigrationBanner(containerEl: HTMLElement) {
+		const banner = containerEl.createDiv({cls: "trail-migration-banner"});
+		
+		new Setting(banner)
+			.setName("Legacy groups detected")
+			// eslint-disable-next-line obsidianmd/ui/sentence-case
+			.setDesc("Your configuration includes legacy groups. Click 'Migrate' on each group below to convert them to TQL format.")
+			.setHeading();
+	}
+
+	private renderTqlGroupSection(containerEl: HTMLElement, group: GroupDefinition, index: number) {
+		const details = containerEl.createEl("details", {cls: "trail-relation-section trail-group-section trail-tql-group"});
+		const wasOpen = this.openGroupSections.has(index);
+		details.open = wasOpen;
+
+		const summary = details.createEl("summary", {cls: "trail-relation-summary"});
+		const summaryContent = summary.createDiv({cls: "trail-relation-summary-content"});
+
+		// Extract name from query
+		const groupName = this.extractGroupName(group.query) ?? group.name ?? "(unnamed)";
+		const nameSpan = summaryContent.createEl("span", {
+			cls: "trail-relation-name",
+			text: groupName
+		});
+		if (!groupName || groupName === "(unnamed)") {
+			nameSpan.addClass("trail-relation-name-empty");
+		}
+
+		const badges = summaryContent.createDiv({cls: "trail-relation-badges"});
+		badges.createEl("span", {cls: "trail-badge trail-badge-tql", text: "TQL"});
+		if (group.enabled === false) {
+			badges.createEl("span", {cls: "trail-badge trail-badge-disabled", text: "disabled"});
+		}
+
+		this.renderReorderControls(summary, index, this.plugin.settings.tqlGroups);
+
+		const content = details.createDiv({cls: "trail-relation-content"});
+
+		// Enabled toggle
+		new Setting(content)
+			.setName("Enabled")
+			.setDesc("Show this group in the trail pane.")
+			.addToggle((toggle) => {
+				toggle
+					.setValue(group.enabled !== false)
+					.onChange((value) => {
+						group.enabled = value;
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
+
+		// Query editor using TextArea
+		const errorContainer = content.createDiv({cls: "trail-query-error"});
+
+		new Setting(content)
+			.setName("Query")
+			.setDesc("TQL query defining this group.")
+			.addTextArea((textarea: TextAreaComponent) => {
+				textarea
+					.setValue(group.query)
+					.setPlaceholder('group "My group"\nfrom up depth unlimited')
+					.onChange((value) => {
+						group.query = value;
+						this.validateQuery(value, errorContainer, nameSpan);
+						void this.plugin.saveSettings();
+					});
+				textarea.inputEl.rows = 6;
+				textarea.inputEl.addClass("trail-query-textarea");
+			});
+
+		// Initial validation
+		this.validateQuery(group.query, errorContainer, nameSpan);
+
+		// Delete button
+		new Setting(content)
+			.addButton((button) => {
+				button
+					.setButtonText("Delete group")
+					.setWarning()
+					.onClick(() => {
+						this.plugin.settings.tqlGroups.splice(index, 1);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
+	}
+
+	private validateQuery(query: string, errorEl: HTMLElement, nameEl: HTMLElement) {
+		errorEl.empty();
+		try {
+			const ast = parse(query);
+			nameEl.textContent = ast.group || "(unnamed)";
+			nameEl.removeClass("trail-relation-name-empty");
+			errorEl.removeClass("trail-query-error-visible");
+		} catch (e) {
+			if (e instanceof TQLError) {
+				errorEl.textContent = e.message;
+				errorEl.addClass("trail-query-error-visible");
+			} else {
+				errorEl.textContent = String(e);
+				errorEl.addClass("trail-query-error-visible");
+			}
+		}
+	}
+
+	private extractGroupName(query: string): string | null {
+		try {
+			const ast = parse(query);
+			return ast.group;
+		} catch {
+			// Try simple regex extraction as fallback
+			const match = query.match(/group\s+"([^"]+)"/);
+			return match?.[1] ?? null;
+		}
+	}
+
+	private renderLegacyGroupsSection(containerEl: HTMLElement) {
+		const section = containerEl.createDiv({cls: "trail-legacy-groups"});
+		
+		new Setting(section)
+			.setName("Legacy groups")
+			.setDesc("These groups use the old format. Migrate them to TQL for full functionality.")
+			.setHeading();
+
+		for (const [index, group] of this.plugin.settings.groups.entries()) {
+			this.renderLegacyGroupSection(section, group, index);
+		}
+	}
+
+	private renderLegacyGroupSection(containerEl: HTMLElement, group: RelationGroup, index: number) {
+		const item = containerEl.createDiv({cls: "trail-legacy-group-item"});
+
+		const header = item.createDiv({cls: "trail-legacy-group-header"});
+		header.createSpan({text: group.name || "(unnamed)", cls: "trail-legacy-group-name"});
+
+		const actions = header.createDiv({cls: "trail-legacy-group-actions"});
+
+		// Migrate button
+		const migrateBtn = actions.createEl("button", {text: "Migrate to TQL", cls: "mod-cta"});
+		migrateBtn.addEventListener("click", () => {
+			const tqlGroup = migrateGroup(group);
+			this.plugin.settings.tqlGroups.push(tqlGroup);
+			this.plugin.settings.groups.splice(index, 1);
+			void this.plugin.saveSettings();
+			new Notice(`Migrated "${group.name}" to TQL`);
+			this.display();
+		});
+
+		// Delete button
+		const deleteBtn = actions.createEl("button", {text: "Delete", cls: "mod-warning"});
+		deleteBtn.addEventListener("click", () => {
+			this.plugin.settings.groups.splice(index, 1);
+			void this.plugin.saveSettings();
+			this.display();
+		});
+
+		// Preview generated TQL
+		const preview = item.createDiv({cls: "trail-legacy-preview"});
+		const previewToggle = preview.createEl("button", {text: "Show generated TQL"});
+		const previewContent = preview.createDiv({cls: "trail-legacy-preview-content trail-hidden"});
+
+		previewToggle.addEventListener("click", () => {
+			if (previewContent.hasClass("trail-hidden")) {
+				const tqlGroup = migrateGroup(group);
+				previewContent.empty();
+				previewContent.createEl("pre", {text: tqlGroup.query});
+				previewContent.removeClass("trail-hidden");
+				previewToggle.textContent = "Hide generated TQL";
+			} else {
+				previewContent.addClass("trail-hidden");
+				previewToggle.textContent = "Show generated TQL";
+			}
+		});
 	}
 
 	private renderGroupSection(containerEl: HTMLElement, group: RelationGroup, index: number) {

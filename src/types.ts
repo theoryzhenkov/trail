@@ -58,6 +58,23 @@ export interface RelationGroup {
 	chainSort?: ChainSortMode;
 }
 
+/**
+ * TQL-based group definition
+ */
+export interface GroupDefinition {
+	/** TQL query string (authoritative source) */
+	query: string;
+	/** Override name from query (optional) */
+	name?: string;
+	/** Whether group is enabled (default: true) */
+	enabled?: boolean;
+	/** Display options */
+	displayOptions?: {
+		collapsed?: boolean;
+		iconColor?: string;
+	};
+}
+
 export interface RelationDefinition {
 	name: RelationName;
 	aliases: RelationAlias[];
