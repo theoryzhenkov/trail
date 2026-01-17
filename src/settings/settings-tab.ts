@@ -156,6 +156,22 @@ export class TrailSettingTab extends PluginSettingTab {
 					});
 			});
 
+		new Setting(containerEl)
+			.setName("Editor mode")
+			.setDesc("How to display TQL group editors. Auto shows visual editor for simple queries.")
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("auto", "Auto")
+					.addOption("visual", "Visual")
+					.addOption("query", "Query")
+					.setValue(this.plugin.settings.editorMode ?? "auto")
+					.onChange((value) => {
+						this.plugin.settings.editorMode = value as "visual" | "query" | "auto";
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
+
 		// Migration banner if legacy groups exist
 		if (hasLegacyGroups(this.plugin.settings)) {
 			this.renderMigrationBanner(containerEl);
