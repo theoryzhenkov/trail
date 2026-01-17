@@ -178,9 +178,9 @@ export class QueryCache {
 	private evictAstIfNeeded(): void {
 		if (this.astCache.size >= this.maxAstEntries) {
 			// Remove oldest entry (first in Map)
-			const firstKey = this.astCache.keys().next().value;
-			if (firstKey) {
-				this.astCache.delete(firstKey);
+			const firstKey = this.astCache.keys().next();
+			if (!firstKey.done && firstKey.value) {
+				this.astCache.delete(firstKey.value);
 			}
 		}
 	}
@@ -188,9 +188,9 @@ export class QueryCache {
 	private evictResultIfNeeded(): void {
 		if (this.resultCache.size >= this.maxResultEntries) {
 			// Remove oldest entry (first in Map)
-			const firstKey = this.resultCache.keys().next().value;
-			if (firstKey) {
-				this.resultCache.delete(firstKey);
+			const firstKey = this.resultCache.keys().next();
+			if (!firstKey.done && firstKey.value) {
+				this.resultCache.delete(firstKey.value);
 			}
 		}
 	}

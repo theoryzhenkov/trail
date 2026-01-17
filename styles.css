@@ -663,3 +663,8 @@
 	content: "C";
 	color: var(--color-orange);
 }
+
+/* Visual editor depth input */
+.trail-depth-input {
+	width: 80px;
+}

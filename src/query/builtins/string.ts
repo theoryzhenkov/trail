@@ -3,7 +3,7 @@
  */
 
 import type {Value} from "../ast";
-import type {BuiltinFunction, FunctionContext} from "./index";
+import type {BuiltinFunction} from "./index";
 
 function toString(value: Value): string {
 	if (value === null) return "";

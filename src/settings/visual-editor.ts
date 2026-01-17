@@ -5,7 +5,7 @@
  * Complex queries that cannot be represented visually fall back to the query editor.
  */
 
-import type {Query, Expr, SortKey, PropertyAccess} from "../query/ast";
+import type {Query, Expr, SortKey} from "../query/ast";
 import {parse} from "../query";
 
 /**
@@ -147,7 +147,7 @@ function parseSortClause(sort?: SortKey[]): VisualSortKey | undefined {
 	if (!key || key.key === "chain") return undefined;
 	
 	return {
-		property: (key.key as PropertyAccess).path.join("."),
+		property: key.key.path.join("."),
 		direction: key.direction,
 	};
 }

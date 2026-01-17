@@ -261,13 +261,18 @@ export const TestGraphs = {
 	},
 };
 
+interface PathNode {
+	path: string;
+	children: PathNode[];
+}
+
 /**
  * Helper to collect all paths from a result tree
  */
-export function collectPaths(results: { path: string; children: any[] }[]): string[] {
+export function collectPaths(results: PathNode[]): string[] {
 	const paths: string[] = [];
 	
-	function visit(nodes: { path: string; children: any[] }[]) {
+	function visit(nodes: PathNode[]) {
 		for (const node of nodes) {
 			paths.push(node.path);
 			visit(node.children);

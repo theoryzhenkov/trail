@@ -9,8 +9,7 @@ import {
 	StringStream,
 	LanguageSupport,
 } from "@codemirror/language";
-import {tags as t} from "@lezer/highlight";
-import {styleTags, Tag} from "@lezer/highlight";
+import {Tag} from "@lezer/highlight";
 
 // Custom tags for TQL-specific tokens
 export const tqlTags = {
@@ -44,6 +43,7 @@ const DATE_KEYWORDS = new Set([
 	"today", "yesterday", "tomorrow", "startofweek", "endofweek"
 ]);
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ALL_KEYWORDS = new Set([
 	...CLAUSE_KEYWORDS,
 	...MODIFIER_KEYWORDS,
@@ -137,7 +137,7 @@ const tqlParser = {
 		if (stream.match("!=") || stream.match("<=") || stream.match(">=") || stream.match("..")) {
 			return "operator";
 		}
-		if (/[=<>!+\-]/.test(stream.peek() ?? "")) {
+		if (/[=<>!+-]/.test(stream.peek() ?? "")) {
 			stream.next();
 			return "operator";
 		}

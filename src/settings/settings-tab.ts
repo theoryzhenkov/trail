@@ -1,4 +1,4 @@
-import {App, Notice, PluginSettingTab, setIcon, Setting, TextAreaComponent} from "obsidian";
+import {App, Notice, PluginSettingTab, setIcon, Setting} from "obsidian";
 import type {EditorView} from "@codemirror/view";
 import TrailPlugin from "../main";
 import {
@@ -21,7 +21,7 @@ import {parse, TQLError} from "../query";
 import {migrateGroup} from "../query/migration";
 import {hasLegacyGroups, EditorMode} from "./index";
 import {isVisualEditable, parseToVisual, visualToQuery, VisualQuery} from "./visual-editor";
-import {createTQLEditor, setEditorContent} from "../query/codemirror";
+import {createTQLEditor} from "../query/codemirror";
 
 export class TrailSettingTab extends PluginSettingTab {
 	plugin: TrailPlugin;
@@ -220,7 +220,6 @@ export class TrailSettingTab extends PluginSettingTab {
 		
 		new Setting(banner)
 			.setName("Legacy groups detected")
-			// eslint-disable-next-line obsidianmd/ui/sentence-case
 			.setDesc("Your configuration includes legacy groups. Click 'Migrate' on each group below to convert them to TQL format.")
 			.setHeading();
 	}
@@ -329,7 +328,7 @@ export class TrailSettingTab extends PluginSettingTab {
 		errorContainer: HTMLElement
 	) {
 		// Create setting with label
-		const setting = new Setting(content)
+		new Setting(content)
 			.setName("Query")
 			.setDesc("TQL query defining this group.");
 		
@@ -421,7 +420,7 @@ export class TrailSettingTab extends PluginSettingTab {
 							}
 							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
 						});
-					text.inputEl.style.width = "80px";
+					text.inputEl.addClass("trail-depth-input");
 				})
 				.addExtraButton((btn) => {
 					btn

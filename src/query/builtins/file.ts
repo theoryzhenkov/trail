@@ -82,7 +82,7 @@ export const fileFunctions: Record<string, BuiltinFunction> = {
 			const links = props["file.links"];
 			if (!Array.isArray(links)) return false;
 			return links.some((link) => {
-				const linkStr = toString(link as Value);
+				const linkStr = toString(link);
 				return linkStr === target || linkStr.endsWith("/" + target) || linkStr.endsWith(target + ".md");
 			});
 		},

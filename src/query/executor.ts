@@ -15,7 +15,7 @@ import type {ValidatedQuery} from "./validator";
 import type {QueryContext} from "./context";
 import type {QueryResult, QueryResultNode, QueryWarning, TraversalContext} from "./result";
 import {emptyResult} from "./result";
-import type {RelationEdge, FileProperties, VisualDirection} from "../types";
+import type {FileProperties} from "../types";
 import {callBuiltin, FunctionContext} from "./builtins";
 import {RuntimeError} from "./errors";
 

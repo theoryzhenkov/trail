@@ -11,7 +11,6 @@ import {
 	autocompletion,
 	snippet,
 } from "@codemirror/autocomplete";
-import {BUILTIN_FUNCTIONS, BuiltinFunction} from "../builtins";
 
 /**
  * Function documentation for autocomplete
@@ -282,6 +281,7 @@ const CLAUSE_COMPLETIONS: Completion[] = [
 	{label: "display", type: "keyword", detail: "clause", info: "Properties to show"},
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const MODIFIER_COMPLETIONS: Completion[] = [
 	{label: "depth", type: "keyword", detail: "modifier", info: "Set traversal depth"},
 	{label: "unlimited", type: "keyword", detail: "value", info: "No depth limit"},

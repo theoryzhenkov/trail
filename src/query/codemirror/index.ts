@@ -13,7 +13,7 @@ import {bracketMatching} from "@codemirror/language";
 
 import {tql} from "./language";
 import {tqlEditorTheme, tqlSyntaxHighlighting} from "./theme";
-import {createTQLAutocomplete, TQLAutocompleteConfig} from "./autocomplete";
+import {createTQLAutocomplete} from "./autocomplete";
 import {createTQLLinter} from "./linter";
 import {createTQLHover} from "./hover";
 

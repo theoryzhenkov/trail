@@ -229,7 +229,6 @@ describe("TQL Executor", () => {
 				"root.md"
 			);
 
-			const paths = result.results.map((n) => n.path);
 			const ages = result.results.map((n) => n.properties.age as number);
 			
 			// Check ages are in ascending order

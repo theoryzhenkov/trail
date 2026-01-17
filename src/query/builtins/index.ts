@@ -71,6 +71,7 @@ const propFunction: BuiltinFunction = {
 			if (typeof current !== "object" || Array.isArray(current) || current instanceof Date) {
 				return null;
 			}
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 			current = (current as Record<string, Value>)[part] ?? null;
 		}
 		
