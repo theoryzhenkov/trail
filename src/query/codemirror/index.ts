@@ -12,8 +12,8 @@
 
 import {EditorState, Extension} from "@codemirror/state";
 import {EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection} from "@codemirror/view";
-import {defaultKeymap, history, historyKeymap} from "@codemirror/commands";
-import {closeBrackets, closeBracketsKeymap} from "@codemirror/autocomplete";
+import {defaultKeymap, history, historyKeymap, insertNewlineAndIndent} from "@codemirror/commands";
+import {closeBrackets, closeBracketsKeymap, startCompletion} from "@codemirror/autocomplete";
 import {bracketMatching} from "@codemirror/language";
 
 import {tql} from "./language";
@@ -61,6 +61,17 @@ export function createTQLEditor(config: TQLEditorConfig): EditorView {
 		
 		// Keymaps
 		keymap.of([
+			// Custom Enter key: insert newline then trigger autocomplete
+			{
+				key: "Enter",
+				run: (view) => {
+					// Insert the newline first
+					insertNewlineAndIndent(view);
+					// Then trigger autocomplete after a microtask to let the DOM update
+					setTimeout(() => startCompletion(view), 0);
+					return true;
+				},
+			},
 			...defaultKeymap,
 			...historyKeymap,
 			...closeBracketsKeymap,

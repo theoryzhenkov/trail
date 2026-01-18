@@ -355,81 +355,305 @@ function createPropertyCompletions(): Completion[] {
 }
 
 /**
+ * Parsed query state for context-aware completions
+ */
+interface ParsedQueryState {
+	hasGroup: boolean;
+	groupComplete: boolean;
+	hasFrom: boolean;
+	fromComplete: boolean;
+	hasPrune: boolean;
+	pruneComplete: boolean;
+	hasWhere: boolean;
+	whereComplete: boolean;
+	hasWhen: boolean;
+	whenComplete: boolean;
+	hasSort: boolean;
+	sortComplete: boolean;
+	hasDisplay: boolean;
+	displayComplete: boolean;
+	currentContext: QueryContext;
+}
+
+/**
  * Query context for determining completions
  */
 type QueryContext = 
 	| "start"
-	| "afterGroup"
-	| "afterFrom"
+	| "awaitingGroupName"
+	| "awaitingFrom"
+	| "awaitingRelation"
 	| "afterRelation"
-	| "afterDepth"
+	| "awaitingDepthValue"
+	| "awaitingExtendValue"
+	| "awaitingClause"
 	| "expression"
-	| "afterSort"
-	| "afterSortBy"
-	| "afterDisplay";
+	| "awaitingSortBy"
+	| "awaitingSortKey"
+	| "awaitingDisplayValue";
 
 /**
- * Determine the current context from the document
+ * Parse the query text up to cursor position to determine state
  */
-function getQueryContext(text: string, pos: number): QueryContext {
-	const beforeCursor = text.slice(0, pos).toLowerCase();
+function parseQueryState(text: string, pos: number): ParsedQueryState {
+	const beforeCursor = text.slice(0, pos);
+	const lowerText = beforeCursor.toLowerCase();
 	
-	// Check what clause we're in based on keywords
-	const lastClause = getLastClause(beforeCursor);
+	const state: ParsedQueryState = {
+		hasGroup: false,
+		groupComplete: false,
+		hasFrom: false,
+		fromComplete: false,
+		hasPrune: false,
+		pruneComplete: false,
+		hasWhere: false,
+		whereComplete: false,
+		hasWhen: false,
+		whenComplete: false,
+		hasSort: false,
+		sortComplete: false,
+		hasDisplay: false,
+		displayComplete: false,
+		currentContext: "start",
+	};
 	
-	if (!lastClause) {
-		// Check if we have a group clause
-		if (/group\s+"[^"]*"\s*$/.test(beforeCursor)) {
-			return "afterGroup";
+	// Check for group clause
+	const groupMatch = lowerText.match(/\bgroup\b/);
+	if (groupMatch) {
+		state.hasGroup = true;
+		// Check if group name is complete (has closing quote)
+		const afterGroup = beforeCursor.slice(groupMatch.index! + 5);
+		const groupNameMatch = afterGroup.match(/^\s*"[^"]*"/);
+		if (groupNameMatch) {
+			state.groupComplete = true;
 		}
-		if (/group\s*$/.test(beforeCursor)) {
-			return "start";
+	}
+	
+	// Check for from clause
+	const fromMatch = lowerText.match(/\bfrom\b/);
+	if (fromMatch) {
+		state.hasFrom = true;
+		// From is complete if we have at least one relation name
+		const afterFrom = beforeCursor.slice(fromMatch.index! + 4);
+		// Check if there's at least one relation name (identifier after from)
+		if (/^\s+[a-zA-Z_][a-zA-Z0-9_-]*/.test(afterFrom)) {
+			state.fromComplete = true;
 		}
+	}
+	
+	// Check for optional clauses - they're complete if followed by content or another clause
+	const optionalClauses = [
+		{keyword: "prune", hasKey: "hasPrune" as const, completeKey: "pruneComplete" as const},
+		{keyword: "where", hasKey: "hasWhere" as const, completeKey: "whereComplete" as const},
+		{keyword: "when", hasKey: "hasWhen" as const, completeKey: "whenComplete" as const},
+	];
+	
+	for (const clause of optionalClauses) {
+		const match = lowerText.match(new RegExp(`\\b${clause.keyword}\\b`));
+		if (match) {
+			state[clause.hasKey] = true;
+			// Check if there's an expression after it
+			const afterClause = beforeCursor.slice(match.index! + clause.keyword.length);
+			// Has content if there's any non-whitespace that isn't another clause keyword
+			if (/^\s+\S/.test(afterClause)) {
+				state[clause.completeKey] = true;
+			}
+		}
+	}
+	
+	// Check for sort clause
+	const sortMatch = lowerText.match(/\bsort\b/);
+	if (sortMatch) {
+		state.hasSort = true;
+		const afterSort = beforeCursor.slice(sortMatch.index! + 4);
+		// Sort is complete if it has "by" followed by something
+		if (/^\s+by\s+\S/.test(afterSort)) {
+			state.sortComplete = true;
+		}
+	}
+	
+	// Check for display clause
+	const displayMatch = lowerText.match(/\bdisplay\b/);
+	if (displayMatch) {
+		state.hasDisplay = true;
+		const afterDisplay = beforeCursor.slice(displayMatch.index! + 7);
+		// Display is complete if it has content
+		if (/^\s+\S/.test(afterDisplay)) {
+			state.displayComplete = true;
+		}
+	}
+	
+	// Determine current context based on what's at the end of the text
+	state.currentContext = determineCurrentContext(beforeCursor, lowerText, state);
+	
+	return state;
+}
+
+/**
+ * Determine the current editing context from the text before cursor
+ */
+function determineCurrentContext(
+	text: string, 
+	lowerText: string, 
+	state: ParsedQueryState
+): QueryContext {
+	// Trim trailing whitespace for pattern matching, but note if there was whitespace
+	const trimmedLower = lowerText.trimEnd();
+	const hasTrailingWhitespace = lowerText.length > trimmedLower.length;
+	
+	// Check if we're in a string (odd number of quotes)
+	const quoteCount = (text.match(/"/g) || []).length;
+	if (quoteCount % 2 === 1) {
+		// Inside a string - don't suggest
 		return "start";
 	}
 	
-	switch (lastClause) {
-		case "group":
-			return "afterGroup";
-		case "from":
-			// Check if we're after a relation name
-			if (/from\s+\w+\s*$/.test(beforeCursor) || 
-			    /,\s*\w+\s*$/.test(beforeCursor.slice(beforeCursor.lastIndexOf("from")))) {
-				return "afterRelation";
-			}
-			return "afterFrom";
-		case "depth":
-			return "afterDepth";
-		case "where":
-		case "when":
-		case "prune":
-			return "expression";
-		case "sort":
-			if (/sort\s+by\s*$/.test(beforeCursor)) {
-				return "afterSortBy";
-			}
-			return "afterSort";
-		case "display":
-			return "afterDisplay";
-		default:
-			return "expression";
+	// Empty or just starting
+	if (!trimmedLower || trimmedLower.length === 0) {
+		return "start";
 	}
-}
-
-function getLastClause(text: string): string | null {
-	const clauses = ["group", "from", "depth", "prune", "where", "when", "sort", "display"];
-	let lastClause: string | null = null;
-	let lastPos = -1;
 	
-	for (const clause of clauses) {
-		const pos = text.lastIndexOf(clause);
-		if (pos > lastPos) {
-			lastPos = pos;
-			lastClause = clause;
+	// Just typed "group" - awaiting group name
+	if (/\bgroup\s*$/.test(lowerText)) {
+		return "awaitingGroupName";
+	}
+	
+	// Group complete but no from yet
+	if (state.groupComplete && !state.hasFrom) {
+		return "awaitingFrom";
+	}
+	
+	// Just typed "from" - awaiting relation
+	if (/\bfrom\s*$/.test(lowerText)) {
+		return "awaitingRelation";
+	}
+	
+	// Check if we're in the middle of the FROM clause
+	// But only if no other clause has started after FROM
+	if (state.hasFrom) {
+		const fromIdx = lowerText.lastIndexOf("from");
+		const afterFrom = lowerText.slice(fromIdx + 4);
+		
+		// Check if we've moved on to another clause - if so, skip FROM context
+		const hasLaterClause = /\b(prune|where|when|sort|display)\b/.test(afterFrom);
+		
+		if (!hasLaterClause) {
+			// After comma in from clause - awaiting another relation
+			if (/,\s*$/.test(afterFrom)) {
+				return "awaitingRelation";
+			}
+			
+			// Just typed "depth" - awaiting value
+			if (/\bdepth\s*$/.test(afterFrom)) {
+				return "awaitingDepthValue";
+			}
+			
+			// Just typed "extend" - awaiting group name
+			if (/\bextend\s*$/.test(afterFrom)) {
+				return "awaitingExtendValue";
+			}
+			
+			// Check if depth is complete (has value after it)
+			const depthComplete = /\bdepth\s+(?:\d+|unlimited)\b/.test(afterFrom);
+			const extendComplete = /\bextend\s+(?:"[^"]*"|\w+)\b/.test(afterFrom);
+			
+			// After relation name (with possible complete modifiers)
+			// If we have a relation name and we're after whitespace, suggest modifiers or clauses
+			if (/\bfrom\s+[a-zA-Z_][a-zA-Z0-9_-]*/.test(lowerText)) {
+				// Check what's at the very end
+				const lastToken = getLastToken(afterFrom);
+				
+				if (lastToken === "unlimited" || /^\d+$/.test(lastToken)) {
+					// Just finished depth value - can add more modifiers or clauses
+					if (hasTrailingWhitespace) {
+						return "afterRelation";
+					}
+				}
+				
+				if (/[a-zA-Z_][a-zA-Z0-9_-]*\s*$/.test(afterFrom) && !depthComplete && !extendComplete) {
+					// Just after a relation name, suggest modifiers
+					if (hasTrailingWhitespace) {
+						return "afterRelation";
+					}
+				}
+				
+				// If we're typing (no trailing whitespace) and after from with relation
+				if (!hasTrailingWhitespace && /[a-zA-Z]$/.test(afterFrom)) {
+					// Could be typing a modifier, relation, or clause
+					return "afterRelation";
+				}
+				
+				if (hasTrailingWhitespace) {
+					return "afterRelation";
+				}
+			}
 		}
 	}
 	
-	return lastClause;
+	// Check for expression clauses (prune, where, when)
+	for (const clause of ["prune", "where", "when"]) {
+		const clauseRegex = new RegExp(`\\b${clause}\\s*$`);
+		if (clauseRegex.test(lowerText)) {
+			return "expression";
+		}
+		// If we're in an expression clause and typing
+		const clauseIdx = lowerText.lastIndexOf(clause);
+		if (clauseIdx !== -1) {
+			const afterClause = lowerText.slice(clauseIdx + clause.length);
+			// Check if this clause is the "active" one (no other clause after it)
+			const hasLaterClause = /\b(prune|where|when|sort|display)\b/.test(afterClause);
+			if (!hasLaterClause && afterClause.trim().length > 0) {
+				return "expression";
+			}
+		}
+	}
+	
+	// Check for sort clause
+	if (/\bsort\s*$/.test(lowerText)) {
+		return "awaitingSortBy";
+	}
+	if (/\bsort\s+by\s*$/.test(lowerText)) {
+		return "awaitingSortKey";
+	}
+	if (state.hasSort && !state.sortComplete) {
+		const sortIdx = lowerText.lastIndexOf("sort");
+		const afterSort = lowerText.slice(sortIdx + 4);
+		if (/\s+by\s+/.test(afterSort)) {
+			return "awaitingSortKey";
+		}
+		return "awaitingSortBy";
+	}
+	
+	// Check for display clause
+	if (/\bdisplay\s*$/.test(lowerText)) {
+		return "awaitingDisplayValue";
+	}
+	if (state.hasDisplay && !state.displayComplete) {
+		return "awaitingDisplayValue";
+	}
+	
+	// Default: if we have from complete, we can add clauses
+	if (state.fromComplete) {
+		return "awaitingClause";
+	}
+	
+	// Fallback
+	if (!state.hasGroup) {
+		return "start";
+	}
+	if (!state.groupComplete) {
+		return "awaitingGroupName";
+	}
+	
+	return "awaitingClause";
+}
+
+/**
+ * Get the last word/token from text
+ */
+function getLastToken(text: string): string {
+	const match = text.match(/([a-zA-Z_][a-zA-Z0-9_-]*|\d+)\s*$/);
+	return match?.[1] ?? "";
 }
 
 /**
@@ -453,18 +677,29 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 				const word = context.matchBefore(/[\w.]*$/);
 				if (!word) return null;
 				
+				// Allow empty matches at start of line or after whitespace
+				if (word.from === word.to && !context.explicit) {
+					const charBefore = context.pos > 0 
+						? context.state.doc.sliceString(context.pos - 1, context.pos) 
+						: "\n";
+					// Only trigger if after whitespace, newline, or at start
+					if (!/[\s\n]/.test(charBefore) && context.pos > 0) {
+						return null;
+					}
+				}
+				
 				// Don't trigger in strings
-				const line = context.state.doc.lineAt(context.pos);
-				const beforeCursor = line.text.slice(0, context.pos - line.from);
-				const quoteCount = (beforeCursor.match(/"/g) || []).length;
+				const fullText = context.state.doc.toString();
+				const textBeforeCursor = fullText.slice(0, context.pos);
+				const quoteCount = (textBeforeCursor.match(/"/g) || []).length;
 				if (quoteCount % 2 === 1) return null;
 				
-				const fullText = context.state.doc.toString();
-				const queryContext = getQueryContext(fullText, context.pos);
+				// Parse the query state
+				const state = parseQueryState(fullText, context.pos);
 				
 				let completions: Completion[] = [];
 				
-				switch (queryContext) {
+				switch (state.currentContext) {
 					case "start":
 						completions = [{
 							label: "group",
@@ -475,13 +710,18 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 						}];
 						break;
 					
-					case "afterGroup":
+					case "awaitingGroupName":
+						// User needs to type a string - no completions
+						completions = [];
+						break;
+					
+					case "awaitingFrom":
 						completions = [
-							{label: "from", type: "keyword", detail: "clause"},
+							{label: "from", type: "keyword", detail: "clause", info: "Specify relations to traverse"},
 						];
 						break;
 					
-					case "afterFrom":
+					case "awaitingRelation":
 						// Relation names from settings
 						completions = config.getRelationNames().map(name => ({
 							label: name,
@@ -491,17 +731,49 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 						break;
 					
 					case "afterRelation":
+						// After a relation name - can add modifiers, comma for more relations, or clauses
+						// Also include expression completions since user might be starting an expression clause
 						completions = [
-							{label: "depth", type: "keyword", detail: "modifier"},
-							{label: "extend", type: "keyword", detail: "modifier"},
-							...CLAUSE_COMPLETIONS.filter(c => c.label !== "group" && c.label !== "from"),
+							{label: "depth", type: "keyword", detail: "modifier", info: "Set traversal depth"},
+							{label: "extend", type: "keyword", detail: "modifier", info: "Extend with another group"},
+							// Allow adding more relations
+							...config.getRelationNames().map(name => ({
+								label: name,
+								type: "variable",
+								detail: "relation",
+							})),
+							// Suggest available clauses (not group or from)
+							...getAvailableClauseCompletions(state),
+							// Include expression completions (functions, properties, etc.)
+							...functionCompletions,
+							...propertyCompletions,
+							...LOGICAL_COMPLETIONS,
+							...LITERAL_COMPLETIONS,
+							...DATE_COMPLETIONS,
 						];
 						break;
 					
-					case "afterDepth":
+					case "awaitingDepthValue":
 						completions = [
-							{label: "unlimited", type: "keyword", detail: "value"},
-							// Numbers are handled by the user typing them
+							{label: "unlimited", type: "keyword", detail: "value", info: "No depth limit"},
+						];
+						break;
+					
+					case "awaitingExtendValue":
+						// Can be a group name (identifier or string)
+						completions = [];
+						break;
+					
+					case "awaitingClause":
+						// Can add any unused optional clause
+						// Also include expression completions since user might be starting an expression
+						completions = [
+							...getAvailableClauseCompletions(state),
+							...functionCompletions,
+							...propertyCompletions,
+							...LOGICAL_COMPLETIONS,
+							...LITERAL_COMPLETIONS,
+							...DATE_COMPLETIONS,
 						];
 						break;
 					
@@ -512,26 +784,34 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 							...LOGICAL_COMPLETIONS,
 							...LITERAL_COMPLETIONS,
 							...DATE_COMPLETIONS,
+							// Also allow transitioning to other clauses
+							...getAvailableClauseCompletions(state),
 						];
 						break;
 					
-					case "afterSort":
+					case "awaitingSortBy":
 						completions = [
-							{label: "by", type: "keyword", detail: "modifier"},
+							{label: "by", type: "keyword", detail: "modifier", info: "Sort by property"},
 						];
 						break;
 					
-					case "afterSortBy":
+					case "awaitingSortKey":
 						completions = [
-							{label: "chain", type: "keyword", detail: "sort mode"},
+							{label: "chain", type: "keyword", detail: "sort mode", info: "Sort by sequence position"},
+							{label: "asc", type: "keyword", detail: "direction", info: "Ascending order"},
+							{label: "desc", type: "keyword", detail: "direction", info: "Descending order"},
 							...propertyCompletions,
+							// Allow transitioning to other clauses
+							...getAvailableClauseCompletions(state),
 						];
 						break;
 					
-					case "afterDisplay":
+					case "awaitingDisplayValue":
 						completions = [
-							{label: "all", type: "keyword", detail: "display"},
+							{label: "all", type: "keyword", detail: "display", info: "Show all properties"},
 							...propertyCompletions,
+							// Allow transitioning to other clauses
+							...getAvailableClauseCompletions(state),
 						];
 						break;
 				}
@@ -557,4 +837,58 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 		maxRenderedOptions: 50,
 		activateOnTyping: true,
 	});
+}
+
+/**
+ * Get available clause completions based on which clauses haven't been used yet
+ */
+function getAvailableClauseCompletions(state: ParsedQueryState): Completion[] {
+	const completions: Completion[] = [];
+	
+	if (!state.hasPrune) {
+		completions.push({
+			label: "prune",
+			type: "keyword",
+			detail: "clause",
+			info: "Stop traversal at matching nodes",
+		});
+	}
+	
+	if (!state.hasWhere) {
+		completions.push({
+			label: "where",
+			type: "keyword",
+			detail: "clause",
+			info: "Filter results",
+		});
+	}
+	
+	if (!state.hasWhen) {
+		completions.push({
+			label: "when",
+			type: "keyword",
+			detail: "clause",
+			info: "Conditional visibility",
+		});
+	}
+	
+	if (!state.hasSort) {
+		completions.push({
+			label: "sort",
+			type: "keyword",
+			detail: "clause",
+			info: "Order results",
+		});
+	}
+	
+	if (!state.hasDisplay) {
+		completions.push({
+			label: "display",
+			type: "keyword",
+			detail: "clause",
+			info: "Properties to show",
+		});
+	}
+	
+	return completions;
 }
