@@ -250,3 +250,92 @@
 .trail-hidden {
 	display: none !important;
 }
+
+/* ============================================
+   Display Group Styles (Nested Groups Model)
+   ============================================ */
+
+/* Group container */
+.trail-group {
+	margin: 2px 0;
+	padding-left: calc(var(--group-depth, 0) * 12px);
+}
+
+/* Group header with relation tag and optional label */
+.trail-group-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	min-height: 24px;
+}
+
+/* Label for split subgroups (e.g., "Dad's parents") */
+.trail-group-label {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+/* Members container - horizontal list of file links */
+.trail-group-members {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 8px;
+	padding: 4px 8px 4px 32px;
+	align-items: baseline;
+}
+
+/* Individual group member */
+.trail-group-member {
+	display: flex;
+	align-items: baseline;
+	gap: 4px;
+	padding: 2px 8px;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.trail-group-member:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--background-modifier-border-hover);
+}
+
+.trail-group-member .internal-link {
+	color: var(--link-color);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.trail-group-member .internal-link:hover {
+	color: var(--link-color-hover);
+	text-decoration: underline;
+}
+
+/* Subgroups container */
+.trail-group-subgroups {
+	margin-left: 8px;
+	padding-left: 8px;
+	border-left: 2px solid var(--background-modifier-border);
+}
+
+/* Nested depth visual styling */
+.trail-group-subgroups .trail-group {
+	margin: 4px 0;
+}
+
+/* Compact styling for deeply nested groups */
+.trail-group-subgroups .trail-group-subgroups .trail-group-members {
+	padding-left: 24px;
+}
+
+/* Property badges in group members */
+.trail-group-member .trail-property-badges {
+	margin-left: 4px;
+}
+
+.trail-group-member .trail-property-badge {
+	font-size: 10px;
+	padding: 0 4px;
+}
