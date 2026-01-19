@@ -18,9 +18,10 @@ import type {ValidatedQuery} from "./validator";
 import type {QueryContext} from "./context";
 import type {QueryResult, QueryResultNode, QueryWarning, TraversalContext} from "./result";
 import {emptyResult} from "./result";
-import type {FileProperties} from "../types";
+import type {FileProperties, RelationEdge} from "../types";
 import {callBuiltin, FunctionContext} from "./builtins";
 import {RuntimeError} from "./errors";
+import {buildChainStructure, getBasename, type ChainStructure} from "./chain-sort";
 
 /**
  * Execute a validated TQL query
@@ -270,30 +271,268 @@ class Executor {
 	// =========================================================================
 
 	private sortResults(nodes: QueryResultNode[], keys: SortKey[]): QueryResultNode[] {
-		// Sort recursively
-		const sorted = [...nodes].sort((a, b) => this.compareNodes(a, b, keys));
+		if (nodes.length <= 1) {
+			// Still need to sort children
+			return nodes.map((node) => ({
+				...node,
+				children: this.sortResults(node.children, keys),
+			}));
+		}
 
-		// Sort children
+		// Check if chain sorting is needed
+		const hasChainKey = keys.some((k) => k.key === "chain");
+		
+		let sorted: QueryResultNode[];
+		
+		if (hasChainKey) {
+			// Build chain structure for these siblings
+			const sequentialRelations = this.ctx.getSequentialRelations();
+			const nodePaths = new Set(nodes.map((n) => n.path));
+			const edgesBySource = this.buildEdgeMapForNodes(nodes);
+			const chainStructure = buildChainStructure(nodePaths, edgesBySource, sequentialRelations);
+			
+			// Sort with chain awareness
+			sorted = this.sortWithChains(nodes, keys, chainStructure);
+		} else {
+			// Simple property-based sort
+			sorted = [...nodes].sort((a, b) => this.compareNodes(a, b, keys, null));
+		}
+
+		// Sort children recursively
 		return sorted.map((node) => ({
 			...node,
 			children: this.sortResults(node.children, keys),
 		}));
 	}
 
-	private compareNodes(a: QueryResultNode, b: QueryResultNode, keys: SortKey[]): number {
-		for (const key of keys) {
-			let cmp: number;
+	/**
+	 * Build edge map for sibling nodes to detect chains
+	 */
+	private buildEdgeMapForNodes(nodes: QueryResultNode[]): Map<string, RelationEdge[]> {
+		const edgeMap = new Map<string, RelationEdge[]>();
+		for (const node of nodes) {
+			// Get all outgoing edges for this node
+			const edges = this.ctx.getOutgoingEdges(node.path);
+			edgeMap.set(node.path, edges);
+		}
+		return edgeMap;
+	}
 
-			if (key.key === "chain") {
-				// Chain sort - use sequence/position if available
-				cmp = this.compareChain(a, b);
-			} else {
-				// Property sort
-				const propPath = key.key.path.join(".");
-				const aVal = this.getPropertyValue(a.properties, propPath);
-				const bVal = this.getPropertyValue(b.properties, propPath);
-				cmp = this.compareValues(aVal, bVal);
+	/**
+	 * Sort nodes with chain awareness.
+	 * Chains are kept together, sorted by the head node's properties.
+	 */
+	private sortWithChains(
+		nodes: QueryResultNode[],
+		keys: SortKey[],
+		structure: ChainStructure
+	): QueryResultNode[] {
+		const nodeByPath = new Map(nodes.map((n) => [n.path, n]));
+		
+		// Determine chain sort position in keys
+		const chainKeyIndex = keys.findIndex((k) => k.key === "chain");
+		const isChainPrimary = chainKeyIndex === 0;
+		
+		if (isChainPrimary || structure.chains.size === 0) {
+			// Chain sort primary: chains stay intact, sorted by head's properties
+			return this.sortChainsPrimary(nodes, keys, structure, nodeByPath);
+		}
+		
+		// Chain sort secondary: property sort first, then chain within groups
+		return this.sortChainsSecondary(nodes, keys, structure, nodeByPath, chainKeyIndex);
+	}
+
+	/**
+	 * Chain sort primary: chains are kept intact, sorted by head's properties.
+	 */
+	private sortChainsPrimary(
+		nodes: QueryResultNode[],
+		keys: SortKey[],
+		structure: ChainStructure,
+		nodeByPath: Map<string, QueryResultNode>
+	): QueryResultNode[] {
+		// Collect sort keys: chain heads + disconnected
+		const sortKeys: Array<{path: string; isChainHead: boolean; node: QueryResultNode}> = [];
+
+		for (const head of structure.chains.keys()) {
+			const node = nodeByPath.get(head);
+			if (node) {
+				sortKeys.push({path: head, isChainHead: true, node});
 			}
+		}
+
+		for (const path of structure.disconnected) {
+			const node = nodeByPath.get(path);
+			if (node) {
+				sortKeys.push({path, isChainHead: false, node});
+			}
+		}
+
+		// Filter out chain key for property comparison
+		const nonChainKeys = keys.filter((k) => k.key !== "chain");
+
+		// Sort by properties (excluding chain key)
+		sortKeys.sort((a, b) => this.compareNodes(a.node, b.node, nonChainKeys, null));
+
+		// Expand: chain heads become full chains, disconnected stay as-is
+		const result: QueryResultNode[] = [];
+
+		for (const key of sortKeys) {
+			if (key.isChainHead) {
+				const chain = structure.chains.get(key.path) ?? [];
+				for (const path of chain) {
+					const node = nodeByPath.get(path);
+					if (node) {
+						result.push(node);
+					}
+				}
+			} else {
+				result.push(key.node);
+			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * Chain sort secondary: property sort first, then chain sort within property groups.
+	 */
+	private sortChainsSecondary(
+		nodes: QueryResultNode[],
+		keys: SortKey[],
+		structure: ChainStructure,
+		nodeByPath: Map<string, QueryResultNode>,
+		chainKeyIndex: number
+	): QueryResultNode[] {
+		// Get keys before the chain key
+		const keysBeforeChain = keys.slice(0, chainKeyIndex);
+		
+		// Sort all nodes by properties before chain key
+		const sortedByProps = [...nodes].sort((a, b) => 
+			this.compareNodes(a, b, keysBeforeChain, null)
+		);
+
+		if (keysBeforeChain.length === 0) {
+			// No properties before chain, use primary chain sort
+			return this.sortChainsPrimary(nodes, keys, structure, nodeByPath);
+		}
+
+		// Group nodes by their primary sort key value
+		const primaryKey = keysBeforeChain[0];
+		if (!primaryKey || primaryKey.key === "chain") {
+			return this.sortChainsPrimary(nodes, keys, structure, nodeByPath);
+		}
+
+		const groups = this.groupByPropertyValue(sortedByProps, primaryKey);
+
+		// Apply chain sorting within each group
+		const result: QueryResultNode[] = [];
+		const keysAfterChain = keys.slice(chainKeyIndex + 1);
+		
+		for (const group of groups) {
+			if (group.length <= 1) {
+				result.push(...group);
+				continue;
+			}
+
+			// Build chain structure for this subgroup
+			const groupPaths = new Set(group.map((n) => n.path));
+			const groupStructure = this.filterChainStructure(structure, groupPaths);
+
+			if (groupStructure.chains.size === 0) {
+				// No chains in this group, keep property-sorted order
+				result.push(...group);
+			} else {
+				// Apply chain sorting within this property group
+				const groupNodeByPath = new Map(group.map((n) => [n.path, n]));
+				result.push(...this.sortChainsPrimary(group, keysAfterChain, groupStructure, groupNodeByPath));
+			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * Filter chain structure to only include paths in the given set
+	 */
+	private filterChainStructure(structure: ChainStructure, paths: Set<string>): ChainStructure {
+		const filteredChains = new Map<string, string[]>();
+		const filteredDisconnected: string[] = [];
+		const includedInChain = new Set<string>();
+
+		for (const chain of structure.chains.values()) {
+			const filteredChain = chain.filter((p) => paths.has(p));
+			if (filteredChain.length > 1) {
+				// Chain still has multiple members in this group
+				const newHead = filteredChain[0]!;
+				filteredChains.set(newHead, filteredChain);
+				filteredChain.forEach((p) => includedInChain.add(p));
+			} else if (filteredChain.length === 1) {
+				// Single node - treat as disconnected
+				filteredDisconnected.push(filteredChain[0]!);
+			}
+		}
+
+		// Add disconnected nodes that are in paths
+		for (const path of structure.disconnected) {
+			if (paths.has(path)) {
+				filteredDisconnected.push(path);
+			}
+		}
+
+		// Add any paths that weren't in the original structure
+		for (const path of paths) {
+			if (!includedInChain.has(path) && !filteredDisconnected.includes(path)) {
+				filteredDisconnected.push(path);
+			}
+		}
+
+		return {chains: filteredChains, disconnected: filteredDisconnected};
+	}
+
+	/**
+	 * Group nodes by their value for a sort key
+	 */
+	private groupByPropertyValue(nodes: QueryResultNode[], key: SortKey): QueryResultNode[][] {
+		if (key.key === "chain") {
+			return [nodes]; // Can't group by chain
+		}
+
+		const groups = new Map<string, QueryResultNode[]>();
+		const order: string[] = [];
+
+		for (const node of nodes) {
+			const propPath = key.key.path.join(".");
+			const value = this.getPropertyValue(node.properties, propPath);
+			const valueStr = value === null ? "" : String(value);
+			
+			if (!groups.has(valueStr)) {
+				groups.set(valueStr, []);
+				order.push(valueStr);
+			}
+			groups.get(valueStr)!.push(node);
+		}
+
+		return order.map((k) => groups.get(k)!);
+	}
+
+	private compareNodes(
+		a: QueryResultNode,
+		b: QueryResultNode,
+		keys: SortKey[],
+		_chainStructure: ChainStructure | null
+	): number {
+		for (const key of keys) {
+			if (key.key === "chain") {
+				// Chain comparison handled at higher level
+				continue;
+			}
+
+			// Property sort
+			const propPath = key.key.path.join(".");
+			const aVal = this.getPropertyValue(a.properties, propPath);
+			const bVal = this.getPropertyValue(b.properties, propPath);
+			let cmp = this.compareValues(aVal, bVal);
 
 			if (key.direction === "desc") {
 				cmp = -cmp;
@@ -303,98 +542,9 @@ class Executor {
 				return cmp;
 			}
 		}
-		return 0;
-	}
-
-	private compareChain(a: QueryResultNode, b: QueryResultNode): number {
-		// Chain comparison based on sequential relations
-		// Use the traversal relation to determine sequence order
-		const relation = a.relation || b.relation;
 		
-		if (!relation) {
-			// No relation info - fall back to path comparison
-			return a.path.localeCompare(b.path);
-		}
-		
-		// Get chain positions for both nodes
-		const aPos = this.getChainPosition(a.path, relation);
-		const bPos = this.getChainPosition(b.path, relation);
-		
-		// Nodes with position sort before nodes without
-		if (aPos === null && bPos === null) {
-			return a.path.localeCompare(b.path);
-		}
-		if (aPos === null) return 1;
-		if (bPos === null) return -1;
-		
-		return aPos - bPos;
-	}
-
-	/**
-	 * Get the chain position of a node by following predecessor links
-	 * Returns the number of "prev" hops from the start of the chain
-	 */
-	private getChainPosition(path: string, relation: string): number | null {
-		// Try to find a "prev" or reverse relation to determine position
-		// We check if there's an implied inverse (e.g., "prev" for "next")
-		const inverseRelation = this.findInverseRelation(relation);
-		
-		if (!inverseRelation) {
-			// No inverse relation - can't determine chain position
-			// Use discovery order (traversalPath length as approximation)
-			return null;
-		}
-		
-		// Follow the inverse relation backwards to count position
-		let position = 0;
-		let currentPath = path;
-		const visited = new Set<string>();
-		
-		while (position < 1000) { // Safety limit
-			visited.add(currentPath);
-			
-			// Get predecessor via inverse relation
-			const edges = this.ctx.getOutgoingEdges(currentPath, inverseRelation);
-			const prevEdge = edges[0];
-			
-			if (!prevEdge || visited.has(prevEdge.toPath)) {
-				// Reached start of chain or cycle
-				break;
-			}
-			
-			currentPath = prevEdge.toPath;
-			position++;
-		}
-		
-		return position;
-	}
-
-	/**
-	 * Find the inverse relation for chain sorting
-	 * e.g., "next" -> "prev", "after" -> "before"
-	 */
-	private findInverseRelation(relation: string): string | null {
-		// Check relation definitions for aliases that define inverses
-		const relationNames = this.ctx.getRelationNames();
-		
-		// Common inverse patterns
-		const inversePatterns: Record<string, string> = {
-			next: "prev",
-			prev: "next",
-			after: "before",
-			before: "after",
-			child: "parent",
-			parent: "child",
-		};
-		
-		// Check if relation has a known inverse
-		const knownInverse = inversePatterns[relation.toLowerCase()];
-		if (knownInverse && relationNames.includes(knownInverse)) {
-			return knownInverse;
-		}
-		
-		// No inverse found
-		return null;
+		// Fallback: alphabetical by basename
+		return getBasename(a.path).localeCompare(getBasename(b.path));
 	}
 
 	private compareValues(a: Value, b: Value): number {

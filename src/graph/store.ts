@@ -2,29 +2,13 @@ import {App, TFile} from "obsidian";
 import {TrailSettings} from "../settings";
 import {
 	FileProperties,
-	FilterMatchMode,
-	PropertyFilter,
-	RelationEdge,
-	RelationGroup,
-	VisualDirection
+	RelationEdge
 } from "../types";
 import {parseInlineRelations} from "../parsing/inline";
 import {parseFileProperties, parseFrontmatterRelations} from "../parsing/frontmatter";
 import {computeAncestors, AncestorNode} from "./traversal";
 import {applyImpliedRules} from "./implied-relations";
-import {buildPropertyExcludeKeys, evaluatePropertyFilter} from "./property-filters";
-import {sortSiblingsRecursively, SortConfig} from "./sibling-sort";
-
-export interface GroupTreeNode {
-	path: string;
-	relation: string;
-	depth: number;
-	implied: boolean;
-	impliedFrom?: string;
-	children: GroupTreeNode[];
-	properties?: FileProperties;
-	visualDirection: VisualDirection;
-}
+import {buildPropertyExcludeKeys} from "./property-filters";
 
 export class GraphStore {
 	private app: App;
@@ -230,115 +214,6 @@ export class GraphStore {
 		return computeAncestors(path, this.getEdgesWithImplied(), relationFilter);
 	}
 
-	getGroupTree(path: string, group: RelationGroup): GroupTreeNode[] {
-		const edgesBySource = this.buildEdgesBySourceFromImplied();
-		const visited = new Set<string>();
-		visited.add(path);
-		return this.evaluateGroup(path, group, edgesBySource, visited);
-	}
-
-	matchesFilters(path: string, filters: PropertyFilter[], matchMode: FilterMatchMode = "all"): boolean {
-		if (filters.length === 0) {
-			return true;
-		}
-		const properties = this.propertiesByPath.get(path) ?? {};
-		if (matchMode === "any") {
-			return filters.some((filter) => evaluatePropertyFilter(properties, filter));
-		}
-		return filters.every((filter) => evaluatePropertyFilter(properties, filter));
-	}
-
-	private evaluateGroup(
-		sourcePath: string,
-		group: RelationGroup,
-		edgesBySource: Map<string, RelationEdge[]>,
-		visited: Set<string>
-	): GroupTreeNode[] {
-		const nodes: GroupTreeNode[] = [];
-		for (const member of group.members) {
-			if (!member.relation) {
-				continue;
-			}
-			nodes.push(...this.evaluateMember(sourcePath, group, member, edgesBySource, visited, 1));
-		}
-
-		// Apply sibling sorting based on group configuration
-		const sortConfig: SortConfig = {
-			sortBy: group.sortBy ?? [],
-			chainSort: group.chainSort ?? "primary",
-			sequentialRelations: this.getSequentialRelations(),
-			relationOrder: this.getRelationOrder()
-		};
-		return sortSiblingsRecursively(nodes, edgesBySource, sortConfig);
-	}
-
-	private getSequentialRelations(): Set<string> {
-		return new Set(
-			this.settings.relations
-				.filter((r) => r.visualDirection === "sequential")
-				.map((r) => r.name)
-		);
-	}
-
-	private getRelationOrder(): string[] {
-		return this.settings.relations
-			.map((r) => r.name)
-			.filter((name) => name.length > 0);
-	}
-
-	private evaluateMember(
-		sourcePath: string,
-		group: RelationGroup,
-		member: RelationGroup["members"][number],
-		edgesBySource: Map<string, RelationEdge[]>,
-		visited: Set<string>,
-		currentDepth: number
-	): GroupTreeNode[] {
-		const outgoing = edgesBySource.get(sourcePath) ?? [];
-		const matching = outgoing.filter((edge) => edge.relation === member.relation);
-		const nodes: GroupTreeNode[] = [];
-
-		for (const edge of matching) {
-			if (visited.has(edge.toPath)) {
-				continue;
-			}
-			if (!this.matchesPropertyFilters(edge.toPath, group)) {
-				continue;
-			}
-			visited.add(edge.toPath);
-			const children: GroupTreeNode[] = [];
-
-			if (member.depth === 0 || currentDepth < member.depth) {
-				children.push(
-					...this.evaluateMember(edge.toPath, group, member, edgesBySource, visited, currentDepth + 1)
-				);
-			}
-
-			if (member.extend) {
-				const extended = this.settings.groups.find((group) => group.name === member.extend);
-				if (extended) {
-					children.push(...this.evaluateGroup(edge.toPath, extended, edgesBySource, visited));
-				}
-			}
-
-			const relationDef = this.settings.relations.find((r) => r.name === edge.relation);
-			const visualDirection = relationDef?.visualDirection ?? "descending";
-
-			nodes.push({
-				path: edge.toPath,
-				relation: edge.relation,
-				depth: currentDepth,
-				implied: edge.implied,
-				impliedFrom: edge.impliedFrom,
-				children,
-				properties: this.getFileProperties(edge.toPath),
-				visualDirection
-			});
-		}
-
-		return nodes;
-	}
-
 	private invalidateImpliedCache() {
 		this.cachedEdgesWithImplied = null;
 	}
@@ -351,17 +226,6 @@ export class GraphStore {
 			list.push(edge);
 			this.edgesByTarget.set(edge.toPath, list);
 		}
-	}
-
-	private buildEdgesBySourceFromImplied(): Map<string, RelationEdge[]> {
-		const edges = this.getEdgesWithImplied();
-		const edgesBySource = new Map<string, RelationEdge[]>();
-		for (const edge of edges) {
-			const list = edgesBySource.get(edge.fromPath) ?? [];
-			list.push(edge);
-			edgesBySource.set(edge.fromPath, list);
-		}
-		return edgesBySource;
 	}
 
 	private getEdgesWithImplied(): RelationEdge[] {
@@ -416,21 +280,5 @@ export class GraphStore {
 
 	getFileProperties(path: string): FileProperties {
 		return this.propertiesByPath.get(path) ?? {};
-	}
-
-	private matchesPropertyFilters(
-		path: string,
-		group: RelationGroup
-	): boolean {
-		const filters = group.filters;
-		if (!filters || filters.length === 0) {
-			return true;
-		}
-		const properties = this.getFileProperties(path);
-		const matchMode = group.filtersMatchMode ?? "all";
-		if (matchMode === "any") {
-			return filters.some((filter) => evaluatePropertyFilter(properties, filter));
-		}
-		return filters.every((filter) => evaluatePropertyFilter(properties, filter));
 	}
 }

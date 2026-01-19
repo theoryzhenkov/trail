@@ -144,10 +144,21 @@ export function createMockContext(
 		},
 
 		getVisualDirection(relation: string): VisualDirection {
-			if (relation === "down" || relation === "next") {
+			// Sequential relations
+			if (relation === "next" || relation === "prev") {
+				return "sequential";
+			}
+			// Hierarchical relations
+			if (relation === "down") {
 				return "descending";
 			}
 			return "ascending";
+		},
+
+		getSequentialRelations(): Set<string> {
+			// Return relations marked as sequential
+			const relations = graph.relations ?? ["up", "down", "next", "prev"];
+			return new Set(relations.filter(r => r === "next" || r === "prev"));
 		},
 
 		resolveGroupQuery(name: string): ValidatedQuery | undefined {

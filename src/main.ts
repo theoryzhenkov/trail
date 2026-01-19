@@ -1,5 +1,5 @@
 import {Plugin, TFile} from "obsidian";
-import {TrailSettings, TrailSettingTab, buildSettings, migrateSettingsIfNeeded} from "./settings";
+import {TrailSettings, TrailSettingTab, buildSettings, savedDataNeedsMigration} from "./settings";
 import {GraphStore} from "./graph/store";
 import {TrailView, TRAIL_VIEW_TYPE} from "./ui/trail-view";
 import {registerCommands} from "./commands";
@@ -86,10 +86,14 @@ export default class TrailPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = buildSettings(await this.loadData() as Partial<TrailSettings> | null);
+		const savedData = await this.loadData() as Partial<TrailSettings> | null;
+		const needsMigration = savedDataNeedsMigration(savedData);
 		
-		// Auto-migrate legacy groups to TQL format
-		if (migrateSettingsIfNeeded(this.settings)) {
+		// buildSettings auto-migrates legacy groups to TQL
+		this.settings = buildSettings(savedData);
+		
+		// Save settings to persist the migration
+		if (needsMigration) {
 			await this.saveData(this.settings);
 		}
 	}

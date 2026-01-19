@@ -1,100 +1,10 @@
-import type {GroupTreeNode} from "../graph/store";
 import type {QueryResultNode} from "../query/result";
 import type {DisplayGroup, GroupMember} from "../types";
 
 /**
- * Converts a tree of GroupTreeNode into nested DisplayGroups.
- * Only groups nodes together if they have the same relation AND identical subtrees.
- * Nodes with different children become separate groups.
- */
-export function treeToGroups(nodes: GroupTreeNode[]): DisplayGroup[] {
-	if (nodes.length === 0) return [];
-	
-	// Partition nodes into groups: same relation AND identical subtrees
-	const groups: DisplayGroup[] = [];
-	const used = new Set<number>();
-	
-	for (let i = 0; i < nodes.length; i++) {
-		if (used.has(i)) continue;
-		
-		const node = nodes[i];
-		if (!node) continue;
-		
-		const matchingNodes: GroupTreeNode[] = [node];
-		used.add(i);
-		
-		// Find other nodes with same relation AND identical subtrees
-		for (let j = i + 1; j < nodes.length; j++) {
-			if (used.has(j)) continue;
-			const other = nodes[j];
-			if (!other) continue;
-			
-			if (other.relation === node.relation && 
-			    subtreesEqual(node.children, other.children)) {
-				matchingNodes.push(other);
-				used.add(j);
-			}
-		}
-		
-		// Create group from nodes with identical subtrees
-		groups.push(createGroupFromIdenticalNodes(matchingNodes));
-	}
-	
-	return groups;
-}
-
-/**
- * Creates a DisplayGroup from nodes that have identical subtrees.
- * Since subtrees are identical, we only process children once.
- */
-function createGroupFromIdenticalNodes(nodes: GroupTreeNode[]): DisplayGroup {
-	const firstNode = nodes[0];
-	if (!firstNode) {
-		return { relation: "", members: [], subgroups: [] };
-	}
-	
-	const relation = firstNode.relation;
-	
-	// Create members from all nodes
-	const members: GroupMember[] = nodes.map(node => ({
-		path: node.path,
-		relation: node.relation,
-		implied: node.implied,
-		impliedFrom: node.impliedFrom,
-		properties: node.properties ?? {}
-	}));
-	
-	// Since all nodes have identical children, process first node's children
-	const subgroups = treeToGroups(firstNode.children);
-	
-	return { relation, members, subgroups };
-}
-
-/**
- * Compares two subtrees for structural equality.
- * Two subtrees are equal if they have the same paths and their children are also equal.
- */
-export function subtreesEqual(a: GroupTreeNode[], b: GroupTreeNode[]): boolean {
-	if (a.length !== b.length) return false;
-	if (a.length === 0) return true;
-	
-	// Sort by path for consistent comparison
-	const sortedA = [...a].sort((x, y) => x.path.localeCompare(y.path));
-	const sortedB = [...b].sort((x, y) => x.path.localeCompare(y.path));
-	
-	for (let i = 0; i < sortedA.length; i++) {
-		const nodeA = sortedA[i];
-		const nodeB = sortedB[i];
-		if (!nodeA || !nodeB) return false;
-		if (nodeA.path !== nodeB.path) return false;
-		if (!subtreesEqual(nodeA.children, nodeB.children)) return false;
-	}
-	return true;
-}
-
-/**
  * Converts a tree of QueryResultNode into nested DisplayGroups.
  * Only groups nodes together if they have the same relation AND identical subtrees.
+ * Nodes with different children become separate groups.
  */
 export function tqlTreeToGroups(nodes: QueryResultNode[]): DisplayGroup[] {
 	if (nodes.length === 0) return [];
@@ -160,8 +70,9 @@ function createTqlGroupFromIdenticalNodes(nodes: QueryResultNode[]): DisplayGrou
 
 /**
  * Compares two TQL subtrees for structural equality.
+ * Two subtrees are equal if they have the same paths and their children are also equal.
  */
-function tqlSubtreesEqual(a: QueryResultNode[], b: QueryResultNode[]): boolean {
+export function tqlSubtreesEqual(a: QueryResultNode[], b: QueryResultNode[]): boolean {
 	if (a.length !== b.length) return false;
 	if (a.length === 0) return true;
 	
@@ -218,20 +129,6 @@ function invertDisplayGroupChain(
 		roots.push(...invertDisplayGroupChain(subgroup, invertedGroup));
 	}
 	return roots;
-}
-
-/**
- * Flattens a tree into a flat array of siblings (no children).
- */
-export function flattenTree(nodes: GroupTreeNode[]): GroupTreeNode[] {
-	const result: GroupTreeNode[] = [];
-	for (const node of nodes) {
-		result.push({ ...node, children: [] });
-		if (node.children.length > 0) {
-			result.push(...flattenTree(node.children));
-		}
-	}
-	return result;
 }
 
 /**

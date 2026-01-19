@@ -22,6 +22,7 @@ export interface QueryContext {
 	// Settings access
 	getRelationNames(): string[];
 	getVisualDirection(relation: string): VisualDirection;
+	getSequentialRelations(): Set<string>;
 	resolveGroupQuery(name: string): ValidatedQuery | undefined;
 
 	// Active file

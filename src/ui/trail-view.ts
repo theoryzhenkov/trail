@@ -1,8 +1,7 @@
 import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
-import type {DisplayGroup, GroupDefinition, GroupMember, RelationDefinition, RelationGroup} from "../types";
-import type {GroupTreeNode} from "../graph/store";
-import {treeToGroups, tqlTreeToGroups, flattenTree, flattenTqlTree, invertDisplayGroups} from "./tree-transforms";
+import type {DisplayGroup, GroupDefinition, GroupMember, RelationDefinition} from "../types";
+import {tqlTreeToGroups, flattenTqlTree, invertDisplayGroups} from "./tree-transforms";
 import {
 	renderEmptyState,
 	renderFileLink,
@@ -156,32 +155,19 @@ export class TrailView extends ItemView {
 
 	private renderGroups(containerEl: HTMLElement, activeFile: TFile) {
 		const tqlGroups = this.plugin.settings.tqlGroups;
-		const legacyGroups = this.plugin.settings.groups;
 
-		if (tqlGroups.length === 0 && legacyGroups.length === 0) {
+		if (tqlGroups.length === 0) {
 			containerEl.createDiv({cls: "trail-no-results", text: "No groups configured"});
 			return;
 		}
 
 		let visibleCount = 0;
 
-		// Render TQL groups first
 		for (const group of tqlGroups) {
 			if (group.enabled === false) {
 				continue;
 			}
 			const wasRendered = this.renderTqlGroup(containerEl, group, activeFile.path);
-			if (wasRendered) {
-				visibleCount++;
-			}
-		}
-
-		// Render legacy groups
-		for (const group of legacyGroups) {
-			if (!this.shouldShowGroup(group, activeFile.path)) {
-				continue;
-			}
-			const wasRendered = this.renderGroup(containerEl, group, activeFile.path);
 			if (wasRendered) {
 				visibleCount++;
 			}
@@ -342,6 +328,11 @@ export class TrailView extends ItemView {
 				const def = settings.relations.find(r => r.name === relation);
 				return def?.visualDirection ?? "descending";
 			},
+			getSequentialRelations: () => new Set(
+				settings.relations
+					.filter(r => r.visualDirection === "sequential")
+					.map(r => r.name)
+			),
 			resolveGroupQuery: (name: string) => {
 				const group = settings.tqlGroups.find(g => {
 					try {
@@ -365,82 +356,6 @@ export class TrailView extends ItemView {
 				}
 			},
 		};
-	}
-
-	private shouldShowGroup(group: RelationGroup, filePath: string): boolean {
-		const showConditions = group.showConditions ?? [];
-		const showConditionsMode = group.showConditionsMatchMode ?? "all";
-		return this.plugin.graph.matchesFilters(filePath, showConditions, showConditionsMode);
-	}
-
-	private renderGroup(containerEl: HTMLElement, group: RelationGroup, filePath: string): boolean {
-		const filteredGroup = this.filterGroupMembers(group);
-		const tree = this.plugin.graph.getGroupTree(filePath, filteredGroup);
-
-		const isEmpty = filteredGroup.members.length === 0 || tree.length === 0;
-		if (isEmpty && this.plugin.settings.hideEmptyGroups) {
-			return false;
-		}
-
-		const section = createCollapsibleSection(
-			containerEl,
-			group.name || "Unnamed group",
-			"layers",
-			tree.length
-		);
-
-		if (filteredGroup.members.length === 0) {
-			section.contentEl.createDiv({cls: "trail-no-results", text: "No members selected"});
-			return true;
-		}
-
-		if (tree.length === 0) {
-			section.contentEl.createDiv({cls: "trail-no-results", text: "No relations found"});
-			return true;
-		}
-
-		// Transform tree to display groups
-		const displayGroups = this.transformTreeToDisplayGroups(tree);
-		this.renderDisplayGroups(section.contentEl, displayGroups, 0, group.displayProperties ?? []);
-		return true;
-	}
-
-	private filterGroupMembers(group: RelationGroup): RelationGroup {
-		const members = group.members.filter((member) => this.selectedRelations.has(member.relation));
-		return {
-			...group,
-			members
-		};
-	}
-
-	/**
-	 * Transforms GroupTreeNode[] to DisplayGroup[] based on visual direction.
-	 * - ascending: convert to groups, then invert (deepest first)
-	 * - descending: convert to groups (shallowest first)
-	 * - sequential: flatten to siblings first, then group
-	 */
-	private transformTreeToDisplayGroups(nodes: GroupTreeNode[]): DisplayGroup[] {
-		if (nodes.length === 0) {
-			return [];
-		}
-		
-		const direction = nodes[0]?.visualDirection ?? "descending";
-		
-		if (direction === "sequential") {
-			// Flatten first, then convert to groups
-			const flattened = flattenTree(nodes);
-			return treeToGroups(flattened);
-		}
-		
-		// Convert to groups
-		const groups = treeToGroups(nodes);
-		
-		// For ascending, invert so deepest ancestors appear at top
-		if (direction === "ascending") {
-			return invertDisplayGroups(groups);
-		}
-		
-		return groups;
 	}
 
 	/**

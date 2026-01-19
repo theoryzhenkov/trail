@@ -2,9 +2,7 @@ import {
 	GroupDefinition,
 	ImpliedRelation,
 	RelationAlias,
-	RelationDefinition,
-	RelationGroup,
-	RelationGroupMember
+	RelationDefinition
 } from "../types";
 
 export function createDefaultRelations(): RelationDefinition[] {
@@ -42,21 +40,6 @@ export function createDefaultRelations(): RelationDefinition[] {
 	return relations;
 }
 
-export function createDefaultGroups(): RelationGroup[] {
-	return [
-		createDefaultGroup("Ancestors", [
-			{relation: "up", depth: 0}
-		]),
-		createDefaultGroup("Children", [
-			{relation: "down", depth: 0}
-		]),
-		createDefaultGroup("Siblings", [
-			{relation: "next", depth: 1},
-			{relation: "prev", depth: 1}
-		])
-	];
-}
-
 export function createDefaultTqlGroups(): GroupDefinition[] {
 	return [
 		{
@@ -75,13 +58,6 @@ from next depth 1, prev depth 1`,
 			enabled: true,
 		},
 	];
-}
-
-function createDefaultGroup(name: string, members: RelationGroupMember[]): RelationGroup {
-	return {
-		name,
-		members
-	};
 }
 
 function createDefaultAliases(name: string): RelationAlias[] {
