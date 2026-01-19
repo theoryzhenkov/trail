@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-*"
 
 permissions:
   contents: write
@@ -28,9 +29,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [[ "${{ github.ref_name }}" == *-* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          else
+            PRERELEASE_FLAG=""
+          fi
+          
           gh release create "${{ github.ref_name }}" \
             dist/main.js \
             dist/manifest.json \
             dist/styles.css \
             --title "${{ github.ref_name }}" \
-            --generate-notes
+            --generate-notes \
+            $PRERELEASE_FLAG
