@@ -15,6 +15,7 @@ export interface VisualQuery {
 	name: string;
 	relations: VisualRelation[];
 	where?: VisualCondition;
+	when?: VisualCondition;
 	sort?: VisualSortKey;
 	display?: string[];
 }
@@ -60,8 +61,8 @@ function canVisualizeQuery(ast: Query): boolean {
 	// No PRUNE clause
 	if (ast.prune) return false;
 	
-	// No WHEN clause
-	if (ast.when) return false;
+	// WHEN must be simple (single comparison or missing)
+	if (ast.when && !isSimpleCondition(ast.when)) return false;
 	
 	// WHERE must be simple (single comparison or missing)
 	if (ast.where && !isSimpleCondition(ast.where)) return false;
@@ -104,7 +105,8 @@ export function parseToVisual(query: string): VisualQuery | null {
 				name: r.name,
 				depth: r.depth,
 			})),
-			where: parseWhereClause(ast.where),
+			where: parseConditionClause(ast.where),
+			when: parseConditionClause(ast.when),
 			sort: parseSortClause(ast.sort),
 			display: parseDisplayClause(ast.display),
 		};
@@ -113,7 +115,7 @@ export function parseToVisual(query: string): VisualQuery | null {
 	}
 }
 
-function parseWhereClause(expr?: Expr): VisualCondition | undefined {
+function parseConditionClause(expr?: Expr): VisualCondition | undefined {
 	if (!expr || expr.type !== "compare") return undefined;
 	if (expr.left.type !== "property") return undefined;
 	
@@ -175,8 +177,15 @@ export function visualToQuery(visual: VisualQuery): string {
 	}).join(", ");
 	lines.push(`from ${relations}`);
 	
-	// WHERE clause
-	if (visual.where) {
+	// WHEN clause (condition on current note for visibility)
+	if (visual.when && visual.when.property) {
+		const {property, operator, value} = visual.when;
+		const valueStr = typeof value === "string" ? `"${value}"` : String(value);
+		lines.push(`when ${property} ${operator} ${valueStr}`);
+	}
+	
+	// WHERE clause (filter on results)
+	if (visual.where && visual.where.property) {
 		const {property, operator, value} = visual.where;
 		const valueStr = typeof value === "string" ? `"${value}"` : String(value);
 		lines.push(`where ${property} ${operator} ${valueStr}`);

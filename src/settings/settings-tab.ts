@@ -20,7 +20,7 @@ import {isValidRelationName, normalizeRelationName} from "./validation";
 import {parse, TQLError} from "../query";
 import {migrateGroup} from "../query/migration";
 import {hasLegacyGroups, EditorMode} from "./index";
-import {isVisualEditable, parseToVisual, visualToQuery, VisualQuery} from "./visual-editor";
+import {isVisualEditable, parseToVisual, visualToQuery, VisualQuery, VisualCondition} from "./visual-editor";
 import {createTQLEditor} from "../query/codemirror";
 
 type SettingsTab = "relations" | "groups";
@@ -495,6 +495,9 @@ export class TrailSettingTab extends PluginSettingTab {
 					});
 			});
 
+		// When condition (optional) - controls group visibility based on current note
+		this.renderVisualWhenCondition(content, visual, group, nameSpan, errorContainer);
+
 		// Sort (optional)
 		new Setting(content)
 			.setName("Sort by")
@@ -542,6 +545,100 @@ export class TrailSettingTab extends PluginSettingTab {
 						this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
 					});
 			});
+	}
+
+	private renderVisualWhenCondition(
+		content: HTMLElement,
+		visual: VisualQuery,
+		group: GroupDefinition,
+		nameSpan: HTMLElement,
+		errorContainer: HTMLElement
+	) {
+		const section = content.createDiv({cls: "trail-visual-when"});
+		
+		new Setting(section)
+			.setName("Show when")
+			.setDesc("Only show this group when the current note matches this condition (optional).")
+			.setHeading();
+
+		const hasCondition = Boolean(visual.when);
+		
+		if (hasCondition && visual.when) {
+			const conditionEl = section.createDiv({cls: "trail-visual-condition"});
+			
+			new Setting(conditionEl)
+				.addText((text) => {
+					text
+						.setValue(visual.when?.property ?? "")
+						.setPlaceholder("Property")
+						.onChange((value) => {
+							if (visual.when) {
+								visual.when.property = value;
+								this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+							}
+						});
+				})
+				.addDropdown((dropdown) => {
+					dropdown
+						.addOption("=", "=")
+						.addOption("!=", "!=")
+						.addOption("<", "<")
+						.addOption(">", ">")
+						.addOption("<=", "<=")
+						.addOption(">=", ">=")
+						.addOption("contains", "contains")
+						.setValue(visual.when?.operator ?? "=")
+						.onChange((value) => {
+							if (visual.when) {
+								visual.when.operator = value as VisualCondition["operator"];
+								this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+							}
+						});
+				})
+				.addText((text) => {
+					const valueStr = visual.when?.value === undefined ? "" : String(visual.when.value);
+					text
+						.setValue(valueStr)
+						.setPlaceholder("Value")
+						.onChange((value) => {
+							if (visual.when) {
+								// Try to parse as number or boolean
+								if (value === "true") {
+									visual.when.value = true;
+								} else if (value === "false") {
+									visual.when.value = false;
+								} else if (!isNaN(Number(value)) && value.trim() !== "") {
+									visual.when.value = Number(value);
+								} else {
+									visual.when.value = value;
+								}
+								this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+							}
+						});
+				})
+				.addExtraButton((btn) => {
+					btn
+						.setIcon("x")
+						.setTooltip("Remove condition")
+						.onClick(() => {
+							visual.when = undefined;
+							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+							this.display();
+						});
+				});
+		} else {
+			new Setting(section)
+				.setDesc("No condition set. Group always visible.")
+				.addButton((btn) => {
+					btn
+						.setButtonText("Add condition")
+						.onClick(() => {
+							visual.when = {property: "", operator: "=", value: ""};
+							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+							this.display();
+						});
+				});
+		}
 	}
 
 	private updateGroupFromVisual(
