@@ -92,28 +92,29 @@ export class GroupsTabRenderer {
 		new SettingGroup(containerEl)
 			.setHeading("TQL groups")
 			.addSetting((setting) => {
-				setting
-					.setDesc("Configure relation groups shown in the trail pane using TQL queries.")
-					.addButton((button) => {
-						button
-							.setButtonText("Add group")
-							.setCta()
-							.onClick(() => {
-								const newIndex = this.plugin.settings.tqlGroups.length;
-								this.plugin.settings.tqlGroups.push({
-									query: `group "New group"\nfrom up depth unlimited`,
-									enabled: true,
-								});
-								openGroupSections.add(newIndex);
-								void this.plugin.saveSettings();
-								this.display();
-							});
-					});
+				setting.setDesc("Configure relation groups shown in the trail pane using TQL queries.");
 			});
 
 		for (const [index, group] of this.plugin.settings.tqlGroups.entries()) {
 			this.renderTqlGroupSection(containerEl, group, index, openGroupSections);
 		}
+
+		new Setting(containerEl)
+			.addButton((button) => {
+				button
+					.setButtonText("Add group")
+					.setCta()
+					.onClick(() => {
+						const newIndex = this.plugin.settings.tqlGroups.length;
+						this.plugin.settings.tqlGroups.push({
+							query: `group "New group"\nfrom up depth unlimited`,
+							enabled: true,
+						});
+						openGroupSections.add(newIndex);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
 
 		if (hasLegacyGroups(this.plugin.settings)) {
 			this.renderLegacyGroupsSection(containerEl);

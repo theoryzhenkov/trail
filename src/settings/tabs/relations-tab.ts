@@ -34,29 +34,30 @@ export class RelationsTabRenderer {
 		new SettingGroup(containerEl)
 			.setHeading("Relations")
 			.addSetting((setting) => {
-				setting
-					.setDesc("Define relation types and their aliases.")
-					.addButton((button) => {
-						button
-							.setButtonText("Add relation")
-							.setCta()
-							.onClick(() => {
-								const newIndex = this.plugin.settings.relations.length;
-								this.plugin.settings.relations.push({
-									name: "",
-									aliases: [],
-									impliedRelations: []
-								});
-								openSections.add(newIndex);
-								void this.plugin.saveSettings();
-								this.display();
-							});
-					});
+				setting.setDesc("Define relation types and their aliases.");
 			});
 
 		for (const [index, relation] of this.plugin.settings.relations.entries()) {
 			this.renderRelationSection(containerEl, relation, index, openSections);
 		}
+
+		new Setting(containerEl)
+			.addButton((button) => {
+				button
+					.setButtonText("Add relation")
+					.setCta()
+					.onClick(() => {
+						const newIndex = this.plugin.settings.relations.length;
+						this.plugin.settings.relations.push({
+							name: "",
+							aliases: [],
+							impliedRelations: []
+						});
+						openSections.add(newIndex);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
 	}
 
 	private renderRelationSection(
