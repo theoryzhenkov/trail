@@ -186,8 +186,9 @@ function needsQuotes(key: string): boolean {
 		return true;
 	}
 
-	// Contains special characters
-	if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(key)) {
+	// Contains special characters (allow Unicode letters, numbers, and symbols)
+	// \p{L} = Letters, \p{N} = Numbers, \p{So} = Other Symbols, \p{Sc} = Currency Symbols
+	if (!/^[\p{L}\p{So}\p{Sc}_][\p{L}\p{N}\p{So}\p{Sc}_-]*$/u.test(key)) {
 		return true;
 	}
 

@@ -351,15 +351,19 @@ export class Lexer {
 	}
 
 	private isAlpha(char: string): boolean {
-		return (char >= "a" && char <= "z") || (char >= "A" && char <= "Z") || char === "_";
+		// Support Unicode letters (any language), letter-like symbols (№, ™, etc.), and underscore
+		// \p{L} = Letters, \p{So} = Other Symbols (includes №), \p{Sc} = Currency Symbols
+		return /^[\p{L}\p{So}\p{Sc}_]$/u.test(char);
 	}
 
 	private isAlphaNumeric(char: string): boolean {
-		return this.isAlpha(char) || this.isDigit(char);
+		// Support Unicode letters, numbers, and symbols
+		return /^[\p{L}\p{N}\p{So}\p{Sc}_]$/u.test(char);
 	}
 
 	private isIdentifierChar(char: string): boolean {
-		return this.isAlphaNumeric(char) || char === "-";
+		// Support Unicode letters, numbers, symbols, underscore, and hyphen
+		return /^[\p{L}\p{N}\p{So}\p{Sc}_-]$/u.test(char);
 	}
 }
 

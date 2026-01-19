@@ -271,6 +271,7 @@ export const TRAVERSAL_PROPERTIES: PropertyDoc[] = [
 /**
  * Keyword completions
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CLAUSE_COMPLETIONS: Completion[] = [
 	{label: "group", type: "keyword", detail: "clause", info: "Define group name"},
 	{label: "from", type: "keyword", detail: "clause", info: "Specify relations to traverse"},
@@ -435,8 +436,8 @@ function parseQueryState(text: string, pos: number): ParsedQueryState {
 		state.hasFrom = true;
 		// From is complete if we have at least one relation name
 		const afterFrom = beforeCursor.slice(fromMatch.index! + 4);
-		// Check if there's at least one relation name (identifier after from)
-		if (/^\s+[a-zA-Z_][a-zA-Z0-9_-]*/.test(afterFrom)) {
+		// Check if there's at least one relation name (identifier after from, supports Unicode letters/symbols)
+		if (/^\s+[\p{L}\p{So}\p{Sc}_][\p{L}\p{N}\p{So}\p{Sc}_-]*/u.test(afterFrom)) {
 			state.fromComplete = true;
 		}
 	}
@@ -559,7 +560,7 @@ function determineCurrentContext(
 			
 			// After relation name (with possible complete modifiers)
 			// If we have a relation name and we're after whitespace, suggest modifiers or clauses
-			if (/\bfrom\s+[a-zA-Z_][a-zA-Z0-9_-]*/.test(lowerText)) {
+			if (/\bfrom\s+[\p{L}\p{So}\p{Sc}_][\p{L}\p{N}\p{So}\p{Sc}_-]*/u.test(lowerText)) {
 				// Check what's at the very end
 				const lastToken = getLastToken(afterFrom);
 				
@@ -570,7 +571,7 @@ function determineCurrentContext(
 					}
 				}
 				
-				if (/[a-zA-Z_][a-zA-Z0-9_-]*\s*$/.test(afterFrom) && !depthComplete && !extendComplete) {
+				if (/[\p{L}\p{So}\p{Sc}_][\p{L}\p{N}\p{So}\p{Sc}_-]*\s*$/u.test(afterFrom) && !depthComplete && !extendComplete) {
 					// Just after a relation name, suggest modifiers
 					if (hasTrailingWhitespace) {
 						return "afterRelation";
@@ -578,7 +579,7 @@ function determineCurrentContext(
 				}
 				
 				// If we're typing (no trailing whitespace) and after from with relation
-				if (!hasTrailingWhitespace && /[a-zA-Z]$/.test(afterFrom)) {
+				if (!hasTrailingWhitespace && /[\p{L}\p{So}\p{Sc}]$/u.test(afterFrom)) {
 					// Could be typing a modifier, relation, or clause
 					return "afterRelation";
 				}
@@ -652,7 +653,7 @@ function determineCurrentContext(
  * Get the last word/token from text
  */
 function getLastToken(text: string): string {
-	const match = text.match(/([a-zA-Z_][a-zA-Z0-9_-]*|\d+)\s*$/);
+	const match = text.match(/([\p{L}\p{So}\p{Sc}_][\p{L}\p{N}\p{So}\p{Sc}_-]*|\d+)\s*$/u);
 	return match?.[1] ?? "";
 }
 

@@ -56,6 +56,7 @@ const ALL_KEYWORDS = new Set([
 /**
  * Built-in function names for highlighting
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const BUILTIN_FUNCTIONS = new Set([
 	// String functions
 	"contains", "startswith", "endswith", "length", "lower", "upper", "trim", "split", "matches",
@@ -150,8 +151,9 @@ const tqlParserBase = {
 			return "punctuation";
 		}
 		
-		// Identifiers and keywords
-		if (/[a-zA-Z_]/.test(stream.peek() ?? "")) {
+		// Identifiers and keywords (support Unicode letters and symbols)
+		// \p{L} = Letters, \p{So} = Other Symbols (includes №), \p{Sc} = Currency Symbols
+		if (/[\p{L}\p{So}\p{Sc}_]/u.test(stream.peek() ?? "")) {
 			return tokenizeIdentifier(stream, state);
 		}
 		
@@ -218,8 +220,9 @@ function tokenizeNumber(stream: StringStream): string {
 }
 
 function tokenizeIdentifier(stream: StringStream, state: TQLState): string {
-	// Consume identifier
-	stream.match(/^[a-zA-Z_][a-zA-Z0-9_-]*/);
+	// Consume identifier (support Unicode letters, numbers, and symbols)
+	// \p{L} = Letters, \p{N} = Numbers, \p{So} = Other Symbols, \p{Sc} = Currency Symbols
+	stream.match(/^[\p{L}\p{So}\p{Sc}_][\p{L}\p{N}\p{So}\p{Sc}_-]*/u);
 	const word = stream.current().toLowerCase();
 	
 	// Check for clause keywords (structural - use "keyword" → t.keyword)

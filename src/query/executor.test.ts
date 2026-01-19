@@ -338,6 +338,97 @@ describe("TQL Executor", () => {
 		});
 	});
 
+	describe("Unicode identifiers", () => {
+		it("should parse and sort by non-Latin property names (Cyrillic)", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "item1.md", properties: { номер: 3, название: "Third" } },
+					{ path: "item2.md", properties: { номер: 1, название: "First" } },
+					{ path: "item3.md", properties: { номер: 2, название: "Second" } },
+				],
+				edges: [
+					{ from: "root.md", to: "item1.md", relation: "down" },
+					{ from: "root.md", to: "item2.md", relation: "down" },
+					{ from: "root.md", to: "item3.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 sort by номер asc`,
+				graph,
+				"root.md"
+			);
+
+			expect(result.visible).toBe(true);
+			const numbers = result.results.map((n) => n.properties.номер as number);
+			expect(numbers).toEqual([1, 2, 3]);
+		});
+
+		it("should parse and filter by special characters property (№)", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "item1.md", properties: { "№": 100 } },
+					{ path: "item2.md", properties: { "№": 50 } },
+					{ path: "item3.md", properties: { "№": 200 } },
+				],
+				edges: [
+					{ from: "root.md", to: "item1.md", relation: "down" },
+					{ from: "root.md", to: "item2.md", relation: "down" },
+					{ from: "root.md", to: "item3.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where № > 75 sort by № desc`,
+				graph,
+				"root.md"
+			);
+
+			expect(result.visible).toBe(true);
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("item1.md"); // № = 100
+			expect(paths).toContain("item3.md"); // № = 200
+			expect(paths).not.toContain("item2.md"); // № = 50, filtered out
+			
+			// Check sort order (descending)
+			const numbers = result.results.map((n) => n.properties["№"] as number);
+			expect(numbers).toEqual([200, 100]);
+		});
+
+		it("should handle mixed Latin and non-Latin property names", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "item1.md", properties: { priority: 1, 優先度: "high" } },
+					{ path: "item2.md", properties: { priority: 2, 優先度: "low" } },
+				],
+				edges: [
+					{ from: "root.md", to: "item1.md", relation: "down" },
+					{ from: "root.md", to: "item2.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where 優先度 = "high"`,
+				graph,
+				"root.md"
+			);
+
+			expect(result.visible).toBe(true);
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("item1.md");
+			expect(paths).not.toContain("item2.md");
+		});
+	});
+
 	describe("Extend with circular references", () => {
 		it("should not infinite loop on circular extend (Group A extends Group B extends Group A)", () => {
 			// Create a graph with hierarchy
