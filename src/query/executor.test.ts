@@ -1,5 +1,6 @@
 /**
- * TQL Executor Unit Tests
+ * TQL Executor Tests - Basic Traversal
+ * Core traversal functionality tests
  */
 
 import { describe, it, expect } from "vitest";

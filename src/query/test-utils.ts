@@ -7,6 +7,9 @@ import type { QueryContext } from "./context";
 import type { ValidatedQuery } from "./validator";
 import type { RelationEdge, FileProperties, VisualDirection } from "../types";
 import type { FileMetadata } from "./builtins";
+import { parse } from "./parser";
+import { validate, createValidationContext } from "./validator";
+import { execute } from "./executor";
 
 /**
  * Mock file data for testing
@@ -293,4 +296,27 @@ export function collectPaths(results: PathNode[]): string[] {
 	
 	visit(results);
 	return paths;
+}
+
+/**
+ * Helper to run a query and get results
+ */
+export function runQuery(query: string, graph: MockGraph, activeFile: string) {
+	const relations = graph.relations ?? ["up", "down", "next", "prev"];
+	const groupNames = graph.groups?.map(g => g.name) ?? [];
+	const validationCtx = createValidationContext(relations, groupNames);
+	const ast = parse(query);
+	const validated = validate(ast, validationCtx);
+	const ctx = createMockContext(graph, activeFile);
+	return execute(validated, ctx);
+}
+
+/**
+ * Helper to create a validated query for mock groups
+ */
+export function createMockGroup(name: string, queryStr: string, relations: string[], groupNames: string[]): MockGroup {
+	const ast = parse(queryStr);
+	const validationCtx = createValidationContext(relations, groupNames);
+	const validated = validate(ast, validationCtx);
+	return { name, query: validated };
 }
