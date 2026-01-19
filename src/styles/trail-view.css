@@ -145,6 +145,18 @@
 	font-style: italic;
 }
 
+.trail-relation-tag.has-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2px 4px;
+}
+
+.trail-relation-tag svg {
+	width: 12px;
+	height: 12px;
+}
+
 /* Property badges */
 .trail-property-badges {
 	display: flex;

@@ -1,6 +1,6 @@
 import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
-import type {GroupDefinition, RelationGroup} from "../types";
+import type {GroupDefinition, RelationDefinition, RelationGroup} from "../types";
 import type {GroupTreeNode} from "../graph/store";
 import {invertTree, flattenTree, invertTqlTree, flattenTqlTree} from "./tree-transforms";
 import {
@@ -392,11 +392,7 @@ export class TrailView extends ItemView {
 
 		const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
 
-		const relationEl = selfEl.createSpan({cls: "trail-relation-tag"});
-		relationEl.setText(node.relation);
-		if (node.implied) {
-			relationEl.addClass("is-implied");
-		}
+		this.renderRelationTag(selfEl, node.relation, node.implied);
 
 		const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
 		renderFileLink(innerEl, this.plugin.app, node.path);
@@ -498,6 +494,27 @@ export class TrailView extends ItemView {
 		}
 	}
 
+	private getRelationDefinition(relationName: string): RelationDefinition | undefined {
+		return this.plugin.settings.relations.find(r => r.name === relationName);
+	}
+
+	private renderRelationTag(containerEl: HTMLElement, relationName: string, implied: boolean): void {
+		const relationEl = containerEl.createSpan({cls: "trail-relation-tag"});
+		const relationDef = this.getRelationDefinition(relationName);
+
+		if (relationDef?.icon) {
+			setIcon(relationEl, relationDef.icon);
+			relationEl.setAttribute("aria-label", relationName);
+			relationEl.addClass("has-icon");
+		} else {
+			relationEl.setText(relationName);
+		}
+
+		if (implied) {
+			relationEl.addClass("is-implied");
+		}
+	}
+
 	private renderGroupTree(
 		containerEl: HTMLElement,
 		nodes: GroupTreeNode[],
@@ -519,12 +536,8 @@ export class TrailView extends ItemView {
 		itemEl.style.setProperty("--indent-level", String(depth));
 
 		const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
-		
-		const relationEl = selfEl.createSpan({cls: "trail-relation-tag"});
-		relationEl.setText(node.relation);
-		if (node.implied) {
-			relationEl.addClass("is-implied");
-		}
+
+		this.renderRelationTag(selfEl, node.relation, node.implied);
 
 		const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
 		renderFileLink(innerEl, this.plugin.app, node.path);

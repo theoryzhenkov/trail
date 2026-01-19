@@ -80,6 +80,7 @@ export interface RelationDefinition {
 	aliases: RelationAlias[];
 	impliedRelations: ImpliedRelation[];
 	visualDirection?: VisualDirection;
+	icon?: string;
 }
 
 export interface RelationEdge {

@@ -1,4 +1,4 @@
-import {Notice, Setting, SettingGroup} from "obsidian";
+import {Notice, setIcon, Setting, SettingGroup} from "obsidian";
 import TrailPlugin from "../../main";
 import type {
 	ImpliedRelation,
@@ -142,6 +142,8 @@ export class RelationsTabRenderer {
 					});
 			});
 
+		this.renderIconSetting(content, relation);
+
 		this.renderAliasesSubsection(content, relation);
 		this.renderImpliedSubsection(content, relation);
 
@@ -158,6 +160,36 @@ export class RelationsTabRenderer {
 						this.display();
 					});
 			});
+	}
+
+	private renderIconSetting(containerEl: HTMLElement, relation: RelationDefinition) {
+		const setting = new Setting(containerEl)
+			.setName("Icon")
+			.setDesc("Optional Lucide icon name to display instead of the relation name (e.g., user, arrow-up, folder).");
+
+		// Create preview element
+		const previewEl = setting.controlEl.createSpan({cls: "trail-icon-preview"});
+		if (relation.icon) {
+			setIcon(previewEl, relation.icon);
+		}
+
+		setting.addText((text) => {
+			text
+				.setPlaceholder("e.g., user, arrow-up")
+				.setValue(relation.icon ?? "")
+				.onChange((value) => {
+					const trimmed = value.trim().toLowerCase();
+					relation.icon = trimmed || undefined;
+
+					// Update preview
+					previewEl.empty();
+					if (trimmed) {
+						setIcon(previewEl, trimmed);
+					}
+
+					void this.plugin.saveSettings();
+				});
+		});
 	}
 
 	private renderAliasesSubsection(containerEl: HTMLElement, relation: RelationDefinition) {
