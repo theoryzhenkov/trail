@@ -8,7 +8,7 @@ import type {
 	VisualDirection
 } from "../../types";
 import {isValidRelationName, normalizeRelationName} from "../validation";
-import {createSectionDetails, renderReorderControls} from "../components";
+import {createSectionDetails, IconSuggest, renderReorderControls} from "../components";
 
 export class RelationsTabRenderer {
 	private plugin: TrailPlugin;
@@ -165,7 +165,7 @@ export class RelationsTabRenderer {
 	private renderIconSetting(containerEl: HTMLElement, relation: RelationDefinition) {
 		const setting = new Setting(containerEl)
 			.setName("Icon")
-			.setDesc("Optional Lucide icon name to display instead of the relation name (e.g., user, arrow-up, folder).");
+			.setDesc("Optional Lucide icon name to display instead of the relation name. Start typing to search.");
 
 		// Create preview element
 		const previewEl = setting.controlEl.createSpan({cls: "trail-icon-preview"});
@@ -173,22 +173,31 @@ export class RelationsTabRenderer {
 			setIcon(previewEl, relation.icon);
 		}
 
+		const updatePreview = (iconName: string) => {
+			previewEl.empty();
+			if (iconName) {
+				setIcon(previewEl, iconName);
+			}
+		};
+
 		setting.addText((text) => {
 			text
-				.setPlaceholder("e.g., user, arrow-up")
-				.setValue(relation.icon ?? "")
-				.onChange((value) => {
-					const trimmed = value.trim().toLowerCase();
-					relation.icon = trimmed || undefined;
+				.setPlaceholder("Search icons...")
+				.setValue(relation.icon ?? "");
 
-					// Update preview
-					previewEl.empty();
-					if (trimmed) {
-						setIcon(previewEl, trimmed);
-					}
+			// Attach icon suggester
+			new IconSuggest(this.plugin.app, text.inputEl, (iconId) => {
+				relation.icon = iconId || undefined;
+				updatePreview(iconId);
+				void this.plugin.saveSettings();
+			});
 
-					void this.plugin.saveSettings();
-				});
+			text.onChange((value) => {
+				const trimmed = value.trim().toLowerCase();
+				relation.icon = trimmed || undefined;
+				updatePreview(trimmed);
+				void this.plugin.saveSettings();
+			});
 		});
 	}
 

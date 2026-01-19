@@ -338,3 +338,30 @@
 	width: 14px;
 	height: 14px;
 }
+
+/* Icon suggestion dropdown */
+.trail-icon-suggestion {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px;
+}
+
+.trail-icon-suggestion-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	color: var(--text-muted);
+}
+
+.trail-icon-suggestion-icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+.trail-icon-suggestion-text {
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+}
