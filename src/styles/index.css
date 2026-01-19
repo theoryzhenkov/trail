@@ -1,0 +1,5 @@
+/* Trail Plugin Styles - Entry Point */
+
+@import "./trail-view.css";
+@import "./settings.css";
+@import "./tql.css";

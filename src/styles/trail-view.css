@@ -1,0 +1,240 @@
+/* Trail View - Native Obsidian Styling */
+
+.trail-view {
+	padding: 0;
+}
+
+/* Context bar showing active note */
+.trail-context {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 12px;
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+}
+
+.trail-context-icon {
+	display: flex;
+	color: var(--text-faint);
+}
+
+.trail-context-icon svg {
+	width: 14px;
+	height: 14px;
+}
+
+.trail-context-text {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.trail-filter-badge {
+	font-size: var(--font-ui-smaller);
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-hover);
+	color: var(--text-faint);
+}
+
+/* Main content area */
+.trail-content {
+	padding: 4px 0;
+}
+
+/* Sections */
+.trail-section {
+	margin: 0;
+}
+
+.trail-section-header {
+	padding: 6px 12px 6px 4px;
+	gap: 4px;
+}
+
+.trail-section-header:hover {
+	background: var(--nav-item-background-hover);
+}
+
+.trail-section-icon {
+	display: flex;
+	color: var(--text-faint);
+	margin-right: 2px;
+}
+
+.trail-section-icon svg {
+	width: 14px;
+	height: 14px;
+}
+
+.trail-section-title {
+	font-weight: var(--font-semibold);
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+}
+
+.trail-section-content {
+	padding-left: 8px;
+}
+
+/* Collapse behavior */
+.trail-section.is-collapsed > .trail-section-content {
+	display: none;
+}
+
+.trail-section.is-collapsed > .trail-section-header > .collapse-icon {
+	transform: rotate(-90deg);
+}
+
+.collapse-icon {
+	transition: transform 100ms ease-in-out;
+}
+
+/* Tree items */
+.trail-section .tree-item {
+	margin: 0;
+}
+
+.trail-section .tree-item-self {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	padding: 4px 12px 4px calc(8px + var(--indent-level, 0) * 16px);
+	border-radius: var(--radius-s);
+	cursor: pointer;
+}
+
+.trail-section .tree-item-self:hover {
+	background: var(--nav-item-background-hover);
+}
+
+.trail-section .tree-item-inner {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 6px;
+}
+
+.trail-section .tree-item-inner .internal-link {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 100%;
+}
+
+/* Relation tags */
+.trail-relation-tag {
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+	background: var(--tag-background);
+	color: var(--tag-color);
+	flex-shrink: 0;
+}
+
+.trail-relation-tag.is-implied {
+	background: var(--background-modifier-border);
+	color: var(--text-faint);
+	font-style: italic;
+}
+
+/* Property badges */
+.trail-property-badges {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.trail-property-badge {
+	font-size: var(--font-ui-smaller);
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	border: 1px solid var(--background-modifier-border);
+}
+
+/* Internal links */
+.trail-section .internal-link {
+	color: var(--link-color);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.trail-section .internal-link:hover {
+	color: var(--link-color-hover);
+	text-decoration: underline;
+}
+
+/* No results text */
+.trail-no-results {
+	padding: 8px 12px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-small);
+	font-style: italic;
+}
+
+/* Empty state */
+.trail-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 40px 20px;
+	text-align: center;
+	color: var(--text-faint);
+}
+
+.trail-empty-icon {
+	margin-bottom: 12px;
+	color: var(--text-faint);
+}
+
+.trail-empty-icon svg {
+	width: 48px;
+	height: 48px;
+	stroke-width: 1px;
+}
+
+.trail-empty-title {
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+	margin-bottom: 4px;
+}
+
+.trail-empty-description {
+	font-size: var(--font-ui-small);
+	color: var(--text-faint);
+}
+
+/* Gap indicator for filtered ancestors */
+.trail-gap-indicator {
+	padding: 2px 12px 2px calc(8px + var(--indent-level, 0) * 16px);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-style: italic;
+}
+
+/* Error message in trail view */
+.trail-error {
+	padding: 8px 12px;
+	color: var(--text-error);
+	font-size: var(--font-ui-small);
+	background: rgba(var(--color-red-rgb), 0.1);
+	border-radius: var(--radius-s);
+	margin: 4px 8px;
+}
+
+/* Hidden utility class */
+.trail-hidden {
+	display: none !important;
+}

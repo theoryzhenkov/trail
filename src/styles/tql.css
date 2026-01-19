@@ -1,0 +1,208 @@
+/* TQL (Trail Query Language) styles */
+
+/* TQL badge in settings */
+.trail-badge-tql {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+/* TQL query textarea */
+.trail-query-textarea {
+	width: 100%;
+	min-height: 120px;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	line-height: 1.5;
+	resize: vertical;
+}
+
+/* TQL query error display */
+.trail-query-error {
+	display: none;
+	margin-top: 8px;
+	padding: 8px 12px;
+	border-radius: var(--radius-s);
+	background: rgba(var(--color-red-rgb), 0.1);
+	color: var(--text-error);
+	font-size: var(--font-ui-small);
+	font-family: var(--font-monospace);
+}
+
+.trail-query-error-visible {
+	display: block;
+}
+
+/* TQL CodeMirror Editor */
+.trail-codemirror-container {
+	margin-top: var(--size-4-2);
+}
+
+.trail-codemirror-container .cm-editor {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+
+.trail-codemirror-container .cm-editor.cm-focused {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+}
+
+/* TQL Hover Tooltip */
+.tql-hover-tooltip {
+	font-size: var(--font-ui-small);
+	max-width: 400px;
+}
+
+.tql-hover-title {
+	font-family: var(--font-monospace);
+	font-weight: var(--font-semibold);
+	color: var(--text-normal);
+	margin-bottom: var(--size-4-1);
+}
+
+.tql-hover-description {
+	color: var(--text-muted);
+	line-height: 1.4;
+}
+
+.tql-hover-section {
+	margin-top: var(--size-4-2);
+	padding-top: var(--size-4-2);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.tql-hover-label {
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
+	color: var(--text-faint);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin-bottom: var(--size-4-1);
+}
+
+.tql-hover-syntax {
+	display: block;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-accent);
+	background: var(--background-secondary);
+	padding: var(--size-4-1) var(--size-4-2);
+	border-radius: var(--radius-s);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.tql-hover-examples {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-1);
+}
+
+.tql-hover-example {
+	display: block;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	background: var(--background-secondary);
+	padding: var(--size-2-2) var(--size-4-2);
+	border-radius: var(--radius-s);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.tql-hover-extra {
+	margin-top: var(--size-4-2);
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+/* TQL Autocomplete Icons */
+.cm-completionIcon-keyword::after {
+	content: "K";
+	color: var(--text-accent);
+}
+
+.cm-completionIcon-function::after {
+	content: "ƒ";
+	color: var(--color-yellow);
+}
+
+.cm-completionIcon-property::after {
+	content: "P";
+	color: var(--color-purple);
+}
+
+.cm-completionIcon-variable::after {
+	content: "V";
+	color: var(--text-normal);
+}
+
+.cm-completionIcon-constant::after {
+	content: "C";
+	color: var(--color-orange);
+}
+
+/* ============================================
+   TQL Syntax Highlighting (ViewPlugin-based)
+   ============================================
+   Uses custom CSS classes applied by tqlHighlightPlugin (ViewPlugin).
+   CM6's native highlighting doesn't work in Obsidian plugins due to
+   @lezer/highlight module instance fragmentation.
+*/
+
+/* Clause keywords (group, from, where, sort, display, prune, when) - Bold accent */
+.tql-keyword {
+	color: var(--text-accent) !important;
+	font-weight: bold !important;
+}
+
+/* Modifier keywords (depth, unlimited, asc, desc, by, all, extend, chain) - Cyan */
+.tql-type {
+	color: var(--color-cyan) !important;
+}
+
+/* Logical keywords (and, or, not, in) - Pink italic */
+.tql-logic {
+	color: var(--color-pink) !important;
+	font-style: italic !important;
+}
+
+/* Strings - Green */
+.tql-string {
+	color: var(--color-green) !important;
+}
+
+/* Numbers and durations - Orange */
+.tql-number {
+	color: var(--color-orange) !important;
+}
+
+/* Booleans, null, date keywords (true, false, null, today, etc.) - Purple */
+.tql-atom {
+	color: var(--color-purple) !important;
+}
+
+/* Operators (=, !=, <, >, etc.) - Muted */
+.tql-operator {
+	color: var(--text-muted) !important;
+}
+
+/* Functions - Yellow */
+.tql-function {
+	color: var(--color-yellow) !important;
+}
+
+/* Property names (file., traversal.) - Blue */
+.tql-property {
+	color: var(--color-blue) !important;
+}
+
+/* Variables (relation names, identifiers) - Normal text */
+.tql-variable {
+	color: var(--text-normal) !important;
+}
+
+/* Punctuation - Muted */
+.tql-punctuation {
+	color: var(--text-muted) !important;
+}

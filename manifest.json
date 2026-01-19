@@ -1,8 +1,8 @@
 {
 	"id": "trail",
 	"name": "Trail",
-	"version": "2.5.0",
-	"minAppVersion": "0.15.0",
+	"version": "3.0.0",
+	"minAppVersion": "1.11.0",
 	"description": "Add typed relations to your notes and traverse them via a powerful hierarchy view.",
 	"author": "Theo Ryzhenkov",
 	"authorUrl": "https://github.com/theoryzhenkov",

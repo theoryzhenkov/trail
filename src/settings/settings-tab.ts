@@ -1,4 +1,4 @@
-import {App, Notice, PluginSettingTab, setIcon, Setting} from "obsidian";
+import {App, Notice, PluginSettingTab, setIcon, Setting, SettingGroup} from "obsidian";
 import type {EditorView} from "@codemirror/view";
 import TrailPlugin from "../main";
 import {
@@ -23,11 +23,14 @@ import {hasLegacyGroups, EditorMode} from "./index";
 import {isVisualEditable, parseToVisual, visualToQuery, VisualQuery} from "./visual-editor";
 import {createTQLEditor} from "../query/codemirror";
 
+type SettingsTab = "relations" | "groups";
+
 export class TrailSettingTab extends PluginSettingTab {
 	plugin: TrailPlugin;
 	private openSections: Set<number> = new Set();
 	private openGroupSections: Set<number> = new Set();
 	private editorViews: Map<number, EditorView> = new Map();
+	private activeTab: SettingsTab = "relations";
 
 	constructor(app: App, plugin: TrailPlugin) {
 		super(app, plugin);
@@ -50,8 +53,44 @@ export class TrailSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		containerEl.addClass("trail-settings");
 
-		this.renderRelations(containerEl);
-		this.renderGroups(containerEl);
+		this.renderTabNavigation(containerEl);
+		this.renderTabContent(containerEl);
+	}
+
+	private renderTabNavigation(containerEl: HTMLElement) {
+		const tabNav = containerEl.createDiv({cls: "trail-settings-tabs"});
+
+		const relationsTab = tabNav.createDiv({
+			cls: `trail-settings-tab ${this.activeTab === "relations" ? "is-active" : ""}`,
+			text: "Relations"
+		});
+		relationsTab.addEventListener("click", () => {
+			if (this.activeTab !== "relations") {
+				this.activeTab = "relations";
+				this.display();
+			}
+		});
+
+		const groupsTab = tabNav.createDiv({
+			cls: `trail-settings-tab ${this.activeTab === "groups" ? "is-active" : ""}`,
+			text: "Groups"
+		});
+		groupsTab.addEventListener("click", () => {
+			if (this.activeTab !== "groups") {
+				this.activeTab = "groups";
+				this.display();
+			}
+		});
+	}
+
+	private renderTabContent(containerEl: HTMLElement) {
+		const content = containerEl.createDiv({cls: "trail-settings-content"});
+
+		if (this.activeTab === "relations") {
+			this.renderRelations(content);
+		} else {
+			this.renderGroups(content);
+		}
 	}
 
 	private saveOpenState(containerEl: HTMLElement) {
@@ -121,64 +160,66 @@ export class TrailSettingTab extends PluginSettingTab {
 	}
 
 	private renderRelations(containerEl: HTMLElement) {
-		new Setting(containerEl)
-			.setName("Relations")
-			.setDesc("Define relation types and their aliases.");
+		new SettingGroup(containerEl)
+			.setHeading("Relations")
+			.addSetting((setting) => {
+				setting
+					.setDesc("Define relation types and their aliases.")
+					.addButton((button) => {
+						button
+							.setButtonText("Add relation")
+							.setCta()
+							.onClick(() => {
+								const newIndex = this.plugin.settings.relations.length;
+								this.plugin.settings.relations.push({
+									name: "",
+									aliases: [],
+									impliedRelations: []
+								});
+								// Auto-expand the new section
+								this.openSections.add(newIndex);
+								void this.plugin.saveSettings();
+								this.display();
+							});
+					});
+			});
 
 		for (const [index, relation] of this.plugin.settings.relations.entries()) {
 			this.renderRelationSection(containerEl, relation, index);
 		}
-
-		new Setting(containerEl)
-			.addButton((button) => {
-				button
-					.setButtonText("Add relation")
-					.setCta()
-					.onClick(() => {
-						const newIndex = this.plugin.settings.relations.length;
-						this.plugin.settings.relations.push({
-							name: "",
-							aliases: [],
-							impliedRelations: []
-						});
-						// Auto-expand the new section
-						this.openSections.add(newIndex);
-						void this.plugin.saveSettings();
-						this.display();
-					});
-			});
 	}
 
 	private renderGroups(containerEl: HTMLElement) {
-		new Setting(containerEl)
-			.setName("Groups")
-			.setDesc("Configure relation groups shown in the trail pane using TQL queries.");
-
-		new Setting(containerEl)
-			.setName("Hide empty groups")
-			.setDesc("Hide groups that have no relations for the current note.")
-			.addToggle((toggle) => {
-				toggle
-					.setValue(Boolean(this.plugin.settings.hideEmptyGroups))
-					.onChange((value) => {
-						this.plugin.settings.hideEmptyGroups = value;
-						void this.plugin.saveSettings();
+		new SettingGroup(containerEl)
+			.setHeading("Options")
+			.addSetting((setting) => {
+				setting
+					.setName("Hide empty groups")
+					.setDesc("Hide groups that have no relations for the current note.")
+					.addToggle((toggle) => {
+						toggle
+							.setValue(Boolean(this.plugin.settings.hideEmptyGroups))
+							.onChange((value) => {
+								this.plugin.settings.hideEmptyGroups = value;
+								void this.plugin.saveSettings();
+							});
 					});
-			});
-
-		new Setting(containerEl)
-			.setName("Editor mode")
-			.setDesc("How to display TQL group editors. Auto shows visual editor for simple queries.")
-			.addDropdown((dropdown) => {
-				dropdown
-					.addOption("auto", "Auto")
-					.addOption("visual", "Visual")
-					.addOption("query", "Query")
-					.setValue(this.plugin.settings.editorMode ?? "auto")
-					.onChange((value) => {
-						this.plugin.settings.editorMode = value as "visual" | "query" | "auto";
-						void this.plugin.saveSettings();
-						this.display();
+			})
+			.addSetting((setting) => {
+				setting
+					.setName("Editor mode")
+					.setDesc("How to display TQL group editors. Auto shows visual editor for simple queries.")
+					.addDropdown((dropdown) => {
+						dropdown
+							.addOption("auto", "Auto")
+							.addOption("visual", "Visual")
+							.addOption("query", "Query")
+							.setValue(this.plugin.settings.editorMode ?? "auto")
+							.onChange((value) => {
+								this.plugin.settings.editorMode = value as "visual" | "query" | "auto";
+								void this.plugin.saveSettings();
+								this.display();
+							});
 					});
 			});
 
@@ -187,27 +228,31 @@ export class TrailSettingTab extends PluginSettingTab {
 			this.renderMigrationBanner(containerEl);
 		}
 
-		// TQL Groups
+		new SettingGroup(containerEl)
+			.setHeading("TQL groups")
+			.addSetting((setting) => {
+				setting
+					.setDesc("Configure relation groups shown in the trail pane using TQL queries.")
+					.addButton((button) => {
+						button
+							.setButtonText("Add group")
+							.setCta()
+							.onClick(() => {
+								const newIndex = this.plugin.settings.tqlGroups.length;
+								this.plugin.settings.tqlGroups.push({
+									query: `group "New group"\nfrom up depth unlimited`,
+									enabled: true,
+								});
+								this.openGroupSections.add(newIndex);
+								void this.plugin.saveSettings();
+								this.display();
+							});
+					});
+			});
+
 		for (const [index, group] of this.plugin.settings.tqlGroups.entries()) {
 			this.renderTqlGroupSection(containerEl, group, index);
 		}
-
-		new Setting(containerEl)
-			.addButton((button) => {
-				button
-					.setButtonText("Add TQL group")
-					.setCta()
-					.onClick(() => {
-						const newIndex = this.plugin.settings.tqlGroups.length;
-						this.plugin.settings.tqlGroups.push({
-							query: `group "New group"\nfrom up depth unlimited`,
-							enabled: true,
-						});
-						this.openGroupSections.add(newIndex);
-						void this.plugin.saveSettings();
-						this.display();
-					});
-			});
 
 		// Legacy Groups section (if any exist)
 		if (hasLegacyGroups(this.plugin.settings)) {

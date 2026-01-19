@@ -1,0 +1,322 @@
+/* Settings tab styles */
+
+.trail-settings {
+	--trail-border: var(--background-modifier-border);
+	--trail-bg-hover: var(--background-modifier-hover);
+	--trail-radius: 8px;
+}
+
+/* Settings page tab navigation */
+.trail-settings-tabs {
+	display: flex;
+	gap: 4px;
+	margin-bottom: 16px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.trail-settings-tab {
+	padding: 8px 16px;
+	font-size: var(--font-ui-medium);
+	font-weight: var(--font-medium);
+	color: var(--text-muted);
+	cursor: pointer;
+	border-radius: var(--radius-s);
+	transition: color 0.15s ease, background-color 0.15s ease;
+	user-select: none;
+}
+
+.trail-settings-tab:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+
+.trail-settings-tab.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.trail-settings-content {
+	/* Content container for tab panels */
+}
+
+/* Relation sections */
+.trail-relation-section {
+	margin: 12px 0;
+	border: 1px solid var(--trail-border);
+	border-radius: var(--trail-radius);
+	background: var(--background-primary);
+}
+
+.trail-relation-section[open] {
+	background: var(--background-primary-alt);
+}
+
+.trail-relation-summary {
+	padding: 12px 16px;
+	cursor: pointer;
+	list-style: none;
+	user-select: none;
+}
+
+.trail-relation-summary::-webkit-details-marker {
+	display: none;
+}
+
+.trail-relation-summary::before {
+	content: "▸";
+	display: inline-block;
+	margin-right: 8px;
+	transition: transform 0.15s ease;
+	color: var(--text-muted);
+}
+
+.trail-relation-section[open] > .trail-relation-summary::before {
+	transform: rotate(90deg);
+}
+
+.trail-relation-summary:hover {
+	background: var(--trail-bg-hover);
+	border-radius: var(--trail-radius) var(--trail-radius) 0 0;
+}
+
+.trail-relation-summary-content {
+	display: inline-flex;
+	align-items: center;
+	gap: 12px;
+	width: calc(100% - 20px);
+	justify-content: space-between;
+}
+
+.trail-relation-name {
+	font-weight: 600;
+	font-size: 1.1em;
+}
+
+.trail-relation-name-empty {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.trail-relation-badges {
+	display: flex;
+	gap: 8px;
+}
+
+.trail-badge {
+	font-size: 0.75em;
+	padding: 2px 8px;
+	border-radius: 12px;
+	background: var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
+.trail-badge-disabled {
+	background: var(--background-modifier-border);
+	color: var(--text-faint);
+}
+
+.trail-relation-content {
+	padding: 0 16px 16px;
+	border-top: 1px solid var(--trail-border);
+}
+
+.trail-relation-content > .setting-item:first-child {
+	padding-top: 16px;
+}
+
+/* Subsections */
+.trail-subsection {
+	margin: 16px 0;
+	padding: 12px;
+	background: var(--background-primary);
+	border-radius: var(--trail-radius);
+	border: 1px solid var(--trail-border);
+}
+
+.trail-subsection-title {
+	margin: 0 0 4px;
+	font-size: 0.9em;
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.trail-subsection-desc {
+	margin: 0 0 12px;
+	font-size: 0.8em;
+	color: var(--text-muted);
+}
+
+.trail-empty-state-settings {
+	color: var(--text-faint);
+	font-style: italic;
+	font-size: 0.85em;
+	margin: 8px 0;
+}
+
+.trail-hint {
+	color: var(--text-faint);
+	font-size: 0.8em;
+	margin: 8px 0;
+}
+
+.trail-subsection .setting-item {
+	padding: 8px 0;
+	border-top: none;
+}
+
+.trail-subsection .setting-item:first-child {
+	padding-top: 0;
+}
+
+.trail-subsection .setting-item-info {
+	padding-top: 8px;
+	padding-left: 12px;
+}
+
+.trail-subsection .setting-item:last-child {
+	padding-bottom: 0;
+}
+
+/* Fix empty state styling in subsections */
+.trail-subsection .trail-empty-state {
+	display: block;
+	padding: 8px 0;
+	text-align: left;
+	color: var(--text-faint);
+	font-style: italic;
+	font-size: var(--font-ui-small);
+}
+
+/* Reorder controls for relation/group sections */
+.trail-reorder-controls {
+	display: flex;
+	gap: 2px;
+	margin-left: auto;
+}
+
+.trail-reorder-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: var(--radius-s);
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	transition: background-color 0.1s ease;
+}
+
+.trail-reorder-button:hover:not(:disabled) {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.trail-reorder-button:disabled {
+	color: var(--text-faint);
+	cursor: not-allowed;
+	opacity: 0.4;
+}
+
+.trail-reorder-button svg {
+	width: 14px;
+	height: 14px;
+}
+
+/* Migration banner */
+.trail-migration-banner {
+	margin: 12px 0;
+	padding: 12px 16px;
+	border-radius: var(--radius-m);
+	background: rgba(var(--color-orange-rgb), 0.1);
+	border: 1px solid rgba(var(--color-orange-rgb), 0.3);
+}
+
+.trail-migration-banner .setting-item {
+	border: none;
+	padding: 0;
+}
+
+.trail-migration-banner .setting-item-name {
+	color: var(--text-warning);
+}
+
+/* Legacy groups section */
+.trail-legacy-groups {
+	margin-top: 24px;
+	padding-top: 16px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.trail-legacy-group-item {
+	margin: 8px 0;
+	padding: 12px;
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.trail-legacy-group-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.trail-legacy-group-name {
+	font-weight: 600;
+}
+
+.trail-legacy-group-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.trail-legacy-preview {
+	margin-top: 8px;
+}
+
+.trail-legacy-preview-content {
+	margin-top: 8px;
+	padding: 8px 12px;
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	white-space: pre-wrap;
+	overflow-x: auto;
+}
+
+.trail-legacy-preview-content pre {
+	margin: 0;
+}
+
+/* Visual editor styles */
+.trail-visual-relations {
+	margin-bottom: var(--size-4-2);
+}
+
+.trail-visual-relation {
+	margin-bottom: var(--size-4-1);
+}
+
+.trail-visual-relation .setting-item {
+	padding: var(--size-4-1) 0;
+	border: none;
+}
+
+.trail-visual-relation .setting-item-control {
+	gap: var(--size-4-2);
+}
+
+.trail-visual-relation .setting-item-control input[type="text"] {
+	width: 80px;
+}
+
+/* Visual editor depth input */
+.trail-depth-input {
+	width: 80px;
+}

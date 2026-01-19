@@ -18,13 +18,20 @@ if (!existsSync(outdir)) {
 	mkdirSync(outdir);
 }
 
-// Copy manifest.json and styles.css to dist
+// Copy manifest.json to dist
 copyFileSync("manifest.json", `${outdir}/manifest.json`);
-if (existsSync("styles.css")) {
-	copyFileSync("styles.css", `${outdir}/styles.css`);
-}
 
-const context = await esbuild.context({
+// CSS build context
+const cssContext = await esbuild.context({
+	entryPoints: ["src/styles/index.css"],
+	bundle: true,
+	outfile: `${outdir}/styles.css`,
+	minify: prod,
+	logLevel: "info",
+});
+
+// JS build context
+const jsContext = await esbuild.context({
 	banner: {
 		js: banner,
 	},
@@ -55,8 +62,8 @@ const context = await esbuild.context({
 });
 
 if (prod) {
-	await context.rebuild();
+	await Promise.all([cssContext.rebuild(), jsContext.rebuild()]);
 	process.exit(0);
 } else {
-	await context.watch();
+	await Promise.all([cssContext.watch(), jsContext.watch()]);
 }
