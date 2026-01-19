@@ -496,25 +496,22 @@ export class TrailView extends ItemView {
 		const groupEl = containerEl.createDiv({cls: "trail-group"});
 		groupEl.style.setProperty("--group-depth", String(depth));
 
-		// Render group header with relation tag and optional label
-		const headerEl = groupEl.createDiv({cls: "trail-group-header"});
-		
-		// Relation tag
-		if (group.members.length > 0) {
-			const firstMember = group.members[0];
-			if (firstMember) {
-				this.renderRelationTag(headerEl, firstMember.relation, firstMember.implied);
-			}
-		}
-
-		// Optional label (for split subgroups)
-		if (group.label) {
-			headerEl.createSpan({cls: "trail-group-label", text: group.label});
-		}
-
-		// Render members as horizontal list of file links
+		// Render members with inline relation tag
 		if (group.members.length > 0) {
 			const membersEl = groupEl.createDiv({cls: "trail-group-members"});
+			
+			// Relation tag at the start of members row
+			const firstMember = group.members[0];
+			if (firstMember) {
+				this.renderRelationTag(membersEl, firstMember.relation, firstMember.implied);
+			}
+			
+			// Optional label (for split subgroups)
+			if (group.label) {
+				membersEl.createSpan({cls: "trail-group-label", text: group.label});
+			}
+			
+			// File links
 			for (const member of group.members) {
 				this.renderGroupMember(membersEl, member, displayProperties);
 			}

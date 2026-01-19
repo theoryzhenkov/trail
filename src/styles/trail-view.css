@@ -255,19 +255,21 @@
    Display Group Styles (Nested Groups Model)
    ============================================ */
 
-/* Group container */
+/* Group container - minimal box outline to show grouping */
 .trail-group {
-	margin: 2px 0;
-	padding-left: calc(var(--group-depth, 0) * 12px);
+	margin: 4px 4px 4px calc(4px + var(--group-depth, 0) * 16px);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
 }
 
-/* Group header with relation tag and optional label */
-.trail-group-header {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	padding: 4px 8px;
-	min-height: 24px;
+/* Subtle depth differentiation */
+.trail-group-subgroups .trail-group {
+	background: var(--background-primary-alt);
+}
+
+.trail-group-subgroups .trail-group-subgroups .trail-group {
+	background: var(--background-primary);
 }
 
 /* Label for split subgroups (e.g., "Dad's parents") */
@@ -277,29 +279,35 @@
 	font-style: italic;
 }
 
-/* Members container - horizontal list of file links */
+/* Members container - single row with relation tag and file links */
 .trail-group-members {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 4px 8px;
-	padding: 4px 8px 4px 32px;
-	align-items: baseline;
+	padding: 4px 8px;
+	align-items: center;
+	background: rgba(var(--interactive-accent-rgb), 0.03);
+	border-radius: var(--radius-s);
 }
 
-/* Individual group member */
+/* When there are subgroups, members need different border radius */
+.trail-group-members:not(:last-child) {
+	border-radius: var(--radius-s) var(--radius-s) 0 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Individual group member - simplified styling within the band */
 .trail-group-member {
 	display: flex;
 	align-items: baseline;
 	gap: 4px;
-	padding: 2px 8px;
+	padding: 1px 4px;
 	border-radius: var(--radius-s);
-	background: var(--background-secondary);
-	border: 1px solid var(--background-modifier-border);
+	transition: background 100ms ease;
 }
 
 .trail-group-member:hover {
 	background: var(--background-modifier-hover);
-	border-color: var(--background-modifier-border-hover);
 }
 
 .trail-group-member .internal-link {
@@ -313,21 +321,23 @@
 	text-decoration: underline;
 }
 
-/* Subgroups container */
+/* Subgroups container - connects to parent via tree line */
 .trail-group-subgroups {
+	padding: 4px 4px 4px 12px;
 	margin-left: 8px;
-	padding-left: 8px;
 	border-left: 2px solid var(--background-modifier-border);
+	position: relative;
 }
 
-/* Nested depth visual styling */
-.trail-group-subgroups .trail-group {
-	margin: 4px 0;
-}
-
-/* Compact styling for deeply nested groups */
-.trail-group-subgroups .trail-group-subgroups .trail-group-members {
-	padding-left: 24px;
+/* Tree connector line from parent to children */
+.trail-group-subgroups::before {
+	content: "";
+	position: absolute;
+	left: -2px;
+	top: 16px;
+	width: 10px;
+	height: 2px;
+	background: var(--background-modifier-border);
 }
 
 /* Property badges in group members */
