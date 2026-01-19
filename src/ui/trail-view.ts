@@ -2,7 +2,7 @@ import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
 import type {DisplayGroup, GroupDefinition, GroupMember, RelationDefinition, RelationGroup} from "../types";
 import type {GroupTreeNode} from "../graph/store";
-import {treeToGroups, tqlTreeToGroups, flattenTree, flattenTqlTree} from "./tree-transforms";
+import {treeToGroups, tqlTreeToGroups, flattenTree, flattenTqlTree, invertDisplayGroups} from "./tree-transforms";
 import {
 	renderEmptyState,
 	renderFileLink,
@@ -415,7 +415,8 @@ export class TrailView extends ItemView {
 
 	/**
 	 * Transforms GroupTreeNode[] to DisplayGroup[] based on visual direction.
-	 * - ascending/descending: convert to nested groups
+	 * - ascending: convert to groups, then invert (deepest first)
+	 * - descending: convert to groups (shallowest first)
 	 * - sequential: flatten to siblings first, then group
 	 */
 	private transformTreeToDisplayGroups(nodes: GroupTreeNode[]): DisplayGroup[] {
@@ -431,9 +432,15 @@ export class TrailView extends ItemView {
 			return treeToGroups(flattened);
 		}
 		
-		// For ascending and descending, convert directly to groups
-		// The visual direction is handled at render time
-		return treeToGroups(nodes);
+		// Convert to groups
+		const groups = treeToGroups(nodes);
+		
+		// For ascending, invert so deepest ancestors appear at top
+		if (direction === "ascending") {
+			return invertDisplayGroups(groups);
+		}
+		
+		return groups;
 	}
 
 	/**
@@ -452,8 +459,15 @@ export class TrailView extends ItemView {
 			return tqlTreeToGroups(flattened);
 		}
 		
-		// For ascending and descending, convert directly to groups
-		return tqlTreeToGroups(nodes);
+		// Convert to groups
+		const groups = tqlTreeToGroups(nodes);
+		
+		// For ascending, invert so deepest ancestors appear at top
+		if (direction === "ascending") {
+			return invertDisplayGroups(groups);
+		}
+		
+		return groups;
 	}
 
 	/**

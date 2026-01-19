@@ -4,33 +4,58 @@ import type {DisplayGroup, GroupMember} from "../types";
 
 /**
  * Converts a tree of GroupTreeNode into nested DisplayGroups.
- * Groups siblings by relation, merges subgroups when children are identical,
- * splits into labeled subgroups when children diverge.
+ * Only groups nodes together if they have the same relation AND identical subtrees.
+ * Nodes with different children become separate groups.
  */
 export function treeToGroups(nodes: GroupTreeNode[]): DisplayGroup[] {
 	if (nodes.length === 0) return [];
 	
-	// Group nodes by relation
-	const byRelation = new Map<string, GroupTreeNode[]>();
-	for (const node of nodes) {
-		const list = byRelation.get(node.relation) ?? [];
-		list.push(node);
-		byRelation.set(node.relation, list);
-	}
-	
+	// Partition nodes into groups: same relation AND identical subtrees
 	const groups: DisplayGroup[] = [];
-	for (const [relation, relationNodes] of byRelation) {
-		groups.push(createGroupFromNodes(relation, relationNodes));
+	const used = new Set<number>();
+	
+	for (let i = 0; i < nodes.length; i++) {
+		if (used.has(i)) continue;
+		
+		const node = nodes[i];
+		if (!node) continue;
+		
+		const matchingNodes: GroupTreeNode[] = [node];
+		used.add(i);
+		
+		// Find other nodes with same relation AND identical subtrees
+		for (let j = i + 1; j < nodes.length; j++) {
+			if (used.has(j)) continue;
+			const other = nodes[j];
+			if (!other) continue;
+			
+			if (other.relation === node.relation && 
+			    subtreesEqual(node.children, other.children)) {
+				matchingNodes.push(other);
+				used.add(j);
+			}
+		}
+		
+		// Create group from nodes with identical subtrees
+		groups.push(createGroupFromIdenticalNodes(matchingNodes));
 	}
 	
 	return groups;
 }
 
 /**
- * Creates a DisplayGroup from nodes that share the same relation.
+ * Creates a DisplayGroup from nodes that have identical subtrees.
+ * Since subtrees are identical, we only process children once.
  */
-function createGroupFromNodes(relation: string, nodes: GroupTreeNode[]): DisplayGroup {
-	// Create members from nodes
+function createGroupFromIdenticalNodes(nodes: GroupTreeNode[]): DisplayGroup {
+	const firstNode = nodes[0];
+	if (!firstNode) {
+		return { relation: "", members: [], subgroups: [] };
+	}
+	
+	const relation = firstNode.relation;
+	
+	// Create members from all nodes
 	const members: GroupMember[] = nodes.map(node => ({
 		path: node.path,
 		relation: node.relation,
@@ -39,56 +64,10 @@ function createGroupFromNodes(relation: string, nodes: GroupTreeNode[]): Display
 		properties: node.properties ?? {}
 	}));
 	
-	// Collect children from all nodes
-	const childrenByNode = nodes.map(node => node.children);
-	const allChildrenEmpty = childrenByNode.every(c => c.length === 0);
-	
-	if (allChildrenEmpty) {
-		return { relation, members, subgroups: [] };
-	}
-	
-	// Check if all nodes have identical children subtrees
-	const allIdentical = childrenSetsEqual(childrenByNode);
-	
-	let subgroups: DisplayGroup[];
-	if (allIdentical && childrenByNode[0]) {
-		// Merge: all children become a single set of subgroups
-		subgroups = treeToGroups(childrenByNode[0]);
-	} else if (!allIdentical) {
-		// Split: create separate labeled subgroups per parent node
-		subgroups = [];
-		for (const node of nodes) {
-			if (node.children.length > 0) {
-				const nodeSubgroups = treeToGroups(node.children);
-				// Label subgroups with the parent node's name
-				const parentName = getBasename(node.path);
-				for (const subgroup of nodeSubgroups) {
-					subgroups.push({
-						...subgroup,
-						label: `${parentName}'s ${subgroup.relation}`
-					});
-				}
-			}
-		}
-	} else {
-		subgroups = [];
-	}
+	// Since all nodes have identical children, process first node's children
+	const subgroups = treeToGroups(firstNode.children);
 	
 	return { relation, members, subgroups };
-}
-
-/**
- * Checks if multiple arrays of children are structurally equal.
- */
-function childrenSetsEqual(sets: GroupTreeNode[][]): boolean {
-	if (sets.length <= 1) return true;
-	const first = sets[0];
-	if (!first) return true;
-	for (let i = 1; i < sets.length; i++) {
-		const current = sets[i];
-		if (!current || !subtreesEqual(first, current)) return false;
-	}
-	return true;
 }
 
 /**
@@ -114,42 +93,57 @@ export function subtreesEqual(a: GroupTreeNode[], b: GroupTreeNode[]): boolean {
 }
 
 /**
- * Extracts the basename (filename without extension) from a path.
- */
-function getBasename(path: string): string {
-	const parts = path.split("/");
-	const filename = parts[parts.length - 1] ?? path;
-	return filename.replace(/\.md$/, "");
-}
-
-/**
  * Converts a tree of QueryResultNode into nested DisplayGroups.
- * TQL-specific version that handles QueryResultNode fields.
+ * Only groups nodes together if they have the same relation AND identical subtrees.
  */
 export function tqlTreeToGroups(nodes: QueryResultNode[]): DisplayGroup[] {
 	if (nodes.length === 0) return [];
 	
-	// Group nodes by relation
-	const byRelation = new Map<string, QueryResultNode[]>();
-	for (const node of nodes) {
-		const list = byRelation.get(node.relation) ?? [];
-		list.push(node);
-		byRelation.set(node.relation, list);
-	}
-	
+	// Partition nodes into groups: same relation AND identical subtrees
 	const groups: DisplayGroup[] = [];
-	for (const [relation, relationNodes] of byRelation) {
-		groups.push(createTqlGroupFromNodes(relation, relationNodes));
+	const used = new Set<number>();
+	
+	for (let i = 0; i < nodes.length; i++) {
+		if (used.has(i)) continue;
+		
+		const node = nodes[i];
+		if (!node) continue;
+		
+		const matchingNodes: QueryResultNode[] = [node];
+		used.add(i);
+		
+		// Find other nodes with same relation AND identical subtrees
+		for (let j = i + 1; j < nodes.length; j++) {
+			if (used.has(j)) continue;
+			const other = nodes[j];
+			if (!other) continue;
+			
+			if (other.relation === node.relation && 
+			    tqlSubtreesEqual(node.children, other.children)) {
+				matchingNodes.push(other);
+				used.add(j);
+			}
+		}
+		
+		// Create group from nodes with identical subtrees
+		groups.push(createTqlGroupFromIdenticalNodes(matchingNodes));
 	}
 	
 	return groups;
 }
 
 /**
- * Creates a DisplayGroup from TQL nodes that share the same relation.
+ * Creates a DisplayGroup from TQL nodes that have identical subtrees.
  */
-function createTqlGroupFromNodes(relation: string, nodes: QueryResultNode[]): DisplayGroup {
-	// Create members from nodes
+function createTqlGroupFromIdenticalNodes(nodes: QueryResultNode[]): DisplayGroup {
+	const firstNode = nodes[0];
+	if (!firstNode) {
+		return { relation: "", members: [], subgroups: [] };
+	}
+	
+	const relation = firstNode.relation;
+	
+	// Create members from all nodes
 	const members: GroupMember[] = nodes.map(node => ({
 		path: node.path,
 		relation: node.relation,
@@ -158,56 +152,10 @@ function createTqlGroupFromNodes(relation: string, nodes: QueryResultNode[]): Di
 		properties: node.properties
 	}));
 	
-	// Collect children from all nodes
-	const childrenByNode = nodes.map(node => node.children);
-	const allChildrenEmpty = childrenByNode.every(c => c.length === 0);
-	
-	if (allChildrenEmpty) {
-		return { relation, members, subgroups: [] };
-	}
-	
-	// Check if all nodes have identical children subtrees
-	const allIdentical = tqlChildrenSetsEqual(childrenByNode);
-	
-	let subgroups: DisplayGroup[];
-	if (allIdentical && childrenByNode[0]) {
-		// Merge: all children become a single set of subgroups
-		subgroups = tqlTreeToGroups(childrenByNode[0]);
-	} else if (!allIdentical) {
-		// Split: create separate labeled subgroups per parent node
-		subgroups = [];
-		for (const node of nodes) {
-			if (node.children.length > 0) {
-				const nodeSubgroups = tqlTreeToGroups(node.children);
-				// Label subgroups with the parent node's name
-				const parentName = getBasename(node.path);
-				for (const subgroup of nodeSubgroups) {
-					subgroups.push({
-						...subgroup,
-						label: `${parentName}'s ${subgroup.relation}`
-					});
-				}
-			}
-		}
-	} else {
-		subgroups = [];
-	}
+	// Since all nodes have identical children, process first node's children
+	const subgroups = tqlTreeToGroups(firstNode.children);
 	
 	return { relation, members, subgroups };
-}
-
-/**
- * Checks if multiple arrays of TQL children are structurally equal.
- */
-function tqlChildrenSetsEqual(sets: QueryResultNode[][]): boolean {
-	if (sets.length <= 1) return true;
-	const first = sets[0];
-	if (!first) return true;
-	for (let i = 1; i < sets.length; i++) {
-		const current = sets[i];
-		if (!current || !tqlSubtreesEqual(first, current)) return false;
-	}
-	return true;
 }
 
 /**
@@ -229,6 +177,47 @@ function tqlSubtreesEqual(a: QueryResultNode[], b: QueryResultNode[]): boolean {
 		if (!tqlSubtreesEqual(nodeA.children, nodeB.children)) return false;
 	}
 	return true;
+}
+
+/**
+ * Inverts DisplayGroups hierarchy for ascending view.
+ * Deepest groups become roots, their parents become children.
+ * Example: Dad -> [Grandma, Grandpa] becomes [Grandma, Grandpa] -> Dad
+ */
+export function invertDisplayGroups(groups: DisplayGroup[]): DisplayGroup[] {
+	const result: DisplayGroup[] = [];
+	for (const group of groups) {
+		result.push(...invertDisplayGroupChain(group, null));
+	}
+	return result;
+}
+
+/**
+ * Recursively inverts a single group chain.
+ * @param group The current group being processed
+ * @param parentAsChild The parent group (to become this group's child in inverted tree)
+ */
+function invertDisplayGroupChain(
+	group: DisplayGroup, 
+	parentAsChild: DisplayGroup | null
+): DisplayGroup[] {
+	// Create this group with parent as its subgroup (instead of original subgroups)
+	const invertedGroup: DisplayGroup = {
+		...group,
+		subgroups: parentAsChild ? [parentAsChild] : []
+	};
+	
+	if (group.subgroups.length === 0) {
+		// Leaf node - this becomes a root in the inverted tree
+		return [invertedGroup];
+	}
+	
+	// Recurse into subgroups, passing this group as their child
+	const roots: DisplayGroup[] = [];
+	for (const subgroup of group.subgroups) {
+		roots.push(...invertDisplayGroupChain(subgroup, invertedGroup));
+	}
+	return roots;
 }
 
 /**
