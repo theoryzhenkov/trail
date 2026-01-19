@@ -1,13 +1,13 @@
 {
 	"name": "trail",
-	"version": "3.0.2",
+	"version": "3.0.4",
 	"description": "Add typed relations to your notes and traverse them via a powerful hierarchy view.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"version": "node version-bump.mjs",
+		"bump": "node version-bump.mjs",
 		"lint": "eslint .",
 		"test": "vitest run",
 		"test:watch": "vitest"
