@@ -95,3 +95,29 @@ export interface ParsedRelation {
 	relation: RelationName;
 	target: string;
 }
+
+/**
+ * A member within a display group (single file entry)
+ */
+export interface GroupMember {
+	path: string;
+	relation: string;
+	implied: boolean;
+	impliedFrom?: string;
+	properties: FileProperties;
+}
+
+/**
+ * A display group containing file members and nested subgroups.
+ * Groups are the primary UI structure for rendering relationships.
+ */
+export interface DisplayGroup {
+	/** Context label (e.g., "Dad's parents", "Children") */
+	label?: string;
+	/** Relation connecting this group to parent context */
+	relation: string;
+	/** Files directly in this group */
+	members: GroupMember[];
+	/** Nested subgroups (when members have divergent downstream content) */
+	subgroups: DisplayGroup[];
+}
