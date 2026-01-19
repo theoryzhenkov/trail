@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "3.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"name": "trail",
+	"version": "3.0.2",
+	"description": "Add typed relations to your notes and traverse them via a powerful hierarchy view.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {

@@ -32,6 +32,32 @@ export const DEFAULT_SETTINGS: TrailSettings = {
 };
 
 /**
+ * Build settings from saved data, handling migration edge cases.
+ * If saved data has legacy groups but no tqlGroups field, don't apply default TQL groups
+ * to allow proper migration.
+ */
+export function buildSettings(savedData: Partial<TrailSettings> | null): TrailSettings {
+	const data = savedData ?? {};
+	
+	// Check if this is a migration scenario: has legacy groups but no tqlGroups field
+	const hasLegacyInSavedData = Array.isArray(data.groups) && data.groups.length > 0;
+	const hasTqlInSavedData = "tqlGroups" in data;
+	
+	// If legacy groups exist but tqlGroups field is missing, don't apply default TQL groups
+	const tqlGroups = hasTqlInSavedData 
+		? (data.tqlGroups ?? [])
+		: (hasLegacyInSavedData ? [] : createDefaultTqlGroups());
+	
+	return {
+		relations: data.relations ?? createDefaultRelations(),
+		tqlGroups,
+		groups: data.groups ?? createDefaultGroups(),
+		hideEmptyGroups: data.hideEmptyGroups ?? false,
+		editorMode: data.editorMode ?? "auto",
+	};
+}
+
+/**
  * Check if settings have legacy groups that need migration
  */
 export function hasLegacyGroups(settings: TrailSettings): boolean {
