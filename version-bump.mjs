@@ -8,12 +8,6 @@ if (!targetVersion) {
 	process.exit(1);
 }
 
-if (!/^\d+\.\d+\.\d+$/.test(targetVersion)) {
-	console.error(`Invalid version format: ${targetVersion}`);
-	console.error("Version must be in semver format (e.g., 4.0.0)");
-	process.exit(1);
-}
-
 // Update package.json
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 pkg.version = targetVersion;

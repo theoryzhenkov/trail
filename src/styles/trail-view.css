@@ -288,6 +288,7 @@
 	align-items: center;
 	background: rgba(var(--interactive-accent-rgb), 0.03);
 	border-radius: var(--radius-s);
+	font-size: var(--font-ui-small);
 }
 
 /* When there are subgroups, members need different border radius */
