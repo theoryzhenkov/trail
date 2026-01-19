@@ -10,6 +10,9 @@ import type {
 	SortKey,
 	DisplayClause,
 	DateExpr,
+	AggregateExpr,
+	AggregateSource,
+	RelationSpec,
 } from "./ast";
 import type {ValidatedQuery} from "./validator";
 import type {QueryContext} from "./context";
@@ -34,6 +37,10 @@ class Executor {
 	private query: Query;
 	private ctx: QueryContext;
 	private warnings: QueryWarning[] = [];
+	
+	// Aggregate function support
+	private evaluatingAggregates: Set<string> = new Set();
+	private aggregateCache: Map<string, Value> = new Map();
 
 	constructor(query: ValidatedQuery, ctx: QueryContext) {
 		this.query = query;
@@ -494,6 +501,9 @@ class Executor {
 			case "call":
 				return this.evaluateCall(expr, filePath, props, traversal);
 
+			case "aggregate":
+				return this.evaluateAggregate(expr, filePath, props, traversal);
+
 			case "property":
 				return this.evaluateProperty(expr, props, traversal, filePath);
 
@@ -782,6 +792,248 @@ class Executor {
 
 		const ms = expr.offset.op === "+" ? base.getTime() + durationMs : base.getTime() - durationMs;
 		return new Date(ms);
+	}
+
+	// =========================================================================
+	// Aggregate Evaluation
+	// =========================================================================
+
+	private evaluateAggregate(
+		expr: AggregateExpr,
+		filePath: string,
+		props: FileProperties,
+		traversal?: TraversalContext
+	): Value {
+		// Build cache key
+		const sourceKey = this.getAggregateSourceKey(expr.source);
+		const propertyKey = expr.property?.path.join(".") ?? "";
+		const conditionKey = expr.condition ? JSON.stringify(expr.condition) : "";
+		const cacheKey = `${filePath}:${expr.func}:${sourceKey}:${propertyKey}:${conditionKey}`;
+
+		// Check cache
+		if (this.aggregateCache.has(cacheKey)) {
+			return this.aggregateCache.get(cacheKey)!;
+		}
+
+		// Cycle detection
+		if (this.evaluatingAggregates.has(cacheKey)) {
+			this.warnings.push({message: `Circular aggregate reference detected`});
+			return null;
+		}
+		this.evaluatingAggregates.add(cacheKey);
+
+		try {
+			// Execute subquery from current node
+			const results = this.executeSubquery(expr.source, filePath);
+
+			// Compute aggregate
+			const value = this.computeAggregate(expr, results, filePath, props, traversal);
+
+			// Cache result
+			this.aggregateCache.set(cacheKey, value);
+			return value;
+		} finally {
+			this.evaluatingAggregates.delete(cacheKey);
+		}
+	}
+
+	private getAggregateSourceKey(source: AggregateSource): string {
+		if (source.type === "groupRef") {
+			return `group:${source.name}`;
+		} else if (source.type === "inlineFrom") {
+			return `from:${JSON.stringify(source.relations.map(r => ({n: r.name, d: r.depth})))}`;
+		} else {
+			return `bare:${source.name}`;
+		}
+	}
+
+	private executeSubquery(source: AggregateSource, fromPath: string): QueryResultNode[] {
+		let relations: RelationSpec[];
+
+		if (source.type === "groupRef") {
+			// Explicit group reference
+			const groupQuery = this.ctx.resolveGroupQuery(source.name);
+			relations = groupQuery?.from.relations ?? [];
+		} else if (source.type === "inlineFrom") {
+			// Explicit from clause
+			relations = source.relations;
+		} else {
+			// Bare identifier - resolve to group or relation
+			// Validator ensured no ambiguity, so we try group first
+			const groupQuery = this.ctx.resolveGroupQuery(source.name);
+			if (groupQuery) {
+				relations = groupQuery.from.relations;
+			} else {
+				// Treat as relation with unlimited depth
+				relations = [{
+					type: "relationSpec" as const,
+					name: source.name,
+					depth: "unlimited" as const,
+					span: source.span,
+				}];
+			}
+		}
+
+		const results: QueryResultNode[] = [];
+		const ancestorPaths = new Set([fromPath]);
+		const traversalPath = [fromPath];
+
+		for (const relSpec of relations) {
+			const nodes = this.traverseRelation(
+				fromPath,
+				relSpec.name,
+				relSpec.depth === "unlimited" ? Infinity : relSpec.depth,
+				1,
+				ancestorPaths,
+				traversalPath,
+				relSpec.extend
+			);
+			results.push(...nodes);
+		}
+
+		return results;
+	}
+
+	private computeAggregate(
+		expr: AggregateExpr,
+		results: QueryResultNode[],
+		filePath: string,
+		props: FileProperties,
+		traversal?: TraversalContext
+	): Value {
+		// Flatten tree to list for aggregation
+		const allNodes = this.flattenTree(results);
+
+		switch (expr.func) {
+			case "count":
+				return allNodes.length;
+
+			case "sum":
+				return this.computeSum(allNodes, expr.property!);
+
+			case "avg":
+				return this.computeAvg(allNodes, expr.property!);
+
+			case "min":
+				return this.computeMin(allNodes, expr.property!);
+
+			case "max":
+				return this.computeMax(allNodes, expr.property!);
+
+			case "any":
+				return this.computeAny(allNodes, expr.condition!, filePath, props, traversal);
+
+			case "all":
+				return this.computeAll(allNodes, expr.condition!, filePath, props, traversal);
+		}
+	}
+
+	private flattenTree(nodes: QueryResultNode[]): QueryResultNode[] {
+		const result: QueryResultNode[] = [];
+		for (const node of nodes) {
+			result.push(node);
+			result.push(...this.flattenTree(node.children));
+		}
+		return result;
+	}
+
+	private computeSum(nodes: QueryResultNode[], prop: PropertyAccess): number {
+		let sum = 0;
+		for (const node of nodes) {
+			const val = this.getPropertyValue(node.properties, prop.path.join("."));
+			if (typeof val === "number") {
+				sum += val;
+			}
+			// Ignore null/non-numeric values
+		}
+		return sum;
+	}
+
+	private computeAvg(nodes: QueryResultNode[], prop: PropertyAccess): number | null {
+		let sum = 0;
+		let count = 0;
+		for (const node of nodes) {
+			const val = this.getPropertyValue(node.properties, prop.path.join("."));
+			if (typeof val === "number") {
+				sum += val;
+				count++;
+			}
+			// Ignore null/non-numeric values
+		}
+		return count > 0 ? sum / count : null;
+	}
+
+	private computeMin(nodes: QueryResultNode[], prop: PropertyAccess): Value {
+		let min: Value = null;
+		for (const node of nodes) {
+			const val = this.getPropertyValue(node.properties, prop.path.join("."));
+			if (val === null) continue;
+			if (min === null || this.compare(val, min) < 0) {
+				min = val;
+			}
+		}
+		return min;
+	}
+
+	private computeMax(nodes: QueryResultNode[], prop: PropertyAccess): Value {
+		let max: Value = null;
+		for (const node of nodes) {
+			const val = this.getPropertyValue(node.properties, prop.path.join("."));
+			if (val === null) continue;
+			if (max === null || this.compare(val, max) > 0) {
+				max = val;
+			}
+		}
+		return max;
+	}
+
+	private computeAny(
+		nodes: QueryResultNode[],
+		condition: Expr,
+		_filePath: string,
+		_props: FileProperties,
+		_traversal?: TraversalContext
+	): boolean {
+		for (const node of nodes) {
+			const nodeTraversal: TraversalContext = {
+				depth: node.depth,
+				relation: node.relation,
+				isImplied: node.implied,
+				parent: node.parent,
+				path: node.traversalPath,
+			};
+			const result = this.evaluateExpr(condition, node.path, node.properties, nodeTraversal);
+			if (this.isTruthy(result)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private computeAll(
+		nodes: QueryResultNode[],
+		condition: Expr,
+		_filePath: string,
+		_props: FileProperties,
+		_traversal?: TraversalContext
+	): boolean {
+		if (nodes.length === 0) {
+			return true; // vacuously true
+		}
+		for (const node of nodes) {
+			const nodeTraversal: TraversalContext = {
+				depth: node.depth,
+				relation: node.relation,
+				isImplied: node.implied,
+				parent: node.parent,
+				path: node.traversalPath,
+			};
+			const result = this.evaluateExpr(condition, node.path, node.properties, nodeTraversal);
+			if (!this.isTruthy(result)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private resolveRelativeDate(kind: string): Date {

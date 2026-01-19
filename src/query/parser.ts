@@ -19,6 +19,12 @@ import type {
 	RelativeDateLiteral,
 	DateLiteral,
 	DateExpr,
+	AggregateExpr,
+	AggregateFunc,
+	AggregateSource,
+	GroupRefExpr,
+	InlineFrom,
+	BareIdentifier,
 } from "./ast";
 import type {Token} from "./tokens";
 import {TokenType} from "./tokens";
@@ -387,8 +393,8 @@ export class Parser {
 			return this.parsePropertyAccess();
 		}
 
-		// prop() function for reserved words
-		if (this.check(TokenType.Identifier) && this.current().value === "prop") {
+		// Handle aggregate functions that are keywords (like "all")
+		if (this.isAggregateKeyword() && this.checkNext(TokenType.LParen)) {
 			return this.parseFunctionCall();
 		}
 
@@ -538,10 +544,23 @@ export class Parser {
 		};
 	}
 
-	private parseFunctionCall(): FunctionCall {
+	private parseFunctionCall(): FunctionCall | AggregateExpr {
+		const name = this.current().value;
+
+		// Check if this is an aggregate function
+		if (this.isAggregate(name)) {
+			return this.parseAggregateExpr(name as AggregateFunc);
+		}
+
+		// Regular function call
 		const start = this.current().span.start;
-		const nameToken = this.expect(TokenType.Identifier, "function name");
-		const name = nameToken.value;
+		// Handle "all" keyword or regular identifier
+		let nameToken: Token;
+		if (this.check(TokenType.All)) {
+			nameToken = this.advance();
+		} else {
+			nameToken = this.expect(TokenType.Identifier, "function name");
+		}
 
 		this.expect(TokenType.LParen, '"("');
 
@@ -557,9 +576,154 @@ export class Parser {
 
 		return {
 			type: "call",
-			name,
+			name: nameToken.value,
 			args,
 			span: {start, end: this.previous().span.end},
+		};
+	}
+
+	// =========================================================================
+	// Aggregate Parsing
+	// =========================================================================
+
+	private isAggregate(name: string): boolean {
+		return ["count", "sum", "avg", "min", "max", "any", "all"].includes(name);
+	}
+
+	/**
+	 * Check if current token is an aggregate function keyword (like "all")
+	 */
+	private isAggregateKeyword(): boolean {
+		return this.check(TokenType.All); // "all" is the only aggregate that's a keyword
+	}
+
+	private parseAggregateExpr(func: AggregateFunc): AggregateExpr {
+		const start = this.current().span.start;
+		this.advance(); // consume function name
+		this.expect(TokenType.LParen, '"("');
+
+		// Parse source: "from ...", "group(...)", or bare identifier
+		let source: AggregateSource;
+		if (this.match(TokenType.From)) {
+			source = this.parseInlineFrom();
+		} else if (this.check(TokenType.Group)) {
+			// "group" keyword followed by "(" for group("Name") syntax
+			source = this.parseGroupRefExpr();
+		} else if (this.check(TokenType.Identifier)) {
+			// Bare identifier - could be group or relation, resolved at validation
+			source = this.parseBareIdentifier();
+		} else {
+			throw new ParseError(
+				'Expected "from", "group()", or identifier in aggregate function',
+				this.current().span,
+				["from", "group()", "identifier"]
+			);
+		}
+
+		// Parse optional second argument (property for sum/avg/min/max, condition for any/all)
+		let property: PropertyAccess | undefined;
+		let condition: Expr | undefined;
+
+		if (this.match(TokenType.Comma)) {
+			if (func === "any" || func === "all") {
+				condition = this.parseExpression();
+			} else if (func === "sum" || func === "avg" || func === "min" || func === "max") {
+				property = this.parsePropertyAccess();
+			}
+			// For count, extra arguments are ignored (could add warning)
+		}
+
+		this.expect(TokenType.RParen, '")"');
+
+		return {
+			type: "aggregate",
+			func,
+			source,
+			property,
+			condition,
+			span: {start, end: this.previous().span.end},
+		};
+	}
+
+	private parseGroupRefExpr(): GroupRefExpr {
+		const start = this.current().span.start;
+		this.expect(TokenType.Group, '"group"'); // consume "group" keyword
+		this.expect(TokenType.LParen, '"("');
+		const nameToken = this.expect(TokenType.String, "group name string");
+		const name = this.parseStringValue(nameToken);
+		this.expect(TokenType.RParen, '")"');
+
+		return {
+			type: "groupRef",
+			name,
+			span: {start, end: this.previous().span.end},
+		};
+	}
+
+	private parseInlineFrom(): InlineFrom {
+		const start = this.previous().span.start; // "from" was already consumed
+
+		const relations: RelationSpec[] = [];
+		relations.push(this.parseRelationSpec());
+
+		// For inline from in aggregates, only parse additional relations if clearly a relation spec
+		// An identifier followed by depth/extend is clearly a relation
+		// An identifier NOT followed by depth/extend before comma/rparen is ambiguous - treat as end of inline from
+		while (this.check(TokenType.Comma) && this.looksLikeMoreRelations()) {
+			this.advance(); // consume comma
+			relations.push(this.parseRelationSpec());
+		}
+
+		return {
+			type: "inlineFrom",
+			relations,
+			span: {start, end: this.previous().span.end},
+		};
+	}
+
+	/**
+	 * Check if what follows a comma looks like another relation spec
+	 * A relation spec is: identifier followed by "depth" or "extend" modifiers
+	 * An identifier immediately followed by comma or rparen is ambiguous - could be a simple relation
+	 * or a property argument for the aggregate
+	 * 
+	 * We only continue if the next identifier has explicit modifiers (depth/extend)
+	 */
+	private looksLikeMoreRelations(): boolean {
+		// Save position
+		const savedPos = this.pos;
+		
+		// Skip past the comma
+		this.pos++;
+		
+		// Check if current token is an identifier
+		if (!this.check(TokenType.Identifier)) {
+			this.pos = savedPos;
+			return false;
+		}
+		
+		// Skip past the identifier
+		this.pos++;
+		
+		// Only consider it a relation spec if followed by depth or extend
+		// This disambiguates: "sum(from down, value)" - value is NOT a relation
+		// vs "count(from down depth 1, up depth 2)" - up IS a relation (has depth modifier)
+		const hasRelationModifier = 
+			this.check(TokenType.Depth) ||
+			this.check(TokenType.Extend);
+		
+		// Restore position
+		this.pos = savedPos;
+		
+		return hasRelationModifier;
+	}
+
+	private parseBareIdentifier(): BareIdentifier {
+		const token = this.expect(TokenType.Identifier, "group or relation name");
+		return {
+			type: "bareIdentifier",
+			name: token.value,
+			span: token.span,
 		};
 	}
 

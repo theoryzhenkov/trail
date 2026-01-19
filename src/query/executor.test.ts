@@ -429,6 +429,397 @@ describe("TQL Executor", () => {
 		});
 	});
 
+	describe("Aggregate functions", () => {
+		it("should count nodes with group reference", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "child1.md", properties: {} },
+					{ path: "child2.md", properties: {} },
+					{ path: "child3.md", properties: {} },
+				],
+				edges: [
+					{ from: "root.md", to: "child1.md", relation: "down" },
+					{ from: "root.md", to: "child2.md", relation: "down" },
+					{ from: "root.md", to: "child3.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			// Create a Children group
+			const childrenGroup = createMockGroup(
+				"Children",
+				`group "Children" from down depth 1`,
+				["down"],
+				["Children"]
+			);
+			graph.groups = [childrenGroup];
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where count(group("Children")) > 0`,
+				graph,
+				"root.md"
+			);
+
+			// All children have 0 children, so none should pass the filter
+			expect(result.visible).toBe(true);
+			expect(result.results).toHaveLength(0);
+		});
+
+		it("should count nodes with inline from", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "child1.md", properties: {} },
+					{ path: "grandchild1.md", properties: {} },
+					{ path: "child2.md", properties: {} },
+				],
+				edges: [
+					{ from: "root.md", to: "child1.md", relation: "down" },
+					{ from: "root.md", to: "child2.md", relation: "down" },
+					{ from: "child1.md", to: "grandchild1.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where count(from down depth 1) > 0`,
+				graph,
+				"root.md"
+			);
+
+			// Only child1 has children
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("child1.md");
+			expect(paths).not.toContain("child2.md");
+		});
+
+		it("should count nodes with bare identifier (group)", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "child1.md", properties: {} },
+					{ path: "grandchild1.md", properties: {} },
+					{ path: "child2.md", properties: {} },
+				],
+				edges: [
+					{ from: "root.md", to: "child1.md", relation: "down" },
+					{ from: "root.md", to: "child2.md", relation: "down" },
+					{ from: "child1.md", to: "grandchild1.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const childrenGroup = createMockGroup(
+				"Children",
+				`group "Children" from down depth 1`,
+				["down"],
+				["Children"]
+			);
+			graph.groups = [childrenGroup];
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where count(Children) > 0`,
+				graph,
+				"root.md"
+			);
+
+			// Only child1 has children
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("child1.md");
+			expect(paths).not.toContain("child2.md");
+		});
+
+		it("should count nodes with bare identifier (relation)", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "child1.md", properties: {} },
+					{ path: "grandchild1.md", properties: {} },
+					{ path: "child2.md", properties: {} },
+				],
+				edges: [
+					{ from: "root.md", to: "child1.md", relation: "down" },
+					{ from: "root.md", to: "child2.md", relation: "down" },
+					{ from: "child1.md", to: "grandchild1.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where count(down) > 0`,
+				graph,
+				"root.md"
+			);
+
+			// Only child1 has children via "down" relation
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("child1.md");
+			expect(paths).not.toContain("child2.md");
+		});
+
+		it("should sum property values", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "item1.md", properties: { value: 10 } },
+					{ path: "item2.md", properties: { value: 20 } },
+					{ path: "item3.md", properties: { value: 30 } },
+				],
+				edges: [
+					{ from: "root.md", to: "item1.md", relation: "down" },
+					{ from: "root.md", to: "item2.md", relation: "down" },
+					{ from: "root.md", to: "item3.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where sum(from down depth 1, value) = 0`,
+				graph,
+				"root.md"
+			);
+
+			// All items have no children, so sum of children's values is 0
+			expect(result.results).toHaveLength(3);
+		});
+
+		it("should calculate average", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "parent.md", properties: {} },
+					{ path: "child1.md", properties: { score: 80 } },
+					{ path: "child2.md", properties: { score: 100 } },
+				],
+				edges: [
+					{ from: "root.md", to: "parent.md", relation: "down" },
+					{ from: "parent.md", to: "child1.md", relation: "down" },
+					{ from: "parent.md", to: "child2.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where avg(from down depth 1, score) >= 90`,
+				graph,
+				"root.md"
+			);
+
+			// parent has children with avg score 90, so it passes
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("parent.md");
+		});
+
+		it("should find min value", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "parent.md", properties: {} },
+					{ path: "child1.md", properties: { priority: 3 } },
+					{ path: "child2.md", properties: { priority: 1 } },
+					{ path: "child3.md", properties: { priority: 2 } },
+				],
+				edges: [
+					{ from: "root.md", to: "parent.md", relation: "down" },
+					{ from: "parent.md", to: "child1.md", relation: "down" },
+					{ from: "parent.md", to: "child2.md", relation: "down" },
+					{ from: "parent.md", to: "child3.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where min(from down depth 1, priority) = 1`,
+				graph,
+				"root.md"
+			);
+
+			// parent has children with min priority 1
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("parent.md");
+		});
+
+		it("should find max value", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "parent.md", properties: {} },
+					{ path: "child1.md", properties: { priority: 3 } },
+					{ path: "child2.md", properties: { priority: 1 } },
+				],
+				edges: [
+					{ from: "root.md", to: "parent.md", relation: "down" },
+					{ from: "parent.md", to: "child1.md", relation: "down" },
+					{ from: "parent.md", to: "child2.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where max(from down depth 1, priority) = 3`,
+				graph,
+				"root.md"
+			);
+
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("parent.md");
+		});
+
+		it("should evaluate any() correctly", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "parent.md", properties: {} },
+					{ path: "child1.md", properties: { status: "done" } },
+					{ path: "child2.md", properties: { status: "pending" } },
+				],
+				edges: [
+					{ from: "root.md", to: "parent.md", relation: "down" },
+					{ from: "parent.md", to: "child1.md", relation: "down" },
+					{ from: "parent.md", to: "child2.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where any(from down depth 1, status = "done")`,
+				graph,
+				"root.md"
+			);
+
+			// parent has at least one child with status "done"
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("parent.md");
+		});
+
+		it("should evaluate all() correctly", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "parent1.md", properties: {} },
+					{ path: "child1.md", properties: { status: "done" } },
+					{ path: "child2.md", properties: { status: "done" } },
+					{ path: "parent2.md", properties: {} },
+					{ path: "child3.md", properties: { status: "done" } },
+					{ path: "child4.md", properties: { status: "pending" } },
+				],
+				edges: [
+					{ from: "root.md", to: "parent1.md", relation: "down" },
+					{ from: "root.md", to: "parent2.md", relation: "down" },
+					{ from: "parent1.md", to: "child1.md", relation: "down" },
+					{ from: "parent1.md", to: "child2.md", relation: "down" },
+					{ from: "parent2.md", to: "child3.md", relation: "down" },
+					{ from: "parent2.md", to: "child4.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where all(from down depth 1, status = "done")`,
+				graph,
+				"root.md"
+			);
+
+			// Only parent1 has all children with status "done"
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("parent1.md");
+			expect(paths).not.toContain("parent2.md");
+		});
+
+		it("should ignore null values in sum", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "parent.md", properties: {} },
+					{ path: "child1.md", properties: { value: 10 } },
+					{ path: "child2.md", properties: { value: null } },
+					{ path: "child3.md", properties: {} }, // value undefined
+				],
+				edges: [
+					{ from: "root.md", to: "parent.md", relation: "down" },
+					{ from: "parent.md", to: "child1.md", relation: "down" },
+					{ from: "parent.md", to: "child2.md", relation: "down" },
+					{ from: "parent.md", to: "child3.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where sum(from down depth 1, value) = 10`,
+				graph,
+				"root.md"
+			);
+
+			// Sum should be 10 (ignoring null and undefined)
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("parent.md");
+		});
+
+		it("should return 0 for count with no children", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "leaf.md", properties: {} },
+				],
+				edges: [
+					{ from: "root.md", to: "leaf.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where count(from down depth 1) = 0`,
+				graph,
+				"root.md"
+			);
+
+			// leaf has no children, so count is 0
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("leaf.md");
+		});
+
+		it("should aggregate over full tree (not just direct children)", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "parent.md", properties: {} },
+					{ path: "child.md", properties: {} },
+					{ path: "grandchild.md", properties: {} },
+				],
+				edges: [
+					{ from: "root.md", to: "parent.md", relation: "down" },
+					{ from: "parent.md", to: "child.md", relation: "down" },
+					{ from: "child.md", to: "grandchild.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down depth 1 where count(from down depth unlimited) = 2`,
+				graph,
+				"root.md"
+			);
+
+			// parent has 2 descendants (child + grandchild)
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("parent.md");
+		});
+	});
+
 	describe("Extend with circular references", () => {
 		it("should not infinite loop on circular extend (Group A extends Group B extends Group A)", () => {
 			// Create a graph with hierarchy

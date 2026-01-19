@@ -10,6 +10,8 @@ import type {
 	RelationSpec,
 	SortKey,
 	DisplayClause,
+	AggregateExpr,
+	BareIdentifier,
 } from "./ast";
 import type {Span} from "./tokens";
 import {ValidationError, ValidationErrors} from "./errors";
@@ -137,6 +139,10 @@ export class Validator {
 				this.validateFunctionCall(expr);
 				break;
 
+			case "aggregate":
+				this.validateAggregate(expr);
+				break;
+
 			case "property":
 				this.validatePropertyAccess(expr);
 				break;
@@ -192,6 +198,86 @@ export class Validator {
 		for (const arg of call.args) {
 			this.validateExpr(arg);
 		}
+	}
+
+	private validateAggregate(expr: AggregateExpr): void {
+		// Validate source based on type
+		if (expr.source.type === "groupRef") {
+			// Explicit group("Name") - must exist
+			if (!this.ctx.hasGroup(expr.source.name)) {
+				this.addError(
+					`Unknown group: ${expr.source.name}`,
+					expr.source.span,
+					"UNKNOWN_GROUP"
+				);
+			}
+		} else if (expr.source.type === "inlineFrom") {
+			// Explicit from ... - validate relations
+			for (const rel of expr.source.relations) {
+				if (!this.ctx.hasRelation(rel.name)) {
+					this.addError(
+						`Unknown relation: ${rel.name}`,
+						rel.span,
+						"UNKNOWN_RELATION"
+					);
+				}
+			}
+		} else if (expr.source.type === "bareIdentifier") {
+			// Bare identifier - resolve and check for ambiguity
+			this.validateBareIdentifier(expr.source);
+		}
+
+		// Validate property if present
+		if (expr.property) {
+			this.validatePropertyAccess(expr.property);
+		}
+
+		// Validate condition if present
+		if (expr.condition) {
+			this.validateExpr(expr.condition);
+		}
+
+		// Check function-specific requirements
+		const needsProperty = ["sum", "avg", "min", "max"].includes(expr.func);
+		const needsCondition = ["any", "all"].includes(expr.func);
+
+		if (needsProperty && !expr.property) {
+			this.addError(
+				`${expr.func}() requires a property argument`,
+				expr.span,
+				"INVALID_ARITY"
+			);
+		}
+		if (needsCondition && !expr.condition) {
+			this.addError(
+				`${expr.func}() requires a condition argument`,
+				expr.span,
+				"INVALID_ARITY"
+			);
+		}
+	}
+
+	private validateBareIdentifier(ident: BareIdentifier): void {
+		const name = ident.name;
+		const isGroup = this.ctx.hasGroup(name);
+		const isRelation = this.ctx.hasRelation(name);
+
+		if (isGroup && isRelation) {
+			// Ambiguous - error with helpful message
+			this.addError(
+				`"${name}" is both a group and a relation. Use group("${name}") or \`from ${name}\` to disambiguate.`,
+				ident.span,
+				"AMBIGUOUS_IDENTIFIER"
+			);
+		} else if (!isGroup && !isRelation) {
+			// Unknown
+			this.addError(
+				`Unknown group or relation: ${name}`,
+				ident.span,
+				"UNKNOWN_IDENTIFIER"
+			);
+		}
+		// If only one matches, validation passes - executor will resolve
 	}
 
 	private validatePropertyAccess(prop: PropertyAccess): void {

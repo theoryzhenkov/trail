@@ -77,6 +77,7 @@ export type Expr =
 	| FunctionCall
 	| PropertyAccess
 	| DateExpr
+	| AggregateExpr
 	| Literal;
 
 /**
@@ -171,6 +172,59 @@ export interface DateExpr {
 	offset?: {op: "+" | "-"; duration: DurationLiteral};
 	span: Span;
 }
+
+// ============================================================================
+// Aggregate Expressions
+// ============================================================================
+
+/**
+ * Aggregate function type
+ */
+export type AggregateFunc = "count" | "sum" | "avg" | "min" | "max" | "any" | "all";
+
+/**
+ * Aggregate expression - executes a subquery and computes a value over results
+ */
+export interface AggregateExpr {
+	type: "aggregate";
+	func: AggregateFunc;
+	source: GroupRefExpr | InlineFrom | BareIdentifier;
+	property?: PropertyAccess;  // For sum, avg, min, max
+	condition?: Expr;           // For any, all
+	span: Span;
+}
+
+/**
+ * Explicit group reference via group("Name") syntax
+ */
+export interface GroupRefExpr {
+	type: "groupRef";
+	name: string;
+	span: Span;
+}
+
+/**
+ * Inline FROM clause for aggregate traversal
+ */
+export interface InlineFrom {
+	type: "inlineFrom";
+	relations: RelationSpec[];
+	span: Span;
+}
+
+/**
+ * Bare identifier - resolved to group or relation at validation time
+ */
+export interface BareIdentifier {
+	type: "bareIdentifier";
+	name: string;
+	span: Span;
+}
+
+/**
+ * Union type for aggregate source
+ */
+export type AggregateSource = GroupRefExpr | InlineFrom | BareIdentifier;
 
 // ============================================================================
 // Literals
@@ -314,4 +368,20 @@ export function isNullLiteral(expr: Expr): expr is NullLiteral {
 
 export function isDurationLiteral(expr: Expr): expr is DurationLiteral {
 	return expr.type === "duration";
+}
+
+export function isAggregateExpr(expr: Expr): expr is AggregateExpr {
+	return expr.type === "aggregate";
+}
+
+export function isGroupRefExpr(source: AggregateSource): source is GroupRefExpr {
+	return source.type === "groupRef";
+}
+
+export function isInlineFrom(source: AggregateSource): source is InlineFrom {
+	return source.type === "inlineFrom";
+}
+
+export function isBareIdentifier(source: AggregateSource): source is BareIdentifier {
+	return source.type === "bareIdentifier";
 }
