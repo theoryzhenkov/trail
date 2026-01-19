@@ -78,12 +78,10 @@ export const fileFunctions: Record<string, BuiltinFunction> = {
 		maxArity: 1,
 		call: (args: Value[], ctx: FunctionContext): Value => {
 			const target = toString(args[0] ?? null);
-			const props = ctx.getProperties(ctx.filePath);
-			const links = props["file.links"];
-			if (!Array.isArray(links)) return false;
-			return links.some((link) => {
-				const linkStr = toString(link);
-				return linkStr === target || linkStr.endsWith("/" + target) || linkStr.endsWith(target + ".md");
+			const metadata = ctx.getFileMetadata(ctx.filePath);
+			if (!metadata) return false;
+			return metadata.links.some((link) => {
+				return link === target || link.endsWith("/" + target) || link.endsWith(target + ".md");
 			});
 		},
 	},
@@ -95,9 +93,9 @@ export const fileFunctions: Record<string, BuiltinFunction> = {
 		minArity: 0,
 		maxArity: 0,
 		call: (_args: Value[], ctx: FunctionContext): Value => {
-			const props = ctx.getProperties(ctx.filePath);
-			const backlinks = props["file.backlinks"];
-			return Array.isArray(backlinks) ? backlinks : [];
+			const metadata = ctx.getFileMetadata(ctx.filePath);
+			if (!metadata) return [];
+			return metadata.backlinks;
 		},
 	},
 
@@ -108,9 +106,9 @@ export const fileFunctions: Record<string, BuiltinFunction> = {
 		minArity: 0,
 		maxArity: 0,
 		call: (_args: Value[], ctx: FunctionContext): Value => {
-			const props = ctx.getProperties(ctx.filePath);
-			const links = props["file.links"];
-			return Array.isArray(links) ? links : [];
+			const metadata = ctx.getFileMetadata(ctx.filePath);
+			if (!metadata) return [];
+			return metadata.links;
 		},
 	},
 };

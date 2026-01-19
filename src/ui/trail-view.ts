@@ -9,7 +9,7 @@ import {
 	renderPropertyBadges,
 	createCollapsibleSection
 } from "./renderers";
-import {parse, execute, createValidationContext, validate, TQLError} from "../query";
+import {parse, execute, createValidationContext, validate, TQLError, getCache} from "../query";
 import type {QueryResult, QueryResultNode} from "../query";
 
 export const TRAIL_VIEW_TYPE = "trail-view";
@@ -257,6 +257,13 @@ export class TrailView extends ItemView {
 	}
 
 	private executeTqlQuery(query: string, filePath: string): QueryResult {
+		// Check cache first
+		const cache = getCache();
+		const cached = cache.getResult(query, filePath);
+		if (cached) {
+			return cached;
+		}
+
 		const ast = parse(query);
 		const relationNames = this.plugin.settings.relations.map(r => r.name);
 		const groupNames = this.plugin.settings.tqlGroups
@@ -273,7 +280,12 @@ export class TrailView extends ItemView {
 		const validated = validate(ast, validationCtx);
 
 		const queryCtx = this.createQueryContext(filePath);
-		return execute(validated, queryCtx);
+		const result = execute(validated, queryCtx);
+
+		// Store result in cache
+		cache.setResult(query, filePath, result);
+
+		return result;
 	}
 
 	private createQueryContext(filePath: string) {
@@ -296,7 +308,22 @@ export class TrailView extends ItemView {
 			getFileMetadata: (path: string) => {
 				const file = this.plugin.app.vault.getAbstractFileByPath(path);
 				if (!(file instanceof TFile)) return undefined;
-				const cache = this.plugin.app.metadataCache.getFileCache(file);
+				const metadataCache = this.plugin.app.metadataCache;
+				const fileCache = metadataCache.getFileCache(file);
+				
+				// Get outgoing links from file cache
+				const links = fileCache?.links?.map(l => l.link) ?? [];
+				
+				// Get backlinks by scanning resolvedLinks
+				const backlinks: string[] = [];
+				const resolvedLinks = metadataCache.resolvedLinks;
+				for (const sourcePath in resolvedLinks) {
+					const targets = resolvedLinks[sourcePath];
+					if (targets && path in targets) {
+						backlinks.push(sourcePath);
+					}
+				}
+				
 				return {
 					name: file.basename,
 					path: file.path,
@@ -304,7 +331,9 @@ export class TrailView extends ItemView {
 					created: new Date(file.stat.ctime),
 					modified: new Date(file.stat.mtime),
 					size: file.stat.size,
-					tags: cache?.tags?.map(t => t.tag) ?? [],
+					tags: fileCache?.tags?.map(t => t.tag) ?? [],
+					links,
+					backlinks,
 				};
 			},
 			getRelationNames: () => settings.relations.map(r => r.name),

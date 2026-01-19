@@ -29,12 +29,21 @@ export interface MockEdge {
 }
 
 /**
+ * Mock group for testing extend functionality
+ */
+export interface MockGroup {
+	name: string;
+	query: ValidatedQuery;
+}
+
+/**
  * Mock graph for testing
  */
 export interface MockGraph {
 	files: MockFile[];
 	edges: MockEdge[];
 	relations?: string[];
+	groups?: MockGroup[];
 }
 
 /**
@@ -121,6 +130,8 @@ export function createMockContext(
 				modified: new Date("2024-01-01"),
 				size: 1000,
 				tags: [],
+				links: [],
+				backlinks: [],
 				...file.metadata,
 			};
 		},
@@ -137,7 +148,8 @@ export function createMockContext(
 		},
 
 		resolveGroupQuery(name: string): ValidatedQuery | undefined {
-			return undefined;
+			const group = graph.groups?.find(g => g.name === name);
+			return group?.query;
 		},
 	};
 }

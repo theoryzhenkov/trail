@@ -30,6 +30,10 @@ export interface FileMetadata {
 	modified: Date;
 	size: number;
 	tags: string[];
+	/** Outgoing links from this file */
+	links: string[];
+	/** Incoming links (backlinks) to this file */
+	backlinks: string[];
 }
 
 /**

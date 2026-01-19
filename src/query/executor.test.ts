@@ -6,18 +6,29 @@ import { describe, it, expect } from "vitest";
 import { parse } from "./parser";
 import { validate, createValidationContext } from "./validator";
 import { execute } from "./executor";
-import { createMockContext, TestGraphs, collectPaths, type MockGraph } from "./test-utils";
+import { createMockContext, TestGraphs, collectPaths, type MockGraph, type MockGroup } from "./test-utils";
 
 /**
  * Helper to run a query and get results
  */
 function runQuery(query: string, graph: MockGraph, activeFile: string) {
 	const relations = graph.relations ?? ["up", "down", "next", "prev"];
-	const validationCtx = createValidationContext(relations, []);
+	const groupNames = graph.groups?.map(g => g.name) ?? [];
+	const validationCtx = createValidationContext(relations, groupNames);
 	const ast = parse(query);
 	const validated = validate(ast, validationCtx);
 	const ctx = createMockContext(graph, activeFile);
 	return execute(validated, ctx);
+}
+
+/**
+ * Helper to create a validated query for mock groups
+ */
+function createMockGroup(name: string, queryStr: string, relations: string[], groupNames: string[]): MockGroup {
+	const ast = parse(queryStr);
+	const validationCtx = createValidationContext(relations, groupNames);
+	const validated = validate(ast, validationCtx);
+	return { name, query: validated };
 }
 
 describe("TQL Executor", () => {
@@ -324,6 +335,140 @@ describe("TQL Executor", () => {
 				expect(node.displayProperties).toContain("name");
 				expect(node.displayProperties).toContain("age");
 			}
+		});
+	});
+
+	describe("Extend with circular references", () => {
+		it("should not infinite loop on circular extend (Group A extends Group B extends Group A)", () => {
+			// Create a graph with hierarchy
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "child1.md", properties: {} },
+					{ path: "child2.md", properties: {} },
+					{ path: "grandchild.md", properties: {} },
+				],
+				edges: [
+					{ from: "root.md", to: "child1.md", relation: "down" },
+					{ from: "root.md", to: "child2.md", relation: "down" },
+					{ from: "child1.md", to: "grandchild.md", relation: "down" },
+					{ from: "child1.md", to: "root.md", relation: "up" },
+					{ from: "child2.md", to: "root.md", relation: "up" },
+					{ from: "grandchild.md", to: "child1.md", relation: "up" },
+				],
+				relations: ["up", "down"],
+				groups: [],
+			};
+
+			// Create circular group references: GroupA extends GroupB, GroupB extends GroupA
+			const groupA = createMockGroup(
+				"GroupA",
+				`group "GroupA" from down depth 1 extend GroupB`,
+				["up", "down"],
+				["GroupA", "GroupB"]
+			);
+			const groupB = createMockGroup(
+				"GroupB",
+				`group "GroupB" from down depth 1 extend GroupA`,
+				["up", "down"],
+				["GroupA", "GroupB"]
+			);
+			graph.groups = [groupA, groupB];
+
+			// This should complete without infinite loop
+			// The cycle detection via ancestorPaths should prevent revisiting nodes
+			const result = runQuery(
+				`group "Test" from down depth 1 extend GroupA`,
+				graph,
+				"root.md"
+			);
+
+			expect(result.visible).toBe(true);
+			// Should have traversed some nodes without hanging
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("child1.md");
+			expect(paths).toContain("child2.md");
+		});
+
+		it("should skip already-visited nodes within same traversal path", () => {
+			// Graph with a cycle: root -> a -> b -> a (cycle)
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "a.md", properties: {} },
+					{ path: "b.md", properties: {} },
+				],
+				edges: [
+					{ from: "root.md", to: "a.md", relation: "down" },
+					{ from: "a.md", to: "b.md", relation: "down" },
+					{ from: "b.md", to: "a.md", relation: "down" }, // Creates cycle
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			// Group that traverses down unlimited
+			const childrenGroup = createMockGroup(
+				"Children",
+				`group "Children" from down depth unlimited`,
+				["down"],
+				["Children"]
+			);
+			graph.groups = [childrenGroup];
+
+			// Query with extend - should not infinite loop due to cycle
+			const result = runQuery(
+				`group "Test" from down depth unlimited`,
+				graph,
+				"root.md"
+			);
+
+			expect(result.visible).toBe(true);
+			const paths = collectPaths(result.results);
+			
+			// Both nodes should be visited
+			expect(paths).toContain("a.md");
+			expect(paths).toContain("b.md");
+			
+			// Each node should only appear once due to cycle detection
+			const aCount = paths.filter(p => p === "a.md").length;
+			const bCount = paths.filter(p => p === "b.md").length;
+			expect(aCount).toBe(1);
+			expect(bCount).toBe(1);
+		});
+
+		it("should handle self-referencing extend gracefully", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "child.md", properties: {} },
+				],
+				edges: [
+					{ from: "root.md", to: "child.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			// Group that extends itself
+			const selfRefGroup = createMockGroup(
+				"SelfRef",
+				`group "SelfRef" from down depth 1 extend SelfRef`,
+				["down"],
+				["SelfRef"]
+			);
+			graph.groups = [selfRefGroup];
+
+			// Should complete without infinite loop
+			const result = runQuery(
+				`group "Test" from down depth 1 extend SelfRef`,
+				graph,
+				"root.md"
+			);
+
+			expect(result.visible).toBe(true);
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("child.md");
 		});
 	});
 });
