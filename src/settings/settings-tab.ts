@@ -496,7 +496,20 @@ export class TrailSettingTab extends PluginSettingTab {
 			});
 
 		// When condition (optional) - controls group visibility based on current note
-		this.renderVisualWhenCondition(content, visual, group, nameSpan, errorContainer);
+		this.renderVisualCondition(content, visual, group, nameSpan, errorContainer, {
+			field: "when",
+			title: "Show when",
+			description: "Only show this group when the current note matches this condition (optional).",
+			emptyDescription: "No condition set. Group always visible.",
+		});
+
+		// Where condition (optional) - filters results
+		this.renderVisualCondition(content, visual, group, nameSpan, errorContainer, {
+			field: "where",
+			title: "Filter results",
+			description: "Only include results where this condition is true (optional).",
+			emptyDescription: "No filter set. All results shown.",
+		});
 
 		// Sort (optional)
 		new Setting(content)
@@ -547,39 +560,47 @@ export class TrailSettingTab extends PluginSettingTab {
 			});
 	}
 
-	private renderVisualWhenCondition(
+	private renderVisualCondition(
 		content: HTMLElement,
 		visual: VisualQuery,
 		group: GroupDefinition,
 		nameSpan: HTMLElement,
-		errorContainer: HTMLElement
+		errorContainer: HTMLElement,
+		options: {
+			field: "when" | "where";
+			title: string;
+			description: string;
+			emptyDescription: string;
+		}
 	) {
-		const section = content.createDiv({cls: "trail-visual-when"});
+		const section = content.createDiv({cls: `trail-visual-${options.field}`});
 		
 		new Setting(section)
-			.setName("Show when")
-			.setDesc("Only show this group when the current note matches this condition (optional).")
+			.setName(options.title)
+			.setDesc(options.description)
 			.setHeading();
 
-		const hasCondition = Boolean(visual.when);
+		const condition = visual[options.field];
+		const hasCondition = Boolean(condition);
 		
-		if (hasCondition && visual.when) {
+		if (hasCondition && condition) {
 			const conditionEl = section.createDiv({cls: "trail-visual-condition"});
+			const isExistenceCheck = condition.operator === "exists" || condition.operator === "notExists";
 			
 			new Setting(conditionEl)
 				.addText((text) => {
 					text
-						.setValue(visual.when?.property ?? "")
+						.setValue(condition.property ?? "")
 						.setPlaceholder("Property")
 						.onChange((value) => {
-							if (visual.when) {
-								visual.when.property = value;
-								this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
-							}
+							condition.property = value;
+							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
 						});
 				})
 				.addDropdown((dropdown) => {
 					dropdown
+						.addOption("exists", "exists")
+						.addOption("notExists", "not exists")
 						.addOption("=", "=")
 						.addOption("!=", "!=")
 						.addOption("<", "<")
@@ -587,33 +608,35 @@ export class TrailSettingTab extends PluginSettingTab {
 						.addOption("<=", "<=")
 						.addOption(">=", ">=")
 						.addOption("contains", "contains")
-						.setValue(visual.when?.operator ?? "=")
+						.setValue(condition.operator ?? "exists")
 						.onChange((value) => {
-							if (visual.when) {
-								visual.when.operator = value as VisualCondition["operator"];
-								this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+							condition.operator = value as VisualCondition["operator"];
+							// Clear value for existence checks
+							if (value === "exists" || value === "notExists") {
+								condition.value = undefined;
 							}
+							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+							this.display();
 						});
 				})
 				.addText((text) => {
-					const valueStr = visual.when?.value === undefined ? "" : String(visual.when.value);
+					const valueStr = condition.value === undefined ? "" : String(condition.value);
 					text
 						.setValue(valueStr)
 						.setPlaceholder("Value")
+						.setDisabled(isExistenceCheck)
 						.onChange((value) => {
-							if (visual.when) {
-								// Try to parse as number or boolean
-								if (value === "true") {
-									visual.when.value = true;
-								} else if (value === "false") {
-									visual.when.value = false;
-								} else if (!isNaN(Number(value)) && value.trim() !== "") {
-									visual.when.value = Number(value);
-								} else {
-									visual.when.value = value;
-								}
-								this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
+							// Try to parse as number or boolean
+							if (value === "true") {
+								condition.value = true;
+							} else if (value === "false") {
+								condition.value = false;
+							} else if (!isNaN(Number(value)) && value.trim() !== "") {
+								condition.value = Number(value);
+							} else {
+								condition.value = value;
 							}
+							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
 						});
 				})
 				.addExtraButton((btn) => {
@@ -621,19 +644,28 @@ export class TrailSettingTab extends PluginSettingTab {
 						.setIcon("x")
 						.setTooltip("Remove condition")
 						.onClick(() => {
-							visual.when = undefined;
+							if (options.field === "when") {
+								visual.when = undefined;
+							} else {
+								visual.where = undefined;
+							}
 							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
 							this.display();
 						});
 				});
 		} else {
 			new Setting(section)
-				.setDesc("No condition set. Group always visible.")
+				.setDesc(options.emptyDescription)
 				.addButton((btn) => {
 					btn
 						.setButtonText("Add condition")
 						.onClick(() => {
-							visual.when = {property: "", operator: "=", value: ""};
+							const newCondition: VisualCondition = {property: "type", operator: "exists"};
+							if (options.field === "when") {
+								visual.when = newCondition;
+							} else {
+								visual.where = newCondition;
+							}
 							this.updateGroupFromVisual(group, visual, nameSpan, errorContainer);
 							this.display();
 						});

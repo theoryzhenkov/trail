@@ -27,8 +27,8 @@ export interface VisualRelation {
 
 export interface VisualCondition {
 	property: string;
-	operator: "=" | "!=" | "<" | ">" | "<=" | ">=" | "contains";
-	value: string | number | boolean;
+	operator: "=" | "!=" | "<" | ">" | "<=" | ">=" | "contains" | "exists" | "notExists";
+	value?: string | number | boolean;
 }
 
 export interface VisualSortKey {
@@ -77,16 +77,19 @@ function canVisualizeQuery(ast: Query): boolean {
 }
 
 /**
- * Check if an expression is a simple comparison
+ * Check if an expression is a simple comparison or existence check
  */
 function isSimpleCondition(expr: Expr): boolean {
+	// Simple property access (existence check like `when gender`)
+	if (expr.type === "property") return true;
+	
 	if (expr.type !== "compare") return false;
 	
 	// Left must be a simple property access
 	if (expr.left.type !== "property") return false;
 	
-	// Right must be a literal
-	if (!["string", "number", "boolean"].includes(expr.right.type)) return false;
+	// Right must be a literal (including null for existence checks)
+	if (!["string", "number", "boolean", "null"].includes(expr.right.type)) return false;
 	
 	return true;
 }
@@ -116,10 +119,31 @@ export function parseToVisual(query: string): VisualQuery | null {
 }
 
 function parseConditionClause(expr?: Expr): VisualCondition | undefined {
-	if (!expr || expr.type !== "compare") return undefined;
+	if (!expr) return undefined;
+	
+	// Handle simple property access (e.g., `when gender`) as existence check
+	if (expr.type === "property") {
+		return {
+			property: expr.path.join("."),
+			operator: "exists",
+		};
+	}
+	
+	if (expr.type !== "compare") return undefined;
 	if (expr.left.type !== "property") return undefined;
 	
 	const property = expr.left.path.join(".");
+	
+	// Handle null comparisons for exists/notExists
+	if (expr.right.type === "null") {
+		if (expr.op === "=" || expr.op === "=?") {
+			return {property, operator: "notExists"};
+		} else if (expr.op === "!=" || expr.op === "!=?") {
+			return {property, operator: "exists"};
+		}
+		return undefined;
+	}
+	
 	let operator: VisualCondition["operator"] = "=";
 	
 	switch (expr.op) {
@@ -162,6 +186,25 @@ function parseDisplayClause(display?: Query["display"]): string[] | undefined {
 }
 
 /**
+ * Format a condition for TQL output
+ */
+function formatCondition(condition: VisualCondition): string {
+	const {property, operator, value} = condition;
+	
+	// Existence checks
+	if (operator === "exists") {
+		return property;
+	}
+	if (operator === "notExists") {
+		return `${property} = null`;
+	}
+	
+	// Regular comparisons
+	const valueStr = typeof value === "string" ? `"${value}"` : String(value ?? "");
+	return `${property} ${operator} ${valueStr}`;
+}
+
+/**
  * Generate TQL from a visual representation
  */
 export function visualToQuery(visual: VisualQuery): string {
@@ -179,16 +222,12 @@ export function visualToQuery(visual: VisualQuery): string {
 	
 	// WHEN clause (condition on current note for visibility)
 	if (visual.when && visual.when.property) {
-		const {property, operator, value} = visual.when;
-		const valueStr = typeof value === "string" ? `"${value}"` : String(value);
-		lines.push(`when ${property} ${operator} ${valueStr}`);
+		lines.push(`when ${formatCondition(visual.when)}`);
 	}
 	
 	// WHERE clause (filter on results)
 	if (visual.where && visual.where.property) {
-		const {property, operator, value} = visual.where;
-		const valueStr = typeof value === "string" ? `"${value}"` : String(value);
-		lines.push(`where ${property} ${operator} ${valueStr}`);
+		lines.push(`where ${formatCondition(visual.where)}`);
 	}
 	
 	// SORT clause
