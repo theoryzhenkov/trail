@@ -297,14 +297,14 @@ export class RelationsTabRenderer {
 			}
 		}
 
-		const options = this.getRelationOptions(relation.name);
+		const options = this.getRelationOptions();
 		if (options.length > 0) {
 			new Setting(section)
 				.addButton((button) => {
 					button.setButtonText("Add implied relation").onClick(() => {
 						relation.impliedRelations.push({
-							targetRelation: options[0] ?? "",
-							direction: "forward"
+							targetRelation: relation.name || (options[0] ?? ""),
+							direction: "reverse"
 						});
 						void this.plugin.saveSettings();
 						this.display();
@@ -328,7 +328,7 @@ export class RelationsTabRenderer {
 
 		setting
 			.addDropdown((dropdown) => {
-				const options = this.getRelationOptions(relation.name);
+				const options = this.getRelationOptions();
 				for (const option of options) {
 					dropdown.addOption(option, option);
 				}
@@ -363,10 +363,10 @@ export class RelationsTabRenderer {
 			});
 	}
 
-	private getRelationOptions(excludeName: string): string[] {
+	private getRelationOptions(): string[] {
 		return this.plugin.settings.relations
 			.map((r) => r.name)
-			.filter((name) => name.length > 0 && name !== excludeName);
+			.filter((name) => name.length > 0);
 	}
 
 	private isDuplicateRelationName(name: string, currentIndex: number): boolean {
