@@ -195,7 +195,7 @@ describe("applyImpliedRules", () => {
 		});
 	});
 
-	describe("sibling direction", () => {
+	describe("sibling direction (up-style: shared target)", () => {
 		it("should create sibling edges between nodes sharing same target", () => {
 			const edges = [
 				edge("Child1.md", "Parent.md", "up"),
@@ -242,6 +242,295 @@ describe("applyImpliedRules", () => {
 			const result = applyImpliedRules(edges, relations);
 
 			expect(result).toHaveLength(1);
+		});
+	});
+
+	describe("sibling direction (down-style: shared source)", () => {
+		it("should create sibling edges between targets sharing same source", () => {
+			// This is the key test for issue #9: down relations creating siblings
+			// Parent -> B and Parent -> C means B and C are siblings
+			const edges = [
+				edge("Parent.md", "B.md", "down"),
+				edge("Parent.md", "C.md", "down")
+			];
+			const relations = [
+				relation("down", [{targetRelation: "same", direction: "sibling"}])
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			expect(result).toHaveLength(4);
+			expect(hasEdge(result, "Parent.md", "B.md", "down")).toBe(true);
+			expect(hasEdge(result, "Parent.md", "C.md", "down")).toBe(true);
+			expect(hasEdge(result, "B.md", "C.md", "same")).toBe(true);
+			expect(hasEdge(result, "C.md", "B.md", "same")).toBe(true);
+
+			// Verify implied edges are marked correctly
+			const impliedEdges = result.filter((e) => e.implied);
+			expect(impliedEdges).toHaveLength(2);
+			for (const ie of impliedEdges) {
+				expect(ie.impliedFrom).toBe("down");
+			}
+		});
+
+		it("should create sibling edges for three or more children from same parent", () => {
+			const edges = [
+				edge("Parent.md", "A.md", "down"),
+				edge("Parent.md", "B.md", "down"),
+				edge("Parent.md", "C.md", "down")
+			];
+			const relations = [
+				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			// 3 original + 6 sibling edges (3 pairs, bidirectional)
+			expect(result).toHaveLength(9);
+			expect(hasEdge(result, "A.md", "B.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "B.md", "A.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "A.md", "C.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "C.md", "A.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "B.md", "C.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "C.md", "B.md", "sibling")).toBe(true);
+		});
+
+		it("should not create sibling edges for single child from parent", () => {
+			const edges = [edge("Parent.md", "OnlyChild.md", "down")];
+			const relations = [
+				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			expect(result).toHaveLength(1);
+		});
+
+		it("should handle multiple parents with their own children", () => {
+			// Parent1 -> A, B and Parent2 -> C, D
+			// A and B should be siblings, C and D should be siblings
+			// but A and C should NOT be siblings (different parents)
+			const edges = [
+				edge("Parent1.md", "A.md", "down"),
+				edge("Parent1.md", "B.md", "down"),
+				edge("Parent2.md", "C.md", "down"),
+				edge("Parent2.md", "D.md", "down")
+			];
+			const relations = [
+				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			// 4 original + 4 sibling edges (2 pairs from each parent, bidirectional)
+			expect(result).toHaveLength(8);
+			
+			// Parent1's children are siblings
+			expect(hasEdge(result, "A.md", "B.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "B.md", "A.md", "sibling")).toBe(true);
+			
+			// Parent2's children are siblings
+			expect(hasEdge(result, "C.md", "D.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "D.md", "C.md", "sibling")).toBe(true);
+			
+			// Children from different parents are NOT siblings
+			expect(hasEdge(result, "A.md", "C.md", "sibling")).toBe(false);
+			expect(hasEdge(result, "A.md", "D.md", "sibling")).toBe(false);
+			expect(hasEdge(result, "B.md", "C.md", "sibling")).toBe(false);
+			expect(hasEdge(result, "B.md", "D.md", "sibling")).toBe(false);
+		});
+
+		it("should work with different implied relation names", () => {
+			const edges = [
+				edge("Project.md", "Task1.md", "tasks"),
+				edge("Project.md", "Task2.md", "tasks")
+			];
+			const relations = [
+				relation("tasks", [{targetRelation: "related-task", direction: "sibling"}])
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			expect(result).toHaveLength(4);
+			expect(hasEdge(result, "Task1.md", "Task2.md", "related-task")).toBe(true);
+			expect(hasEdge(result, "Task2.md", "Task1.md", "related-task")).toBe(true);
+		});
+	});
+
+	describe("sibling direction (combined up and down)", () => {
+		it("should handle both up and down sibling rules simultaneously", () => {
+			const edges = [
+				// Up-style: Children pointing to same parent
+				edge("Child1.md", "Parent.md", "up"),
+				edge("Child2.md", "Parent.md", "up"),
+				// Down-style: Parent pointing to children
+				edge("Parent.md", "Descendant1.md", "down"),
+				edge("Parent.md", "Descendant2.md", "down")
+			];
+			const relations = [
+				relation("up", [{targetRelation: "up-sibling", direction: "sibling"}]),
+				relation("down", [{targetRelation: "down-sibling", direction: "sibling"}])
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			// 4 original + 2 up-sibling + 2 down-sibling = 8
+			expect(result).toHaveLength(8);
+			
+			// Up-style siblings
+			expect(hasEdge(result, "Child1.md", "Child2.md", "up-sibling")).toBe(true);
+			expect(hasEdge(result, "Child2.md", "Child1.md", "up-sibling")).toBe(true);
+			
+			// Down-style siblings
+			expect(hasEdge(result, "Descendant1.md", "Descendant2.md", "down-sibling")).toBe(true);
+			expect(hasEdge(result, "Descendant2.md", "Descendant1.md", "down-sibling")).toBe(true);
+		});
+
+		it("should not create duplicates when same nodes appear in both styles", () => {
+			// Edge case: what if we have edges that would create the same sibling pair
+			// from both up and down directions?
+			const edges = [
+				edge("A.md", "Parent.md", "up"),
+				edge("B.md", "Parent.md", "up"),
+				edge("Parent.md", "A.md", "down"),
+				edge("Parent.md", "B.md", "down")
+			];
+			const relations = [
+				relation("up", [{targetRelation: "sibling", direction: "sibling"}]),
+				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			// 4 original + 2 sibling edges (should not duplicate from both rules)
+			expect(result).toHaveLength(6);
+			
+			// Should have exactly one edge in each direction
+			const abEdges = result.filter(
+				(e) => e.fromPath === "A.md" && e.toPath === "B.md" && e.relation === "sibling"
+			);
+			const baEdges = result.filter(
+				(e) => e.fromPath === "B.md" && e.toPath === "A.md" && e.relation === "sibling"
+			);
+			expect(abEdges).toHaveLength(1);
+			expect(baEdges).toHaveLength(1);
+		});
+	});
+
+	describe("sibling direction (nested/chained)", () => {
+		it("should handle nested hierarchy with sibling implications", () => {
+			// Grandparent -> Parent1, Parent2
+			// Parent1 -> Child1A, Child1B
+			// Parent2 -> Child2A
+			const edges = [
+				edge("Grandparent.md", "Parent1.md", "down"),
+				edge("Grandparent.md", "Parent2.md", "down"),
+				edge("Parent1.md", "Child1A.md", "down"),
+				edge("Parent1.md", "Child1B.md", "down"),
+				edge("Parent2.md", "Child2A.md", "down")
+			];
+			const relations = [
+				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			// 5 original edges
+			// + 2 sibling edges for Parent1/Parent2 (from Grandparent)
+			// + 2 sibling edges for Child1A/Child1B (from Parent1)
+			// Child2A has no siblings
+			expect(result).toHaveLength(9);
+
+			// Parents are siblings
+			expect(hasEdge(result, "Parent1.md", "Parent2.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "Parent2.md", "Parent1.md", "sibling")).toBe(true);
+
+			// Parent1's children are siblings
+			expect(hasEdge(result, "Child1A.md", "Child1B.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "Child1B.md", "Child1A.md", "sibling")).toBe(true);
+
+			// Children from different parents are NOT siblings
+			expect(hasEdge(result, "Child1A.md", "Child2A.md", "sibling")).toBe(false);
+		});
+	});
+
+	describe("regression: issue #9 - sibling implication for down relations", () => {
+		/**
+		 * Issue #9: Sibling implication doesn't work for relations
+		 * https://github.com/theoryzhenkov/trail/issues/9
+		 *
+		 * Problem: When a file has `down: [B, C]` and `down` is configured to imply
+		 * `same` between siblings, B and C should automatically have a `same` relation.
+		 * This didn't work because the original implementation only looked for edges
+		 * sharing the same TARGET (up-style), not edges sharing the same SOURCE (down-style).
+		 */
+
+		it("should create sibling relations for down: [B, C] scenario (issue #9)", () => {
+			// Exact scenario from the issue:
+			// File A has `down: [B, C]`
+			// `down` is configured to imply `same` between siblings
+			// B and C should have `same` relation between them
+			const edges = [
+				edge("A.md", "B.md", "down"),
+				edge("A.md", "C.md", "down")
+			];
+			const relations = [
+				relation("down", [{targetRelation: "same", direction: "sibling"}])
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			// Must have the implied sibling relations
+			expect(hasEdge(result, "B.md", "C.md", "same")).toBe(true);
+			expect(hasEdge(result, "C.md", "B.md", "same")).toBe(true);
+
+			// Verify they're marked as implied from "down"
+			const bcEdge = result.find(
+				(e) => e.fromPath === "B.md" && e.toPath === "C.md" && e.relation === "same"
+			);
+			expect(bcEdge?.implied).toBe(true);
+			expect(bcEdge?.impliedFrom).toBe("down");
+		});
+
+		it("should work with real-world frontmatter array pattern", () => {
+			// Real usage: frontmatter like `down: [Child1, Child2, Child3]`
+			// creates multiple edges from same parent
+			const edges = [
+				edge("Parent.md", "Child1.md", "down"),
+				edge("Parent.md", "Child2.md", "down"),
+				edge("Parent.md", "Child3.md", "down")
+			];
+			const relations = [
+				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			// All children should be siblings of each other
+			// 3 original + 6 sibling (3 pairs, bidirectional)
+			expect(result).toHaveLength(9);
+
+			// Every pair should have bidirectional sibling relation
+			expect(hasEdge(result, "Child1.md", "Child2.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "Child2.md", "Child1.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "Child1.md", "Child3.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "Child3.md", "Child1.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "Child2.md", "Child3.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "Child3.md", "Child2.md", "sibling")).toBe(true);
+		});
+
+		it("should be queryable - implied siblings appear in edge results", () => {
+			// Ensure implied edges are included in output and usable
+			const edges = [
+				edge("Parent.md", "A.md", "down"),
+				edge("Parent.md", "B.md", "down")
+			];
+			const relations = [
+				relation("down", [{targetRelation: "same", direction: "sibling"}])
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			// Filter to only "same" relations - should find the implied ones
+			const sameEdges = result.filter((e) => e.relation === "same");
+			expect(sameEdges).toHaveLength(2);
+
+			// Both directions present
+			expect(sameEdges.some((e) => e.fromPath === "A.md" && e.toPath === "B.md")).toBe(
+				true
+			);
+			expect(sameEdges.some((e) => e.fromPath === "B.md" && e.toPath === "A.md")).toBe(
+				true
+			);
 		});
 	});
 
