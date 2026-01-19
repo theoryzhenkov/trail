@@ -94,16 +94,123 @@ class Executor {
 		const traversalPath = [this.ctx.activeFilePath];
 
 		for (const relSpec of this.query.from.relations) {
-			const nodes = this.traverseRelation(
-				this.ctx.activeFilePath,
-				relSpec.name,
-				relSpec.depth === "unlimited" ? Infinity : relSpec.depth,
-				1,
-				ancestorPaths,
+			if (relSpec.flatten) {
+				// Use BFS to collect all unique reachable nodes as a flat list
+				const nodes = this.traverseFlat(
+					this.ctx.activeFilePath,
+					relSpec.name,
+					relSpec.depth === "unlimited" ? Infinity : relSpec.depth,
+					relSpec.extend
+				);
+				results.push(...nodes);
+			} else {
+				const nodes = this.traverseRelation(
+					this.ctx.activeFilePath,
+					relSpec.name,
+					relSpec.depth === "unlimited" ? Infinity : relSpec.depth,
+					1,
+					ancestorPaths,
+					traversalPath,
+					relSpec.extend
+				);
+				results.push(...nodes);
+			}
+		}
+
+		return results;
+	}
+
+	/**
+	 * Traverse relation using BFS and return flat list of unique nodes.
+	 * Used when `flatten` modifier is specified.
+	 */
+	private traverseFlat(
+		startPath: string,
+		relation: string,
+		maxDepth: number,
+		extendGroup?: string
+	): QueryResultNode[] {
+		const visited = new Set<string>([startPath]);
+		const results: QueryResultNode[] = [];
+
+		// BFS queue: [path, currentDepth, parent]
+		const queue: Array<{path: string; depth: number; parent: string}> = [];
+
+		// Initialize with direct neighbors
+		const initialEdges = this.ctx.getOutgoingEdges(startPath, relation);
+		for (const edge of initialEdges) {
+			if (!visited.has(edge.toPath)) {
+				visited.add(edge.toPath);
+				queue.push({path: edge.toPath, depth: 1, parent: startPath});
+			}
+		}
+
+		while (queue.length > 0) {
+			const item = queue.shift()!;
+			const {path, depth, parent} = item;
+
+			const props = this.ctx.getProperties(path);
+			const traversalPath = [startPath, path];
+			
+			// Build traversal context for expression evaluation
+			const traversalCtx: TraversalContext = {
+				depth: 1, // Always depth 1 in flattened output
+				relation,
+				isImplied: false,
+				parent,
+				path: traversalPath,
+			};
+
+			// Apply PRUNE filter
+			if (this.query.prune) {
+				const pruneResult = this.evaluateExpr(this.query.prune, path, props, traversalCtx);
+				if (this.isTruthy(pruneResult)) {
+					continue; // Skip this node (but we've already marked it visited)
+				}
+			}
+
+			// Get the actual edge to preserve implied status
+			const edges = this.ctx.getOutgoingEdges(parent, relation);
+			const edge = edges.find(e => e.toPath === path);
+			const implied = edge?.implied ?? false;
+			const impliedFrom = edge?.impliedFrom;
+
+			const visualDirection = this.ctx.getVisualDirection(relation);
+
+			results.push({
+				path,
+				relation,
+				depth: 1, // Flattened: all nodes at depth 1
+				implied,
+				impliedFrom,
+				parent: startPath, // All nodes have the start path as parent in flat view
 				traversalPath,
-				relSpec.extend
-			);
-			results.push(...nodes);
+				properties: props,
+				displayProperties: [],
+				visualDirection,
+				hasFilteredAncestor: false,
+				children: [], // No children in flattened output
+			});
+
+			// Continue BFS if we haven't reached max depth
+			if (depth < maxDepth) {
+				const nextEdges = this.ctx.getOutgoingEdges(path, relation);
+				for (const nextEdge of nextEdges) {
+					if (!visited.has(nextEdge.toPath)) {
+						visited.add(nextEdge.toPath);
+						queue.push({path: nextEdge.toPath, depth: depth + 1, parent: path});
+					}
+				}
+			}
+		}
+
+		// Handle extend at the end if specified
+		if (extendGroup && results.length > 0) {
+			// For flatten, we don't extend - the nodes are already flat
+			// Extend would create nested structure which contradicts flatten
+			this.warnings.push({
+				message: `'extend' is ignored when 'flatten' is used on relation '${relation}'`
+			});
 		}
 
 		return results;

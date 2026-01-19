@@ -40,6 +40,7 @@ export interface RelationSpec {
 	name: string;
 	depth: number | "unlimited";
 	extend?: string;
+	flatten?: boolean;
 	span: Span;
 }
 

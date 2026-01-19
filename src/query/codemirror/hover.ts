@@ -113,6 +113,15 @@ const KEYWORD_DOCS: Record<string, KeywordDoc> = {
 			'from up extend "My Group" depth 5',
 		],
 	},
+	flatten: {
+		title: "flatten modifier",
+		description: "Output all reachable nodes as a flat list at depth 1, instead of a nested tree structure. Useful for symmetric relations like 'same' that form cliques.",
+		syntax: "Relation [depth N|unlimited] flatten",
+		examples: [
+			"from same depth unlimited flatten",
+			"from down depth 2 flatten",
+		],
+	},
 	and: {
 		title: "AND operator",
 		description: "Logical AND. Both conditions must be true.",

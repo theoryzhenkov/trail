@@ -100,9 +100,10 @@ export class Parser {
 
 		let depth: number | "unlimited" = "unlimited";
 		let extend: string | undefined;
+		let flatten: boolean | undefined;
 
 		// Parse modifiers in any order
-		while (this.check(TokenType.Depth) || this.check(TokenType.Extend)) {
+		while (this.check(TokenType.Depth) || this.check(TokenType.Extend) || this.check(TokenType.Flatten)) {
 			if (this.match(TokenType.Depth)) {
 				if (this.match(TokenType.Unlimited)) {
 					depth = "unlimited";
@@ -118,6 +119,8 @@ export class Parser {
 					const extendToken = this.expect(TokenType.Identifier, "group name");
 					extend = extendToken.value;
 				}
+			} else if (this.match(TokenType.Flatten)) {
+				flatten = true;
 			}
 		}
 
@@ -126,6 +129,7 @@ export class Parser {
 			name,
 			depth,
 			extend,
+			flatten,
 			span: {start, end: this.previous().span.end},
 		};
 	}

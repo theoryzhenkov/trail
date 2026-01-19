@@ -287,6 +287,7 @@ const MODIFIER_COMPLETIONS: Completion[] = [
 	{label: "depth", type: "keyword", detail: "modifier", info: "Set traversal depth"},
 	{label: "unlimited", type: "keyword", detail: "value", info: "No depth limit"},
 	{label: "extend", type: "keyword", detail: "modifier", info: "Extend with another group"},
+	{label: "flatten", type: "keyword", detail: "modifier", info: "Output all reachable nodes as flat list"},
 	{label: "by", type: "keyword", detail: "modifier", info: "Sort by property"},
 	{label: "asc", type: "keyword", detail: "direction", info: "Ascending order"},
 	{label: "desc", type: "keyword", detail: "direction", info: "Descending order"},
@@ -737,6 +738,7 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 						completions = [
 							{label: "depth", type: "keyword", detail: "modifier", info: "Set traversal depth"},
 							{label: "extend", type: "keyword", detail: "modifier", info: "Extend with another group"},
+							{label: "flatten", type: "keyword", detail: "modifier", info: "Output all reachable nodes as flat list"},
 							// Allow adding more relations
 							...config.getRelationNames().map(name => ({
 								label: name,

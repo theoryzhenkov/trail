@@ -29,7 +29,7 @@ const CLAUSE_KEYWORDS = new Set([
 ]);
 
 const MODIFIER_KEYWORDS = new Set([
-	"depth", "unlimited", "extend", "by", "asc", "desc", "all", "chain"
+	"depth", "unlimited", "extend", "flatten", "by", "asc", "desc", "all", "chain"
 ]);
 
 const LOGICAL_KEYWORDS = new Set([
