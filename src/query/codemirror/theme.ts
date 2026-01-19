@@ -34,7 +34,8 @@ export const tqlEditorTheme = EditorView.theme({
 	".cm-cursor": {
 		borderLeftColor: "var(--text-normal)",
 	},
-	".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
+	// Native selection styling (text-only, readable)
+	"& .cm-content ::selection": {
 		backgroundColor: "var(--text-selection)",
 	},
 	".cm-activeLine": {

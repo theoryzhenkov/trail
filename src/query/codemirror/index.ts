@@ -11,7 +11,7 @@
  */
 
 import {EditorState, Extension} from "@codemirror/state";
-import {EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection} from "@codemirror/view";
+import {EditorView, keymap, lineNumbers, highlightActiveLine} from "@codemirror/view";
 import {defaultKeymap, history, historyKeymap, insertNewlineAndIndent} from "@codemirror/commands";
 import {closeBrackets, closeBracketsKeymap, startCompletion} from "@codemirror/autocomplete";
 import {bracketMatching} from "@codemirror/language";
@@ -54,7 +54,6 @@ export function createTQLEditor(config: TQLEditorConfig): EditorView {
 		// Basic editor features
 		lineNumbers(),
 		highlightActiveLine(),
-		drawSelection(),
 		history(),
 		bracketMatching(),
 		closeBrackets(),
