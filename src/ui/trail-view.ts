@@ -1,8 +1,8 @@
 import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
-import type {GroupDefinition, RelationDefinition, RelationGroup} from "../types";
+import type {DisplayGroup, GroupDefinition, GroupMember, RelationDefinition, RelationGroup} from "../types";
 import type {GroupTreeNode} from "../graph/store";
-import {invertTree, flattenTree, invertTqlTree, flattenTqlTree} from "./tree-transforms";
+import {treeToGroups, tqlTreeToGroups, flattenTree, flattenTqlTree} from "./tree-transforms";
 import {
 	renderEmptyState,
 	renderFileLink,
@@ -239,8 +239,9 @@ export class TrailView extends ItemView {
 				// Ignore parse errors for display properties
 			}
 
-			const transformedResults = this.transformTqlResultsByDirection(result.results);
-			this.renderTqlResults(section.contentEl, transformedResults, 0, displayProperties);
+			// Transform tree to display groups
+			const displayGroups = this.transformTqlToDisplayGroups(result.results);
+			this.renderDisplayGroups(section.contentEl, displayGroups, 0, displayProperties);
 			return true;
 		} catch (e) {
 			// Show error in UI
@@ -366,44 +367,6 @@ export class TrailView extends ItemView {
 		};
 	}
 
-	private renderTqlResults(
-		containerEl: HTMLElement,
-		nodes: QueryResultNode[],
-		depth: number,
-		displayProperties: string[]
-	) {
-		for (const node of nodes) {
-			this.renderTqlNode(containerEl, node, depth, displayProperties);
-		}
-	}
-
-	private renderTqlNode(
-		containerEl: HTMLElement,
-		node: QueryResultNode,
-		depth: number,
-		displayProperties: string[]
-	) {
-		const itemEl = containerEl.createDiv({cls: "tree-item"});
-		itemEl.style.setProperty("--indent-level", String(depth));
-
-		if (node.hasFilteredAncestor) {
-			itemEl.createDiv({cls: "trail-gap-indicator", text: "..."});
-		}
-
-		const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
-
-		this.renderRelationTag(selfEl, node.relation, node.implied);
-
-		const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
-		renderFileLink(innerEl, this.plugin.app, node.path);
-		renderPropertyBadges(innerEl, node.properties, displayProperties);
-
-		if (node.children.length > 0) {
-			const childrenEl = itemEl.createDiv({cls: "tree-item-children"});
-			this.renderTqlResults(childrenEl, node.children, depth + 1, displayProperties);
-		}
-	}
-
 	private shouldShowGroup(group: RelationGroup, filePath: string): boolean {
 		const showConditions = group.showConditions ?? [];
 		const showConditionsMode = group.showConditionsMatchMode ?? "all";
@@ -436,8 +399,9 @@ export class TrailView extends ItemView {
 			return true;
 		}
 
-		const transformedTree = this.transformTreeByDirection(tree);
-		this.renderGroupTree(section.contentEl, transformedTree, 0, group.displayProperties ?? []);
+		// Transform tree to display groups
+		const displayGroups = this.transformTreeToDisplayGroups(tree);
+		this.renderDisplayGroups(section.contentEl, displayGroups, 0, group.displayProperties ?? []);
 		return true;
 	}
 
@@ -450,48 +414,116 @@ export class TrailView extends ItemView {
 	}
 
 	/**
-	 * Transforms tree based on the dominant visual direction of nodes.
-	 * - ascending: invert the tree (deepest becomes root)
-	 * - sequential: flatten to siblings
-	 * - descending: no transformation
+	 * Transforms GroupTreeNode[] to DisplayGroup[] based on visual direction.
+	 * - ascending/descending: convert to nested groups
+	 * - sequential: flatten to siblings first, then group
 	 */
-	private transformTreeByDirection(nodes: GroupTreeNode[]): GroupTreeNode[] {
+	private transformTreeToDisplayGroups(nodes: GroupTreeNode[]): DisplayGroup[] {
 		if (nodes.length === 0) {
-			return nodes;
+			return [];
 		}
 		
 		const direction = nodes[0]?.visualDirection ?? "descending";
 		
-		switch (direction) {
-			case "ascending":
-				return invertTree(nodes);
-			case "sequential":
-				return flattenTree(nodes);
-			case "descending":
-			default:
-				return nodes;
+		if (direction === "sequential") {
+			// Flatten first, then convert to groups
+			const flattened = flattenTree(nodes);
+			return treeToGroups(flattened);
+		}
+		
+		// For ascending and descending, convert directly to groups
+		// The visual direction is handled at render time
+		return treeToGroups(nodes);
+	}
+
+	/**
+	 * Transforms TQL results to DisplayGroup[] based on visual direction.
+	 */
+	private transformTqlToDisplayGroups(nodes: QueryResultNode[]): DisplayGroup[] {
+		if (nodes.length === 0) {
+			return [];
+		}
+		
+		const direction = nodes[0]?.visualDirection ?? "descending";
+		
+		if (direction === "sequential") {
+			// Flatten first, then convert to groups
+			const flattened = flattenTqlTree(nodes);
+			return tqlTreeToGroups(flattened);
+		}
+		
+		// For ascending and descending, convert directly to groups
+		return tqlTreeToGroups(nodes);
+	}
+
+	/**
+	 * Renders an array of DisplayGroups.
+	 */
+	private renderDisplayGroups(
+		containerEl: HTMLElement,
+		groups: DisplayGroup[],
+		depth: number,
+		displayProperties: string[]
+	) {
+		for (const group of groups) {
+			this.renderDisplayGroup(containerEl, group, depth, displayProperties);
 		}
 	}
 
 	/**
-	 * Transforms TQL results based on the dominant visual direction of nodes.
+	 * Renders a single DisplayGroup as a nested container with members and subgroups.
 	 */
-	private transformTqlResultsByDirection(nodes: QueryResultNode[]): QueryResultNode[] {
-		if (nodes.length === 0) {
-			return nodes;
-		}
+	private renderDisplayGroup(
+		containerEl: HTMLElement,
+		group: DisplayGroup,
+		depth: number,
+		displayProperties: string[]
+	) {
+		const groupEl = containerEl.createDiv({cls: "trail-group"});
+		groupEl.style.setProperty("--group-depth", String(depth));
+
+		// Render group header with relation tag and optional label
+		const headerEl = groupEl.createDiv({cls: "trail-group-header"});
 		
-		const direction = nodes[0]?.visualDirection ?? "descending";
-		
-		switch (direction) {
-			case "ascending":
-				return invertTqlTree(nodes);
-			case "sequential":
-				return flattenTqlTree(nodes);
-			case "descending":
-			default:
-				return nodes;
+		// Relation tag
+		if (group.members.length > 0) {
+			const firstMember = group.members[0];
+			if (firstMember) {
+				this.renderRelationTag(headerEl, firstMember.relation, firstMember.implied);
+			}
 		}
+
+		// Optional label (for split subgroups)
+		if (group.label) {
+			headerEl.createSpan({cls: "trail-group-label", text: group.label});
+		}
+
+		// Render members as horizontal list of file links
+		if (group.members.length > 0) {
+			const membersEl = groupEl.createDiv({cls: "trail-group-members"});
+			for (const member of group.members) {
+				this.renderGroupMember(membersEl, member, displayProperties);
+			}
+		}
+
+		// Render subgroups recursively
+		if (group.subgroups.length > 0) {
+			const subgroupsEl = groupEl.createDiv({cls: "trail-group-subgroups"});
+			this.renderDisplayGroups(subgroupsEl, group.subgroups, depth + 1, displayProperties);
+		}
+	}
+
+	/**
+	 * Renders a single group member (file link with optional properties).
+	 */
+	private renderGroupMember(
+		containerEl: HTMLElement,
+		member: GroupMember,
+		displayProperties: string[]
+	) {
+		const memberEl = containerEl.createDiv({cls: "trail-group-member"});
+		renderFileLink(memberEl, this.plugin.app, member.path);
+		renderPropertyBadges(memberEl, member.properties, displayProperties);
 	}
 
 	private getRelationDefinition(relationName: string): RelationDefinition | undefined {
@@ -512,40 +544,6 @@ export class TrailView extends ItemView {
 
 		if (implied) {
 			relationEl.addClass("is-implied");
-		}
-	}
-
-	private renderGroupTree(
-		containerEl: HTMLElement,
-		nodes: GroupTreeNode[],
-		depth: number,
-		displayProperties: string[]
-	) {
-		for (const node of nodes) {
-			this.renderTreeNode(containerEl, node, depth, displayProperties);
-		}
-	}
-
-	private renderTreeNode(
-		containerEl: HTMLElement,
-		node: GroupTreeNode,
-		depth: number,
-		displayProperties: string[]
-	) {
-		const itemEl = containerEl.createDiv({cls: "tree-item"});
-		itemEl.style.setProperty("--indent-level", String(depth));
-
-		const selfEl = itemEl.createDiv({cls: "tree-item-self is-clickable"});
-
-		this.renderRelationTag(selfEl, node.relation, node.implied);
-
-		const innerEl = selfEl.createDiv({cls: "tree-item-inner"});
-		renderFileLink(innerEl, this.plugin.app, node.path);
-		renderPropertyBadges(innerEl, node.properties, displayProperties);
-
-		if (node.children.length > 0) {
-			const childrenEl = itemEl.createDiv({cls: "tree-item-children"});
-			this.renderGroupTree(childrenEl, node.children, depth + 1, displayProperties);
 		}
 	}
 }
