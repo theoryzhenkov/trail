@@ -8,7 +8,7 @@ import {
 	renderPropertyBadges,
 	createCollapsibleSection
 } from "./renderers";
-import {parse, execute, createValidationContext, validate, TQLError, getCache} from "../query";
+import {parse, execute, createValidationContext, TQLError, getCache} from "../query";
 import type {QueryResult, QueryResultNode} from "../query";
 
 export const TRAIL_VIEW_TYPE = "trail-view";
@@ -264,10 +264,10 @@ export class TrailView extends ItemView {
 			.filter((n): n is string => n !== null);
 
 		const validationCtx = createValidationContext(relationNames, groupNames);
-		const validated = validate(ast, validationCtx);
+		ast.validate(validationCtx);
 
 		const queryCtx = this.createQueryContext(filePath);
-		const result = execute(validated, queryCtx);
+		const result = execute(ast, queryCtx);
 
 		// Store result in cache
 		cache.setResult(query, filePath, result);
@@ -350,7 +350,8 @@ export class TrailView extends ItemView {
 							try { return parse(g.query).group; } catch { return null; }
 						})
 						.filter((n): n is string => n !== null);
-					return validate(ast, createValidationContext(relationNames, groupNames));
+					ast.validate(createValidationContext(relationNames, groupNames));
+					return ast;
 				} catch {
 					return undefined;
 				}

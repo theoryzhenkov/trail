@@ -9,6 +9,8 @@ import {DisplayNode} from "./DisplayNode";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, NodeDoc, ValidationContext, QueryResult, QueryResultNode} from "../types";
 import type {ExecutorContext} from "../context";
+import {traverse, type TraversalOptions} from "../execution/traversal";
+import {sortNodes} from "../execution/sorting";
 
 export class QueryNode extends ClauseNode {
 	readonly group: string;
@@ -108,11 +110,47 @@ export class QueryNode extends ClauseNode {
 		};
 	}
 
-	private traverse(_ctx: ExecutorContext): QueryResultNode[] {
-		// Placeholder - traversal logic to be implemented
-		// This would traverse the graph based on FROM clause relations
-		// Full implementation will be added during executor refactor
-		return [];
+	private traverse(ctx: ExecutorContext): QueryResultNode[] {
+		const results: QueryResultNode[] = [];
+
+		// Build group resolver for extend functionality
+		const resolveGroup = (name: string): TraversalOptions[] | undefined => {
+			const groupQuery = ctx.resolveGroupQuery(name) as QueryNode | undefined;
+			if (!groupQuery) return undefined;
+
+			return groupQuery.from.relations.map((rel) => ({
+				startPath: "", // Will be set by caller
+				relation: rel.name,
+				maxDepth: rel.depth === "unlimited" ? Infinity : rel.depth,
+				extendGroup: rel.extend,
+				flatten: rel.flatten,
+				pruneExpr: this.prune,
+				resolveGroup,
+			}));
+		};
+
+		// Traverse each relation in the FROM clause
+		for (const relSpec of this.from.relations) {
+			const options: TraversalOptions = {
+				startPath: ctx.activeFilePath,
+				relation: relSpec.name,
+				maxDepth: relSpec.depth === "unlimited" ? Infinity : relSpec.depth,
+				extendGroup: relSpec.extend,
+				flatten: relSpec.flatten,
+				pruneExpr: this.prune,
+				resolveGroup,
+			};
+
+			const result = traverse(ctx, options);
+			results.push(...result.nodes);
+
+			// Add warnings from traversal
+			for (const warning of result.warnings) {
+				ctx.addWarning(warning.message);
+			}
+		}
+
+		return results;
 	}
 
 	private applyWhereFilter(nodes: QueryResultNode[], ctx: ExecutorContext): QueryResultNode[] {
@@ -144,10 +182,9 @@ export class QueryNode extends ClauseNode {
 		return result;
 	}
 
-	private sortResults(nodes: QueryResultNode[], _ctx: ExecutorContext): QueryResultNode[] {
-		// Sort nodes based on SORT clause
-		// Full implementation to be added during executor refactor
-		return nodes;
+	private sortResults(nodes: QueryResultNode[], ctx: ExecutorContext): QueryResultNode[] {
+		if (!this.sort) return nodes;
+		return sortNodes(nodes, this.sort.keys, ctx);
 	}
 
 	private applyDisplay(nodes: QueryResultNode[]): QueryResultNode[] {

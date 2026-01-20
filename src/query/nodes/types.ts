@@ -51,7 +51,7 @@ export interface TraversalContext {
 	depth: number;
 	relation: string;
 	isImplied: boolean;
-	parent: string;
+	parent: string | null;
 	path: string[];
 }
 
@@ -92,7 +92,7 @@ export interface QueryResultNode {
 	depth: number;
 	implied: boolean;
 	impliedFrom?: string;
-	parent: string;
+	parent: string | null;
 	traversalPath: string[];
 	properties: FileProperties;
 	displayProperties: string[];

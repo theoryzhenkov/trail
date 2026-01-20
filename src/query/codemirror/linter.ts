@@ -6,7 +6,7 @@
 
 import {Diagnostic, linter} from "@codemirror/lint";
 import {EditorView} from "@codemirror/view";
-import {parse} from "../parser";
+import {parse} from "../nodes/parser";
 import {ParseError} from "../errors";
 
 /**

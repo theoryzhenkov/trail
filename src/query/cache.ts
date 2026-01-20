@@ -2,15 +2,15 @@
  * TQL Query Cache - Caches parsed ASTs and query results
  */
 
-import type {Query} from "./ast";
-import type {QueryResult} from "./result";
-import {parse} from "./parser";
+import {QueryNode} from "./nodes/clauses";
+import type {QueryResult} from "./nodes/types";
+import {parse} from "./nodes/parser";
 
 /**
  * Cached query entry
  */
 interface CachedQuery {
-	ast: Query;
+	query: QueryNode;
 	timestamp: number;
 }
 
@@ -29,20 +29,20 @@ interface CachedResult {
  * Query cache with LRU eviction
  */
 export class QueryCache {
-	private astCache: Map<string, CachedQuery>;
+	private queryCache: Map<string, CachedQuery>;
 	private resultCache: Map<string, CachedResult>;
-	private maxAstEntries: number;
+	private maxQueryEntries: number;
 	private maxResultEntries: number;
 	private resultTtlMs: number;
 
 	constructor(options?: {
-		maxAstEntries?: number;
+		maxQueryEntries?: number;
 		maxResultEntries?: number;
 		resultTtlMs?: number;
 	}) {
-		this.astCache = new Map();
+		this.queryCache = new Map();
 		this.resultCache = new Map();
-		this.maxAstEntries = options?.maxAstEntries ?? 100;
+		this.maxQueryEntries = options?.maxQueryEntries ?? 100;
 		this.maxResultEntries = options?.maxResultEntries ?? 50;
 		this.resultTtlMs = options?.resultTtlMs ?? 5000; // 5 seconds default
 	}
@@ -50,18 +50,18 @@ export class QueryCache {
 	/**
 	 * Parse query with caching
 	 */
-	parseQuery(queryString: string): Query {
-		const cached = this.astCache.get(queryString);
+	parseQuery(queryString: string): QueryNode {
+		const cached = this.queryCache.get(queryString);
 		if (cached) {
 			// Move to end (LRU)
-			this.astCache.delete(queryString);
-			this.astCache.set(queryString, cached);
-			return cached.ast;
+			this.queryCache.delete(queryString);
+			this.queryCache.set(queryString, cached);
+			return cached.query;
 		}
 
-		const ast = parse(queryString);
-		this.cacheAst(queryString, ast);
-		return ast;
+		const query = parse(queryString);
+		this.cacheQuery(queryString, query);
+		return query;
 	}
 
 	/**
@@ -94,12 +94,12 @@ export class QueryCache {
 	setResult(queryString: string, filePath: string, result: QueryResult): void {
 		const key = this.resultKey(queryString, filePath);
 		this.evictResultIfNeeded();
-		
+
 		// Collect all file paths in the result for smart invalidation
 		const includedPaths = new Set<string>();
 		includedPaths.add(filePath);
 		this.collectResultPaths(result.results, includedPaths);
-		
+
 		this.resultCache.set(key, {
 			result,
 			filePath,
@@ -153,34 +153,34 @@ export class QueryCache {
 	 * Clear entire cache
 	 */
 	clear(): void {
-		this.astCache.clear();
+		this.queryCache.clear();
 		this.resultCache.clear();
 	}
 
 	/**
 	 * Get cache statistics
 	 */
-	getStats(): {astEntries: number; resultEntries: number} {
+	getStats(): {queryEntries: number; resultEntries: number} {
 		return {
-			astEntries: this.astCache.size,
+			queryEntries: this.queryCache.size,
 			resultEntries: this.resultCache.size,
 		};
 	}
 
-	private cacheAst(queryString: string, ast: Query): void {
-		this.evictAstIfNeeded();
-		this.astCache.set(queryString, {
-			ast,
+	private cacheQuery(queryString: string, query: QueryNode): void {
+		this.evictQueryIfNeeded();
+		this.queryCache.set(queryString, {
+			query,
 			timestamp: Date.now(),
 		});
 	}
 
-	private evictAstIfNeeded(): void {
-		if (this.astCache.size >= this.maxAstEntries) {
+	private evictQueryIfNeeded(): void {
+		if (this.queryCache.size >= this.maxQueryEntries) {
 			// Remove oldest entry (first in Map)
-			const firstKey = this.astCache.keys().next();
+			const firstKey = this.queryCache.keys().next();
 			if (!firstKey.done && firstKey.value) {
-				this.astCache.delete(firstKey.value);
+				this.queryCache.delete(firstKey.value);
 			}
 		}
 	}

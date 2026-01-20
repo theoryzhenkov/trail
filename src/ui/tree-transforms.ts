@@ -1,4 +1,4 @@
-import type {QueryResultNode} from "../query/result";
+import type {QueryResultNode} from "../query/nodes/types";
 import type {DisplayGroup, GroupMember} from "../types";
 
 /**

@@ -3,13 +3,10 @@
  * Provides mock data and context for unit testing
  */
 
-import type { QueryContext } from "./context";
-import type { ValidatedQuery } from "./validator";
-import type { RelationEdge, FileProperties, VisualDirection } from "../types";
-import type { FileMetadata } from "./builtins";
-import { parse } from "./parser";
-import { validate, createValidationContext } from "./validator";
-import { execute } from "./executor";
+import type {RelationEdge, FileProperties, VisualDirection} from "../types";
+import type {QueryContext, FileMetadata, QueryResult} from "./nodes/types";
+import {QueryNode, parse, createValidationContext} from "./nodes";
+import {execute} from "./executor";
 
 /**
  * Mock file data for testing
@@ -36,7 +33,7 @@ export interface MockEdge {
  */
 export interface MockGroup {
 	name: string;
-	query: ValidatedQuery;
+	query: QueryNode;
 }
 
 /**
@@ -52,10 +49,7 @@ export interface MockGraph {
 /**
  * Create a mock QueryContext from test data
  */
-export function createMockContext(
-	graph: MockGraph,
-	activeFilePath: string
-): QueryContext {
+export function createMockContext(graph: MockGraph, activeFilePath: string): QueryContext {
 	const fileMap = new Map<string, MockFile>();
 	for (const file of graph.files) {
 		fileMap.set(file.path, file);
@@ -144,11 +138,9 @@ export function createMockContext(
 		},
 
 		getVisualDirection(relation: string): VisualDirection {
-			// Sequential relations
 			if (relation === "next" || relation === "prev") {
 				return "sequential";
 			}
-			// Hierarchical relations
 			if (relation === "down") {
 				return "descending";
 			}
@@ -156,13 +148,12 @@ export function createMockContext(
 		},
 
 		getSequentialRelations(): Set<string> {
-			// Return relations marked as sequential
 			const relations = graph.relations ?? ["up", "down", "next", "prev"];
-			return new Set(relations.filter(r => r === "next" || r === "prev"));
+			return new Set(relations.filter((r) => r === "next" || r === "prev"));
 		},
 
-		resolveGroupQuery(name: string): ValidatedQuery | undefined {
-			const group = graph.groups?.find(g => g.name === name);
+		resolveGroupQuery(name: string): QueryNode | undefined {
+			const group = graph.groups?.find((g) => g.name === name);
 			return group?.query;
 		},
 	};
@@ -178,15 +169,15 @@ export const TestGraphs = {
 	simpleHierarchy(): MockGraph {
 		return {
 			files: [
-				{ path: "A.md", properties: { title: "A" } },
-				{ path: "B.md", properties: { title: "B" } },
-				{ path: "C.md", properties: { title: "C" } },
+				{path: "A.md", properties: {title: "A"}},
+				{path: "B.md", properties: {title: "B"}},
+				{path: "C.md", properties: {title: "C"}},
 			],
 			edges: [
-				{ from: "A.md", to: "B.md", relation: "down" },
-				{ from: "B.md", to: "A.md", relation: "up" },
-				{ from: "B.md", to: "C.md", relation: "down" },
-				{ from: "C.md", to: "B.md", relation: "up" },
+				{from: "A.md", to: "B.md", relation: "down"},
+				{from: "B.md", to: "A.md", relation: "up"},
+				{from: "B.md", to: "C.md", relation: "down"},
+				{from: "C.md", to: "B.md", relation: "up"},
 			],
 		};
 	},
@@ -199,35 +190,34 @@ export const TestGraphs = {
 			files: [
 				{
 					path: "person1.md",
-					properties: { name: "Alice", gender: "female", age: 30 },
+					properties: {name: "Alice", gender: "female", age: 30},
 				},
 				{
 					path: "person2.md",
-					properties: { name: "Bob", gender: "male", age: 25 },
+					properties: {name: "Bob", gender: "male", age: 25},
 				},
 				{
 					path: "person3.md",
-					properties: { name: "Charlie", gender: null, age: 35 },
+					properties: {name: "Charlie", gender: null, age: 35},
 				},
 				{
 					path: "person4.md",
-					properties: { name: "Dana", age: 28 },
-					// gender is undefined (missing)
+					properties: {name: "Dana", age: 28},
 				},
 				{
 					path: "root.md",
-					properties: { title: "Root" },
+					properties: {title: "Root"},
 				},
 			],
 			edges: [
-				{ from: "root.md", to: "person1.md", relation: "down" },
-				{ from: "root.md", to: "person2.md", relation: "down" },
-				{ from: "root.md", to: "person3.md", relation: "down" },
-				{ from: "root.md", to: "person4.md", relation: "down" },
-				{ from: "person1.md", to: "root.md", relation: "up" },
-				{ from: "person2.md", to: "root.md", relation: "up" },
-				{ from: "person3.md", to: "root.md", relation: "up" },
-				{ from: "person4.md", to: "root.md", relation: "up" },
+				{from: "root.md", to: "person1.md", relation: "down"},
+				{from: "root.md", to: "person2.md", relation: "down"},
+				{from: "root.md", to: "person3.md", relation: "down"},
+				{from: "root.md", to: "person4.md", relation: "down"},
+				{from: "person1.md", to: "root.md", relation: "up"},
+				{from: "person2.md", to: "root.md", relation: "up"},
+				{from: "person3.md", to: "root.md", relation: "up"},
+				{from: "person4.md", to: "root.md", relation: "up"},
 			],
 		};
 	},
@@ -238,18 +228,18 @@ export const TestGraphs = {
 	sequentialChain(): MockGraph {
 		return {
 			files: [
-				{ path: "chapter1.md", properties: { title: "Chapter 1", order: 1 } },
-				{ path: "chapter2.md", properties: { title: "Chapter 2", order: 2 } },
-				{ path: "chapter3.md", properties: { title: "Chapter 3", order: 3 } },
-				{ path: "chapter4.md", properties: { title: "Chapter 4", order: 4 } },
+				{path: "chapter1.md", properties: {title: "Chapter 1", order: 1}},
+				{path: "chapter2.md", properties: {title: "Chapter 2", order: 2}},
+				{path: "chapter3.md", properties: {title: "Chapter 3", order: 3}},
+				{path: "chapter4.md", properties: {title: "Chapter 4", order: 4}},
 			],
 			edges: [
-				{ from: "chapter1.md", to: "chapter2.md", relation: "next" },
-				{ from: "chapter2.md", to: "chapter1.md", relation: "prev" },
-				{ from: "chapter2.md", to: "chapter3.md", relation: "next" },
-				{ from: "chapter3.md", to: "chapter2.md", relation: "prev" },
-				{ from: "chapter3.md", to: "chapter4.md", relation: "next" },
-				{ from: "chapter4.md", to: "chapter3.md", relation: "prev" },
+				{from: "chapter1.md", to: "chapter2.md", relation: "next"},
+				{from: "chapter2.md", to: "chapter1.md", relation: "prev"},
+				{from: "chapter2.md", to: "chapter3.md", relation: "next"},
+				{from: "chapter3.md", to: "chapter2.md", relation: "prev"},
+				{from: "chapter3.md", to: "chapter4.md", relation: "next"},
+				{from: "chapter4.md", to: "chapter3.md", relation: "prev"},
 			],
 			relations: ["next", "prev"],
 		};
@@ -261,27 +251,27 @@ export const TestGraphs = {
 	deepHierarchy(): MockGraph {
 		return {
 			files: [
-				{ path: "root.md", properties: { level: 0 } },
-				{ path: "a.md", properties: { level: 1, category: "x" } },
-				{ path: "b.md", properties: { level: 1, category: "y" } },
-				{ path: "a1.md", properties: { level: 2, category: "x" } },
-				{ path: "a2.md", properties: { level: 2, category: "x" } },
-				{ path: "b1.md", properties: { level: 2, category: "y" } },
-				{ path: "a1i.md", properties: { level: 3, category: "x" } },
+				{path: "root.md", properties: {level: 0}},
+				{path: "a.md", properties: {level: 1, category: "x"}},
+				{path: "b.md", properties: {level: 1, category: "y"}},
+				{path: "a1.md", properties: {level: 2, category: "x"}},
+				{path: "a2.md", properties: {level: 2, category: "x"}},
+				{path: "b1.md", properties: {level: 2, category: "y"}},
+				{path: "a1i.md", properties: {level: 3, category: "x"}},
 			],
 			edges: [
-				{ from: "root.md", to: "a.md", relation: "down" },
-				{ from: "root.md", to: "b.md", relation: "down" },
-				{ from: "a.md", to: "root.md", relation: "up" },
-				{ from: "b.md", to: "root.md", relation: "up" },
-				{ from: "a.md", to: "a1.md", relation: "down" },
-				{ from: "a.md", to: "a2.md", relation: "down" },
-				{ from: "a1.md", to: "a.md", relation: "up" },
-				{ from: "a2.md", to: "a.md", relation: "up" },
-				{ from: "b.md", to: "b1.md", relation: "down" },
-				{ from: "b1.md", to: "b.md", relation: "up" },
-				{ from: "a1.md", to: "a1i.md", relation: "down" },
-				{ from: "a1i.md", to: "a1.md", relation: "up" },
+				{from: "root.md", to: "a.md", relation: "down"},
+				{from: "root.md", to: "b.md", relation: "down"},
+				{from: "a.md", to: "root.md", relation: "up"},
+				{from: "b.md", to: "root.md", relation: "up"},
+				{from: "a.md", to: "a1.md", relation: "down"},
+				{from: "a.md", to: "a2.md", relation: "down"},
+				{from: "a1.md", to: "a.md", relation: "up"},
+				{from: "a2.md", to: "a.md", relation: "up"},
+				{from: "b.md", to: "b1.md", relation: "down"},
+				{from: "b1.md", to: "b.md", relation: "up"},
+				{from: "a1.md", to: "a1i.md", relation: "down"},
+				{from: "a1i.md", to: "a1.md", relation: "up"},
 			],
 		};
 	},
@@ -297,14 +287,14 @@ interface PathNode {
  */
 export function collectPaths(results: PathNode[]): string[] {
 	const paths: string[] = [];
-	
+
 	function visit(nodes: PathNode[]) {
 		for (const node of nodes) {
 			paths.push(node.path);
 			visit(node.children);
 		}
 	}
-	
+
 	visit(results);
 	return paths;
 }
@@ -312,22 +302,30 @@ export function collectPaths(results: PathNode[]): string[] {
 /**
  * Helper to run a query and get results
  */
-export function runQuery(query: string, graph: MockGraph, activeFile: string) {
+export function runQuery(query: string, graph: MockGraph, activeFile: string): QueryResult {
 	const relations = graph.relations ?? ["up", "down", "next", "prev"];
-	const groupNames = graph.groups?.map(g => g.name) ?? [];
+	const groupNames = graph.groups?.map((g) => g.name) ?? [];
 	const validationCtx = createValidationContext(relations, groupNames);
-	const ast = parse(query);
-	const validated = validate(ast, validationCtx);
+
+	// Parse and validate in one step
+	const queryNode = parse(query);
+	queryNode.validate(validationCtx);
+
 	const ctx = createMockContext(graph, activeFile);
-	return execute(validated, ctx);
+	return execute(queryNode, ctx);
 }
 
 /**
  * Helper to create a validated query for mock groups
  */
-export function createMockGroup(name: string, queryStr: string, relations: string[], groupNames: string[]): MockGroup {
-	const ast = parse(queryStr);
+export function createMockGroup(
+	name: string,
+	queryStr: string,
+	relations: string[],
+	groupNames: string[]
+): MockGroup {
 	const validationCtx = createValidationContext(relations, groupNames);
-	const validated = validate(ast, validationCtx);
-	return { name, query: validated };
+	const queryNode = parse(queryStr);
+	queryNode.validate(validationCtx);
+	return {name, query: queryNode};
 }

@@ -3,34 +3,16 @@
  * Core traversal functionality tests
  */
 
-import { describe, it, expect } from "vitest";
-import { parse } from "./parser";
-import { validate, createValidationContext } from "./validator";
-import { execute } from "./executor";
-import { createMockContext, TestGraphs, collectPaths, type MockGraph, type MockGroup } from "./test-utils";
-
-/**
- * Helper to run a query and get results
- */
-function runQuery(query: string, graph: MockGraph, activeFile: string) {
-	const relations = graph.relations ?? ["up", "down", "next", "prev"];
-	const groupNames = graph.groups?.map(g => g.name) ?? [];
-	const validationCtx = createValidationContext(relations, groupNames);
-	const ast = parse(query);
-	const validated = validate(ast, validationCtx);
-	const ctx = createMockContext(graph, activeFile);
-	return execute(validated, ctx);
-}
-
-/**
- * Helper to create a validated query for mock groups
- */
-function createMockGroup(name: string, queryStr: string, relations: string[], groupNames: string[]): MockGroup {
-	const ast = parse(queryStr);
-	const validationCtx = createValidationContext(relations, groupNames);
-	const validated = validate(ast, validationCtx);
-	return { name, query: validated };
-}
+import {describe, it, expect} from "vitest";
+import {
+	createMockContext,
+	TestGraphs,
+	collectPaths,
+	runQuery,
+	createMockGroup,
+	type MockGraph,
+	type MockGroup,
+} from "./test-utils";
 
 describe("TQL Executor", () => {
 	describe("Basic traversal", () => {

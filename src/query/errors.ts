@@ -2,7 +2,7 @@
  * TQL Error Classes
  */
 
-import type {Span} from "./tokens";
+import type {Span} from "./nodes/types";
 
 /**
  * Base class for all TQL errors
