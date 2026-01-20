@@ -182,9 +182,6 @@ Null { @specialize[@name=Null]<Identifier, "null"> }
   
   LineComment { "//" ![\n]* }
   
-  // Option identifier: :depth, :flatten, :asc, :desc, :chain
-  OptionIdentifier { ":" $[a-zA-Z_À-ÿА-я一-龯№] $[a-zA-Z0-9_À-ÿА-я一-龯-№]* }
-  
   // Operators - longer ones first for correct matching
   "!=?" "=?" "!=" "<=" ">=" ".." ">>"
   "=" "<" ">" "+" "-" "!" "."

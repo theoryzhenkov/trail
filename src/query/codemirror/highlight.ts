@@ -31,7 +31,6 @@ export const highlighting = styleTags({
 	"extend all": t.typeName,
 	
 	// Option identifiers (clause-specific options)
-	OptionIdentifier: t.typeName,
 	":depth :flatten :asc :desc :chain": t.typeName,
 	
 	// Logical operators (keywords)
