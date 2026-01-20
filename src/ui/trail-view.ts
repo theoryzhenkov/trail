@@ -1,17 +1,24 @@
 import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
-import type {DisplayGroup, GroupDefinition, GroupMember, RelationDefinition} from "../types";
+import type {DisplayGroup, GroupDefinition, GroupMember, RelationDefinition, FileProperties} from "../types";
 import {tqlTreeToGroups, flattenTqlTree, invertDisplayGroups} from "./tree-transforms";
 import {
 	renderEmptyState,
 	renderFileLink,
-	renderPropertyBadges,
 	createCollapsibleSection
 } from "./renderers";
 import {parse, execute, createValidationContext, TQLError, getCache} from "../query";
 import type {QueryResult, QueryResultNode} from "../query";
 
 export const TRAIL_VIEW_TYPE = "trail-view";
+
+/**
+ * Information about a display property, including whether it's a builtin ($file.*, $traversal.*)
+ */
+interface DisplayPropertyInfo {
+	key: string;
+	isBuiltin: boolean;
+}
 
 export class TrailView extends ItemView {
 	private plugin: TrailPlugin;
@@ -215,11 +222,14 @@ export class TrailView extends ItemView {
 			}
 
 			// Get display properties from parsed query
-			let displayProperties: string[] = [];
+			let displayProperties: DisplayPropertyInfo[] = [];
 			try {
 				const ast = parse(group.query);
 				if (ast.display) {
-					displayProperties = ast.display.properties.map(p => p.path.join("."));
+					displayProperties = ast.display.properties.map(p => ({
+						key: p.path.join("."),
+						isBuiltin: p.isBuiltin,
+					}));
 				}
 			} catch {
 				// Ignore parse errors for display properties
@@ -393,7 +403,7 @@ export class TrailView extends ItemView {
 		containerEl: HTMLElement,
 		groups: DisplayGroup[],
 		depth: number,
-		displayProperties: string[]
+		displayProperties: DisplayPropertyInfo[]
 	) {
 		for (const group of groups) {
 			this.renderDisplayGroup(containerEl, group, depth, displayProperties);
@@ -407,7 +417,7 @@ export class TrailView extends ItemView {
 		containerEl: HTMLElement,
 		group: DisplayGroup,
 		depth: number,
-		displayProperties: string[]
+		displayProperties: DisplayPropertyInfo[]
 	) {
 		const groupEl = containerEl.createDiv({cls: "trail-group"});
 		groupEl.style.setProperty("--group-depth", String(depth));
@@ -446,11 +456,95 @@ export class TrailView extends ItemView {
 	private renderGroupMember(
 		containerEl: HTMLElement,
 		member: GroupMember,
-		displayProperties: string[]
+		displayProperties: DisplayPropertyInfo[]
 	) {
 		const memberEl = containerEl.createDiv({cls: "trail-group-member"});
 		renderFileLink(memberEl, this.plugin.app, member.path);
-		renderPropertyBadges(memberEl, member.properties, displayProperties);
+		this.renderPropertyBadges(memberEl, member.path, member.properties, displayProperties);
+	}
+
+	/**
+	 * Renders property badges, handling builtin ($file.*) and user properties separately.
+	 * This prevents collision between user properties like "file.name" and builtin $file.name.
+	 */
+	private renderPropertyBadges(
+		containerEl: HTMLElement,
+		filePath: string,
+		properties: FileProperties,
+		displayProperties: DisplayPropertyInfo[]
+	) {
+		if (displayProperties.length === 0) {
+			return;
+		}
+
+		const badges: string[] = [];
+		
+		// Get file metadata lazily (only if needed)
+		let fileMetadata: Record<string, string | number> | null = null;
+		const getFileMetadata = () => {
+			if (fileMetadata !== null) return fileMetadata;
+			const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
+			if (!(file instanceof TFile)) {
+				fileMetadata = {};
+				return fileMetadata;
+			}
+			fileMetadata = {
+				"name": file.basename,
+				"path": file.path,
+				"folder": file.parent?.path ?? "",
+				"created": new Date(file.stat.ctime).toISOString(),
+				"modified": new Date(file.stat.mtime).toISOString(),
+				"size": file.stat.size,
+			};
+			return fileMetadata;
+		};
+
+		for (const prop of displayProperties) {
+			const key = prop.key.trim().toLowerCase();
+			if (!key) continue;
+
+			let value: unknown;
+			if (prop.isBuiltin) {
+				// Builtin property: look up from file metadata
+				// Key is like "file.folder" - extract the property part after the namespace
+				const parts = key.split(".");
+				if (parts[0] === "file" && parts[1]) {
+					value = getFileMetadata()[parts[1]];
+				}
+				// Could add $traversal.* support here if needed
+			} else {
+				// User property: look up from frontmatter
+				value = properties[key];
+			}
+
+			if (value === undefined) continue;
+			badges.push(this.formatPropertyValue(key, value));
+		}
+
+		if (badges.length === 0) return;
+
+		const badgesEl = containerEl.createDiv({cls: "trail-property-badges"});
+		for (const badge of badges) {
+			badgesEl.createSpan({cls: "trail-property-badge", text: badge});
+		}
+	}
+
+	/**
+	 * Formats a property value for display as a badge.
+	 */
+	private formatPropertyValue(key: string, value: unknown): string {
+		if (Array.isArray(value)) {
+			if (value.length === 0) return "";
+			return `${key}: ${value.join(", ")}`;
+		}
+		if (value === null) {
+			return `${key}: null`;
+		}
+		if (typeof value === "object") {
+			return `${key}: [object]`;
+		}
+
+		return `${key}: ${value as string | number | boolean}`;
 	}
 
 	private getRelationDefinition(relationName: string): RelationDefinition | undefined {

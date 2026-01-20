@@ -91,7 +91,7 @@ export function getAllBuiltinProperties(): BuiltinProperty[] {
 	for (const builtin of getBuiltins()) {
 		for (const prop of builtin.properties) {
 			result.push({
-				name: `${builtin.name.slice(1)}.${prop.name}`, // Remove $ prefix for property path
+				name: `${builtin.name}.${prop.name}`, // Keep $ prefix for builtin properties
 				type: prop.type,
 				description: prop.description,
 			});

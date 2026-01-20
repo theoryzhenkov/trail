@@ -19,8 +19,8 @@ function getWordAt(doc: string, pos: number): {word: string; from: number; to: n
 	let from = pos;
 	let to = pos;
 	
-	// Scan backward
-	while (from > 0 && /[\w.]/.test(doc[from - 1] ?? "")) {
+	// Scan backward (include $ for builtin identifiers like $file.name)
+	while (from > 0 && /[\w.$]/.test(doc[from - 1] ?? "")) {
 		from--;
 	}
 	
