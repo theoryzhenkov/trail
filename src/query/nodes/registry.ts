@@ -9,7 +9,7 @@ import type {Node} from "./base/Node";
 import type {TokenNode} from "./base/TokenNode";
 import type {ExprNode} from "./base/ExprNode";
 import type {BuiltinProperty} from "./base/BuiltinNode";
-import type {Completable, CompletionContext, NodeDoc} from "./types";
+import type {Completable, CompletionContext, NodeDoc, ContextProvider} from "./types";
 
 /**
  * Type for a node class constructor
@@ -71,6 +71,9 @@ class NodeRegistry {
 	private completableNodes = new Map<string, CompletableClass>();
 	private builtinsByName = new Map<string, BuiltinClass>();
 	private clauseNodes = new Map<string, NodeClass>();
+	// Context provider tracking: maps Lezer grammar name to contexts
+	private contextProviders = new Map<string, CompletionContext[]>();
+	private clauseLezerNames = new Set<string>();
 
 	/**
 	 * Register a node class by its type identifier
@@ -91,6 +94,16 @@ class NodeRegistry {
 	registerClause(type: string, cls: NodeClass): void {
 		this.clauseNodes.set(type, cls);
 		this.register(type, cls);
+		
+		// Derive Lezer name (strip "Node" suffix)
+		const lezerName = type.replace(/Node$/, "");
+		this.clauseLezerNames.add(lezerName);
+		
+		// Extract providesContexts if present
+		const provider = cls as unknown as ContextProvider;
+		if (provider.providesContexts?.length) {
+			this.contextProviders.set(lezerName, provider.providesContexts);
+		}
 	}
 
 	/**
@@ -116,6 +129,14 @@ class NodeRegistry {
 		const completable = (cls as unknown as CompletableClass).completable;
 		if (completable) {
 			this.completableNodes.set(type, cls as unknown as CompletableClass);
+		}
+		
+		// Extract providesContexts if present
+		const provider = cls as unknown as ContextProvider;
+		if (provider.providesContexts?.length) {
+			// Derive Lezer name (strip "Node" suffix)
+			const lezerName = type.replace(/Node$/, "");
+			this.contextProviders.set(lezerName, provider.providesContexts);
 		}
 	}
 
@@ -313,6 +334,20 @@ class NodeRegistry {
 		
 		return names;
 	}
+	
+	/**
+	 * Get contexts provided by a Lezer grammar node name
+	 */
+	getProvidedContexts(lezerName: string): CompletionContext[] | undefined {
+		return this.contextProviders.get(lezerName);
+	}
+	
+	/**
+	 * Check if a Lezer grammar name is a clause node
+	 */
+	isClause(lezerName: string): boolean {
+		return this.clauseLezerNames.has(lezerName);
+	}
 }
 
 /**
@@ -325,8 +360,8 @@ export const registry = new NodeRegistry();
  *
  * @example
  * ```typescript
- * @register("LogicalNode", {expr: true})
- * export class LogicalNode extends BinaryNode<ExprNode> {
+ * @register("OrExprNode", {expr: true})
+ * export class OrExprNode extends BinaryNode<ExprNode> {
  *   // ...
  * }
  *

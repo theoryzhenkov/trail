@@ -6,13 +6,15 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import type {ExprNode} from "../base/ExprNode";
-import type {Span, NodeDoc, ValidationContext} from "../types";
+import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
 @register("PruneNode", {clause: true})
 export class PruneNode extends ClauseNode {
 	readonly expression: ExprNode;
+
+	static providesContexts: CompletionContext[] = ["expression", "clause"];
 
 	static documentation: NodeDoc = {
 		title: "PRUNE clause",

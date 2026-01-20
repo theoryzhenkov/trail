@@ -4,13 +4,15 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import {PropertyNode} from "../expressions/PropertyNode";
-import type {Span, NodeDoc, ValidationContext} from "../types";
+import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
 import {register} from "../registry";
 
 @register("SortKeyNode", {clause: true})
 export class SortKeyNode extends ClauseNode {
 	readonly key: "chain" | PropertyNode;
 	readonly direction: "asc" | "desc";
+
+	static providesContexts: CompletionContext[] = ["sort-key-modifier"];
 
 	static documentation: NodeDoc = {
 		title: "Sort Key",

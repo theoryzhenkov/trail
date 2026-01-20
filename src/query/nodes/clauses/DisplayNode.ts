@@ -4,13 +4,15 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import {PropertyNode} from "../expressions/PropertyNode";
-import type {Span, NodeDoc, ValidationContext} from "../types";
+import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
 import {register} from "../registry";
 
 @register("DisplayNode", {clause: true})
 export class DisplayNode extends ClauseNode {
 	readonly all: boolean;
 	readonly properties: PropertyNode[];
+
+	static providesContexts: CompletionContext[] = ["display", "clause"];
 
 	static documentation: NodeDoc = {
 		title: "DISPLAY clause",

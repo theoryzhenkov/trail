@@ -6,13 +6,15 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import type {ExprNode} from "../base/ExprNode";
-import type {Span, NodeDoc, ValidationContext} from "../types";
+import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
 @register("WhenNode", {clause: true})
 export class WhenNode extends ClauseNode {
 	readonly expression: ExprNode;
+
+	static providesContexts: CompletionContext[] = ["expression", "clause"];
 
 	static documentation: NodeDoc = {
 		title: "WHEN clause",

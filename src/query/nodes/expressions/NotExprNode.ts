@@ -1,15 +1,17 @@
 /**
- * UnaryNotNode - NOT/! expression
+ * NotExprNode - NOT/! expression
  */
 
 import {UnaryNode} from "../base/UnaryNode";
 import {ExprNode} from "../base/ExprNode";
-import type {Span, Value, NodeDoc} from "../types";
+import type {Span, Value, NodeDoc, CompletionContext} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
-@register("UnaryNotNode", {expr: true})
-export class UnaryNotNode extends UnaryNode {
+@register("NotExprNode", {expr: true})
+export class NotExprNode extends UnaryNode {
+	static providesContexts: CompletionContext[] = ["expression"];
+
 	static documentation: NodeDoc = {
 		title: "NOT Operator",
 		description: "Logical NOT. Inverts the truthiness of the expression.",

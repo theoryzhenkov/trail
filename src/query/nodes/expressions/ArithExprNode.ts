@@ -1,16 +1,18 @@
 /**
- * ArithNode - Arithmetic expressions (+, -)
+ * ArithExprNode - Arithmetic expressions (+, -)
  */
 
 import {BinaryNode} from "../base/BinaryNode";
 import {ExprNode} from "../base/ExprNode";
-import type {Span, Value, NodeDoc} from "../types";
+import type {Span, Value, NodeDoc, CompletionContext} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
-@register("ArithNode", {expr: true})
-export class ArithNode extends BinaryNode {
+@register("ArithExprNode", {expr: true})
+export class ArithExprNode extends BinaryNode {
 	readonly op: "+" | "-";
+
+	static providesContexts: CompletionContext[] = ["after-expression"];
 
 	static documentation: NodeDoc = {
 		title: "Arithmetic Operator",

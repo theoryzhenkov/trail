@@ -5,7 +5,7 @@
  * Complex queries that cannot be represented visually fall back to the query editor.
  */
 
-import {parse, QueryNode, CompareNode, PropertyNode, StringNode, NumberNode, BooleanNode, NullNode} from "../query";
+import {parse, QueryNode, CompareExprNode, PropertyNode, StringNode, NumberNode, BooleanNode, NullNode} from "../query";
 import type {ExprNode} from "../query";
 
 /**
@@ -83,7 +83,7 @@ function isSimpleCondition(expr: ExprNode): boolean {
 	// Simple property access (existence check like `when gender`)
 	if (expr instanceof PropertyNode) return true;
 
-	if (!(expr instanceof CompareNode)) return false;
+	if (!(expr instanceof CompareExprNode)) return false;
 
 	// Left must be a simple property access
 	if (!(expr.left instanceof PropertyNode)) return false;
@@ -136,7 +136,7 @@ function parseConditionClause(expr?: ExprNode): VisualCondition | undefined {
 		};
 	}
 
-	if (!(expr instanceof CompareNode)) return undefined;
+	if (!(expr instanceof CompareExprNode)) return undefined;
 	if (!(expr.left instanceof PropertyNode)) return undefined;
 
 	const property = expr.left.path.join(".");

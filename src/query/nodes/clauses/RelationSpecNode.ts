@@ -3,7 +3,7 @@
  */
 
 import {ClauseNode} from "../base/ClauseNode";
-import type {Span, NodeDoc, ValidationContext} from "../types";
+import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
 import {register} from "../registry";
 
 @register("RelationSpecNode", {clause: true})
@@ -13,6 +13,8 @@ export class RelationSpecNode extends ClauseNode {
 	readonly extend?: string;
 	/** true = flatten all, number = flatten from depth N */
 	readonly flatten?: number | true;
+
+	static providesContexts: CompletionContext[] = ["after-relation"];
 
 	static documentation: NodeDoc = {
 		title: "Relation Specification",

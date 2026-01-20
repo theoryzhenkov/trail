@@ -60,11 +60,12 @@ export {
 // ============================================================================
 
 export {
-	LogicalNode,
-	CompareNode,
-	ArithNode,
-	UnaryNotNode,
-	InNode,
+	OrExprNode,
+	AndExprNode,
+	CompareExprNode,
+	ArithExprNode,
+	NotExprNode,
+	InExprNode,
 	RangeNode,
 	PropertyNode,
 	AggregateNode,

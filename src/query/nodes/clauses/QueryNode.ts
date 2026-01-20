@@ -9,7 +9,7 @@ import {DisplayNode} from "./DisplayNode";
 import {PruneNode} from "./PruneNode";
 import {WhereNode} from "./WhereNode";
 import {WhenNode} from "./WhenNode";
-import type {Span, NodeDoc, ValidationContext, QueryResult, QueryResultNode} from "../types";
+import type {Span, NodeDoc, ValidationContext, QueryResult, QueryResultNode, CompletionContext} from "../types";
 import type {ExecutorContext} from "../context";
 import {executeQueryClauses} from "../execution/query-executor";
 import {register} from "../registry";
@@ -23,6 +23,8 @@ export class QueryNode extends ClauseNode {
 	readonly when?: WhenNode;
 	readonly sort?: SortNode;
 	readonly display?: DisplayNode;
+
+	static providesContexts: CompletionContext[] = ["clause"];
 
 	static documentation: NodeDoc = {
 		title: "TQL Query",

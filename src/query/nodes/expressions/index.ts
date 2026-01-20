@@ -2,11 +2,12 @@
  * Expression Node Exports
  */
 
-export {LogicalNode} from "./LogicalNode";
-export {CompareNode, type CompareOp} from "./CompareNode";
-export {ArithNode} from "./ArithNode";
-export {UnaryNotNode} from "./UnaryNotNode";
-export {InNode} from "./InNode";
+export {OrExprNode} from "./OrExprNode";
+export {AndExprNode} from "./AndExprNode";
+export {CompareExprNode, type CompareOp} from "./CompareExprNode";
+export {ArithExprNode} from "./ArithExprNode";
+export {NotExprNode} from "./NotExprNode";
+export {InExprNode} from "./InExprNode";
 export {RangeNode} from "./RangeNode";
 export {PropertyNode} from "./PropertyNode";
 // Function utilities are exported from docs.ts and registry.ts

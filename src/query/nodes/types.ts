@@ -162,6 +162,7 @@ export type CompletionContext =
 	| "expression" // Expression position (where, when, prune, etc.)
 	| "after-expression" // After an expression (and, or, operators)
 	| "sort-key" // After "sort"
+	| "sort-key-modifier" // After sort key (asc, desc)
 	| "display" // After "display"
 	| "function-arg" // Inside function arguments
 	| "property"; // Property path position
@@ -194,6 +195,14 @@ export interface Completable {
 	 * Snippet to insert (with $1, $2 placeholders)
 	 */
 	snippet?: string;
+}
+
+/**
+ * Static interface for nodes that provide completion contexts
+ */
+export interface ContextProvider {
+	/** Contexts this node provides to completions at cursor positions inside it */
+	providesContexts?: CompletionContext[];
 }
 
 /**

@@ -21,11 +21,12 @@ import "./builtins";
 import {QueryNode, FromNode, RelationSpecNode, SortNode, SortKeyNode, DisplayNode, PruneNode, WhereNode, WhenNode} from "./clauses";
 import {ParseError} from "../errors";
 import {
-	LogicalNode,
-	CompareNode,
-	ArithNode,
-	UnaryNotNode,
-	InNode,
+	OrExprNode,
+	AndExprNode,
+	CompareExprNode,
+	ArithExprNode,
+	NotExprNode,
+	InExprNode,
 	RangeNode,
 	PropertyNode,
 	AggregateNode,
@@ -364,16 +365,16 @@ function convertOrExpr(node: SyntaxNode, source: string): ExprNode {
 		return operands[0]!;
 	}
 
-	// Fold into left-associative binary nodes
-	let result = operands[0]!;
-	for (let i = 1; i < operands.length; i++) {
-		const right = operands[i]!;
-		result = new LogicalNode("or", result, right, {
-			start: result.span.start,
-			end: right.span.end,
-		});
-	}
-	return result;
+		// Fold into left-associative binary nodes
+		let result = operands[0]!;
+		for (let i = 1; i < operands.length; i++) {
+			const right = operands[i]!;
+			result = new OrExprNode(result, right, {
+				start: result.span.start,
+				end: right.span.end,
+			});
+		}
+		return result;
 }
 
 /**
@@ -396,7 +397,7 @@ function convertAndExpr(node: SyntaxNode, source: string): ExprNode {
 	let result = operands[0]!;
 	for (let i = 1; i < operands.length; i++) {
 		const right = operands[i]!;
-		result = new LogicalNode("and", result, right, {
+		result = new AndExprNode(result, right, {
 			start: result.span.start,
 			end: right.span.end,
 		});
@@ -427,7 +428,7 @@ function convertNotExpr(node: SyntaxNode, source: string): ExprNode {
 	const operand = convertExpression(operandNode, source);
 	
 	if (hasNot) {
-		return new UnaryNotNode(operand, span(node));
+		return new NotExprNode(operand, span(node));
 	}
 	
 	return operand;
@@ -472,7 +473,7 @@ function convertCompareExpr(node: SyntaxNode, source: string): ExprNode {
 		throw new Error(`CompareExpr requires 2 operands, got ${operands.length}`);
 	}
 
-	return new CompareNode(
+	return new CompareExprNode(
 		operator as CompareOp,
 		operands[0]!,
 		operands[1]!,
@@ -515,7 +516,7 @@ function convertInExpr(value: ExprNode, node: SyntaxNode, source: string): ExprN
 	}
 
 	// Simple in: value in collection
-	return new InNode(value, collection, {
+	return new InExprNode(value, collection, {
 		start: value.span.start,
 		end: collection.span.end,
 	});
@@ -556,7 +557,7 @@ function convertArithExpr(node: SyntaxNode, source: string): ExprNode {
 			if (result === null) {
 				result = part.node;
 			} else if (pendingOp) {
-				result = new ArithNode(pendingOp, result, part.node, {
+				result = new ArithExprNode(pendingOp, result, part.node, {
 					start: result.span.start,
 					end: part.node.span.end,
 				});

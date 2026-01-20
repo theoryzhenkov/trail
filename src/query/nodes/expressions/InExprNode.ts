@@ -1,16 +1,18 @@
 /**
- * InNode - Membership check expression
+ * InExprNode - Membership check expression
  */
 
 import {ExprNode} from "../base/ExprNode";
-import type {Span, Value, NodeDoc, ValidationContext} from "../types";
+import type {Span, Value, NodeDoc, ValidationContext, CompletionContext} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
-@register("InNode", {expr: true})
-export class InNode extends ExprNode {
+@register("InExprNode", {expr: true})
+export class InExprNode extends ExprNode {
 	readonly value: ExprNode;
 	readonly collection: ExprNode;
+
+	static providesContexts: CompletionContext[] = ["after-expression"];
 
 	static documentation: NodeDoc = {
 		title: "IN Operator",

@@ -1,18 +1,20 @@
 /**
- * CompareNode - Comparison expressions (=, !=, <, >, <=, >=, =?, !=?)
+ * CompareExprNode - Comparison expressions (=, !=, <, >, <=, >=, =?, !=?)
  */
 
 import {BinaryNode} from "../base/BinaryNode";
 import {ExprNode} from "../base/ExprNode";
-import type {Span, Value, NodeDoc} from "../types";
+import type {Span, Value, NodeDoc, CompletionContext} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
 export type CompareOp = "=" | "!=" | "<" | ">" | "<=" | ">=" | "=?" | "!=?";
 
-@register("CompareNode", {expr: true})
-export class CompareNode extends BinaryNode {
+@register("CompareExprNode", {expr: true})
+export class CompareExprNode extends BinaryNode {
 	readonly op: CompareOp;
+
+	static providesContexts: CompletionContext[] = ["after-expression"];
 
 	static documentation: NodeDoc = {
 		title: "Comparison Operator",

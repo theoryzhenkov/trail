@@ -5,7 +5,7 @@
 import {describe, it, expect} from "vitest";
 import {parse, ParseError} from "./parser";
 import {QueryNode, FromNode, WhereNode} from "./clauses";
-import {LogicalNode, CompareNode, PropertyNode} from "./expressions";
+import {OrExprNode, AndExprNode, CompareExprNode, PropertyNode} from "./expressions";
 import {ExistsFunction} from "./functions/existence";
 import {StringNode, NumberNode, BooleanNode, NullNode} from "./literals";
 import {DateExprNode} from "./expressions";
@@ -43,8 +43,8 @@ describe("TQL Parser", () => {
 		it("should parse simple comparison", () => {
 			const query = parse('group "Test" from up where status = "active"');
 			expect(query.where).toBeInstanceOf(WhereNode);
-			expect(query.where!.expression).toBeInstanceOf(CompareNode);
-			const compare = query.where!.expression as CompareNode;
+			expect(query.where!.expression).toBeInstanceOf(CompareExprNode);
+			const compare = query.where!.expression as CompareExprNode;
 			expect(compare.op).toBe("=");
 			expect(compare.left).toBeInstanceOf(PropertyNode);
 			expect(compare.right).toBeInstanceOf(StringNode);
@@ -53,17 +53,15 @@ describe("TQL Parser", () => {
 		it("should parse logical AND", () => {
 			const query = parse('group "Test" from up where a = 1 and b = 2');
 			expect(query.where).toBeInstanceOf(WhereNode);
-			expect(query.where!.expression).toBeInstanceOf(LogicalNode);
-			const logical = query.where!.expression as LogicalNode;
-			expect(logical.op).toBe("and");
+			expect(query.where!.expression).toBeInstanceOf(AndExprNode);
+			const logical = query.where!.expression as AndExprNode;
 		});
 
 		it("should parse logical OR", () => {
 			const query = parse('group "Test" from up where a = 1 or b = 2');
 			expect(query.where).toBeInstanceOf(WhereNode);
-			expect(query.where!.expression).toBeInstanceOf(LogicalNode);
-			const logical = query.where!.expression as LogicalNode;
-			expect(logical.op).toBe("or");
+			expect(query.where!.expression).toBeInstanceOf(OrExprNode);
+			const logical = query.where!.expression as OrExprNode;
 		});
 
 		it("should parse function calls", () => {
@@ -78,34 +76,34 @@ describe("TQL Parser", () => {
 	describe("Literal parsing", () => {
 		it("should parse string literals", () => {
 			const query = parse('group "Test" from up where name = "value"');
-			const compare = query.where!.expression as CompareNode;
+			const compare = query.where!.expression as CompareExprNode;
 			expect(compare.right).toBeInstanceOf(StringNode);
 			expect((compare.right as StringNode).value).toBe("value");
 		});
 
 		it("should parse number literals", () => {
 			const query = parse('group "Test" from up where priority = 5');
-			const compare = query.where!.expression as CompareNode;
+			const compare = query.where!.expression as CompareExprNode;
 			expect(compare.right).toBeInstanceOf(NumberNode);
 			expect((compare.right as NumberNode).value).toBe(5);
 		});
 
 		it("should parse boolean literals", () => {
 			const query = parse('group "Test" from up where active = true');
-			const compare = query.where!.expression as CompareNode;
+			const compare = query.where!.expression as CompareExprNode;
 			expect(compare.right).toBeInstanceOf(BooleanNode);
 			expect((compare.right as BooleanNode).value).toBe(true);
 		});
 
 		it("should parse null literal", () => {
 			const query = parse('group "Test" from up where status = null');
-			const compare = query.where!.expression as CompareNode;
+			const compare = query.where!.expression as CompareExprNode;
 			expect(compare.right).toBeInstanceOf(NullNode);
 		});
 
 		it("should parse relative date literals", () => {
 			const query = parse('group "Test" from up where date = today');
-			const compare = query.where!.expression as CompareNode;
+			const compare = query.where!.expression as CompareExprNode;
 			// Relative dates are wrapped in DateExprNode
 			expect(compare.right).toBeInstanceOf(DateExprNode);
 			const dateExpr = compare.right as DateExprNode;
@@ -117,7 +115,7 @@ describe("TQL Parser", () => {
 
 		it("should parse duration literals", () => {
 			const query = parse('group "Test" from up where date > today - 7d');
-			// The parser creates an ArithNode for today - 7d
+			// The parser creates an ArithExprNode for today - 7d
 			expect(query.where).toBeDefined();
 		});
 	});

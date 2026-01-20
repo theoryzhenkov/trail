@@ -4,12 +4,14 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import {RelationSpecNode} from "./RelationSpecNode";
-import type {Span, NodeDoc, ValidationContext} from "../types";
+import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
 import {register} from "../registry";
 
 @register("FromNode", {clause: true})
 export class FromNode extends ClauseNode {
 	readonly relations: RelationSpecNode[];
+
+	static providesContexts: CompletionContext[] = ["relation", "clause"];
 
 	static documentation: NodeDoc = {
 		title: "FROM clause",

@@ -13,7 +13,7 @@ import {
 	snippet,
 } from "@codemirror/autocomplete";
 import {syntaxTree} from "@codemirror/language";
-import type {SyntaxNode} from "@lezer/common";
+import type {SyntaxNode, Tree} from "@lezer/common";
 import {registry} from "../nodes/registry";
 import type {CompletionContext as TQLCompletionContext} from "../nodes/types";
 import {getAllFunctionDocs, getAllBuiltinProperties, getBuiltins} from "../nodes/docs";
@@ -25,17 +25,32 @@ import "../nodes/functions";
 import "../nodes/clauses";
 
 /**
- * Get expression clause Lezer names from registry (lazy initialization)
+ * Determine completion contexts by walking up the tree from cursor position
  */
-function getExpressionClauses(): Set<string> {
-	return registry.getExpressionClauseLezerNames();
-}
-
-/**
- * Get expression node Lezer names from registry (lazy initialization)
- */
-function getExpressionNodes(): Set<string> {
-	return registry.getExpressionNodeLezerNames();
+function determineCompletionContexts(tree: Tree, pos: number): Set<TQLCompletionContext> {
+	let node: SyntaxNode | null = tree.resolveInner(pos, -1);
+	
+	// Skip error nodes
+	while (node && node.name === "⚠") {
+		node = node.parent;
+	}
+	
+	const contexts = new Set<TQLCompletionContext>();
+	
+	// Walk up to find INNERMOST context provider
+	while (node && node.name !== "Query") {
+		const providedContexts = registry.getProvidedContexts(node.name);
+		if (providedContexts?.length) {
+			for (const ctx of providedContexts) contexts.add(ctx);
+			break; // Innermost provider wins - stop here
+		}
+		node = node.parent;
+	}
+	
+	// Always add "clause" when inside any clause (or at top level)
+	contexts.add("clause");
+	
+	return contexts;
 }
 
 /**
@@ -46,94 +61,6 @@ export interface TQLAutocompleteConfig {
 	getRelationNames: () => string[];
 }
 
-/**
- * Get completions from registry for given contexts
- */
-function getRegistryCompletions(contexts: TQLCompletionContext[]): Completion[] {
-	const completions: Completion[] = [];
-	const seen = new Set<string>();
-
-	for (const ctx of contexts) {
-		const completables = registry.getCompletablesForContext(ctx);
-		for (const cls of completables) {
-			const completable = cls.completable;
-			if (!completable) continue;
-			
-			const keyword = completable.keywords?.[0];
-			if (!keyword || seen.has(keyword)) continue;
-			
-			seen.add(keyword);
-			const doc = cls.documentation;
-			
-			const typeMap: Record<string, string> = {
-				keyword: "keyword",
-				operator: "keyword",
-				function: "function",
-				property: "property",
-				value: "constant",
-			};
-			
-			const completion: Completion = {
-				label: keyword,
-				type: typeMap[completable.category ?? "keyword"] ?? "keyword",
-				detail: completable.category ?? "keyword",
-				info: doc?.description,
-			};
-
-			if (completable.snippet) {
-				completion.apply = snippet(completable.snippet);
-			}
-
-			completions.push(completion);
-		}
-	}
-
-	return completions;
-}
-
-/**
- * Create function completions from registered functions
- */
-function createFunctionCompletions(): Completion[] {
-	const docs = getAllFunctionDocs();
-	const completions: Completion[] = [];
-	
-	for (const [name, doc] of docs) {
-		completions.push({
-			label: name,
-			type: "function",
-			detail: doc.syntax ?? `${name}()`,
-			info: doc.description,
-			apply: snippet(`${name}(\${1})`),
-		});
-	}
-	
-	return completions;
-}
-
-/**
- * Create built-in identifier completions from registered builtins
- */
-function createBuiltinIdentifierCompletions(): Completion[] {
-	return getBuiltins().map(builtin => ({
-		label: builtin.name,
-		type: "variable",
-		detail: "built-in",
-		info: builtin.description,
-	}));
-}
-
-/**
- * Create property completions from registered builtins
- */
-function createPropertyCompletions(): Completion[] {
-	return getAllBuiltinProperties().map(prop => ({
-		label: prop.name,
-		type: "property",
-		detail: prop.type,
-		info: prop.description,
-	}));
-}
 
 /**
  * Create relation name completions
@@ -147,25 +74,164 @@ function createRelationCompletions(getRelationNames: () => string[]): Completion
 }
 
 /**
- * Create clause completions for clauses that haven't been used
+ * Build completions for a specific context
  */
-function createClauseCompletions(usedClauses: Set<string>): Completion[] {
-	const allClauses: Array<{name: string; info: string}> = [
-		{name: "prune", info: "Stop traversal at matching nodes"},
-		{name: "where", info: "Filter results"},
-		{name: "when", info: "Conditional visibility"},
-		{name: "sort", info: "Order results"},
-		{name: "display", info: "Properties to show"},
-	];
+function buildCompletionsForContext(
+	context: TQLCompletionContext,
+	config: TQLAutocompleteConfig,
+	usedClauses: Set<string>
+): Completion[] {
+	const completions: Completion[] = [];
 	
-	return allClauses
-		.filter(c => !usedClauses.has(c.name))
-		.map(c => ({
-			label: c.name,
-			type: "keyword",
-			detail: "clause",
-			info: c.info,
-		}));
+	// Get registered completables for this context
+	const completables = registry.getCompletablesForContext(context);
+	const seen = new Set<string>();
+	
+	for (const cls of completables) {
+		const completable = cls.completable;
+		if (!completable) continue;
+		
+		const keyword = completable.keywords?.[0];
+		if (!keyword || seen.has(keyword)) continue;
+		
+		seen.add(keyword);
+		const doc = cls.documentation;
+		
+		const typeMap: Record<string, string> = {
+			keyword: "keyword",
+			operator: "keyword",
+			function: "function",
+			property: "property",
+			value: "constant",
+		};
+		
+		const completion: Completion = {
+			label: keyword,
+			type: typeMap[completable.category ?? "keyword"] ?? "keyword",
+			detail: completable.category ?? "keyword",
+			info: doc?.description,
+		};
+		
+		if (completable.snippet) {
+			completion.apply = snippet(completable.snippet);
+		}
+		
+		completions.push(completion);
+	}
+	
+	// Add dynamic completions based on context
+	if (context === "relation") {
+		const relationCompletions = createRelationCompletions(config.getRelationNames);
+		completions.push(...relationCompletions);
+	}
+	
+	if (context === "expression" || context === "after-expression") {
+		// Add function completions
+		const docs = getAllFunctionDocs();
+		for (const [name, doc] of docs) {
+			completions.push({
+				label: name,
+				type: "function",
+				detail: doc.syntax ?? `${name}()`,
+				info: doc.description,
+				apply: snippet(`${name}(\${1})`),
+			});
+		}
+		
+		// Add builtin identifier completions
+		const builtins = getBuiltins();
+		for (const builtin of builtins) {
+			completions.push({
+				label: builtin.name,
+				type: "variable",
+				detail: "built-in",
+				info: builtin.description,
+			});
+		}
+		
+		// Add property completions
+		const properties = getAllBuiltinProperties();
+		for (const prop of properties) {
+			completions.push({
+				label: prop.name,
+				type: "property",
+				detail: prop.type,
+				info: prop.description,
+			});
+		}
+	}
+	
+	if (context === "sort-key") {
+		// Add builtin identifier completions
+		const builtins = getBuiltins();
+		for (const builtin of builtins) {
+			completions.push({
+				label: builtin.name,
+				type: "variable",
+				detail: "built-in",
+				info: builtin.description,
+			});
+		}
+		
+		// Add property completions
+		const properties = getAllBuiltinProperties();
+		for (const prop of properties) {
+			completions.push({
+				label: prop.name,
+				type: "property",
+				detail: prop.type,
+				info: prop.description,
+			});
+		}
+	}
+	
+	if (context === "display") {
+		// Add builtin identifier completions
+		const builtins = getBuiltins();
+		for (const builtin of builtins) {
+			completions.push({
+				label: builtin.name,
+				type: "variable",
+				detail: "built-in",
+				info: builtin.description,
+			});
+		}
+		
+		// Add property completions
+		const properties = getAllBuiltinProperties();
+		for (const prop of properties) {
+			completions.push({
+				label: prop.name,
+				type: "property",
+				detail: prop.type,
+				info: prop.description,
+			});
+		}
+	}
+	
+	// Filter clause completions if in clause context
+	if (context === "clause") {
+		const allClauses: Array<{name: string; info: string}> = [
+			{name: "prune", info: "Stop traversal at matching nodes"},
+			{name: "where", info: "Filter results"},
+			{name: "when", info: "Conditional visibility"},
+			{name: "sort", info: "Order results"},
+			{name: "display", info: "Properties to show"},
+		];
+		
+		for (const clause of allClauses) {
+			if (!usedClauses.has(clause.name)) {
+				completions.push({
+					label: clause.name,
+					type: "keyword",
+					detail: "clause",
+					info: clause.info,
+				});
+			}
+		}
+	}
+	
+	return completions;
 }
 
 /**
@@ -186,158 +252,6 @@ function findUsedClauses(tree: SyntaxNode): Set<string> {
 	return used;
 }
 
-/**
- * Determine completions based on the node at cursor position
- */
-function getCompletionsForNode(
-	node: SyntaxNode,
-	config: TQLAutocompleteConfig,
-	usedClauses: Set<string>,
-): Completion[] {
-	const name = node.name;
-	const parentName = node.parent?.name ?? "";
-	
-	// Cache commonly used completions
-	const functionCompletions = createFunctionCompletions();
-	const builtinCompletions = createBuiltinIdentifierCompletions();
-	const propertyCompletions = createPropertyCompletions();
-	const relationCompletions = createRelationCompletions(config.getRelationNames);
-	const clauseCompletions = createClauseCompletions(usedClauses);
-	
-	// Expression completions (functions, builtins, properties, operators)
-	const expressionCompletions = [
-		...functionCompletions,
-		...builtinCompletions,
-		...propertyCompletions,
-		...getRegistryCompletions(["expression", "after-expression"]),
-	];
-	
-	// At the top level Query node or Error node - check what's present
-	if (name === "Query" || name === "⚠") {
-		// Walk to see what we have
-		const root = node.name === "Query" ? node : node.parent;
-		if (!root) {
-			return [{
-				label: "group",
-				type: "keyword",
-				detail: "clause",
-				info: "Start a new query",
-				apply: snippet('group "${1:name}"\nfrom ${2:relation}'),
-			}];
-		}
-		
-		const hasGroup = root.getChild("Group") !== null;
-		const hasFrom = root.getChild("From") !== null;
-		
-		if (!hasGroup) {
-			return [{
-				label: "group",
-				type: "keyword",
-				detail: "clause",
-				info: "Start a new query",
-				apply: snippet('group "${1:name}"\nfrom ${2:relation}'),
-			}];
-		}
-		
-		if (!hasFrom) {
-			return [{
-				label: "from",
-				type: "keyword",
-				detail: "clause",
-				info: "Specify relations to traverse",
-			}];
-		}
-		
-		// Has both - can add clauses or might be in expression context
-		return [...clauseCompletions, ...expressionCompletions];
-	}
-	
-	// Inside Group clause - user needs to type a string, no completions
-	if (name === "Group" || parentName === "Group") {
-		return [];
-	}
-	
-	// Inside From clause
-	if (name === "From" || parentName === "From") {
-		return [
-			...relationCompletions,
-			...getRegistryCompletions(["after-relation"]),
-			...clauseCompletions,
-		];
-	}
-	
-	// Inside RelationSpec
-	if (name === "RelationSpec" || parentName === "RelationSpec") {
-		return [
-			...getRegistryCompletions(["after-relation"]),
-			...relationCompletions,
-			...clauseCompletions,
-		];
-	}
-	
-	// Depth modifier - expecting number or "unlimited"
-	if (name === "Depth" || parentName === "Depth") {
-		return [{
-			label: "unlimited",
-			type: "keyword",
-			detail: "value",
-			info: "No depth limit",
-		}];
-	}
-	
-	// Expression clauses (prune, where, when)
-	const expressionClauses = getExpressionClauses();
-	if (expressionClauses.has(name) || expressionClauses.has(parentName)) {
-		return [...expressionCompletions, ...clauseCompletions];
-	}
-	
-	// Inside any expression node
-	const expressionNodes = getExpressionNodes();
-	if (expressionNodes.has(name) || expressionNodes.has(parentName)) {
-		return [...expressionCompletions, ...clauseCompletions];
-	}
-	
-	// Sort clause
-	if (name === "Sort" || parentName === "Sort" || name === "SortKey" || parentName === "SortKey") {
-		return [
-			...builtinCompletions,
-			...propertyCompletions,
-			...getRegistryCompletions(["sort-key"]),
-			...clauseCompletions,
-		];
-	}
-	
-	// Display clause
-	if (name === "Display" || parentName === "Display" || name === "DisplayList" || parentName === "DisplayList") {
-		return [
-			...getRegistryCompletions(["display"]),
-			...builtinCompletions,
-			...propertyCompletions,
-			...clauseCompletions,
-		];
-	}
-	
-	// Identifier - context-dependent
-	if (name === "Identifier") {
-		// Check grandparent for context
-		const grandparent = node.parent?.parent;
-		if (grandparent) {
-			if (grandparent.name === "From" || grandparent.name === "RelationSpec") {
-				return [...relationCompletions, ...getRegistryCompletions(["after-relation"])];
-			}
-			const expressionClauses = getExpressionClauses();
-			const expressionNodes = getExpressionNodes();
-			if (expressionClauses.has(grandparent.name) || expressionNodes.has(grandparent.name)) {
-				return expressionCompletions;
-			}
-		}
-		// Default: expression context
-		return expressionCompletions;
-	}
-	
-	// Default: suggest everything applicable
-	return [...clauseCompletions, ...expressionCompletions];
-}
 
 /**
  * Create AST-based TQL autocomplete provider
@@ -366,15 +280,20 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 				const quoteCount = (textBeforeCursor.match(/"/g) || []).length;
 				if (quoteCount % 2 === 1) return null;
 				
-				// Get the syntax tree and find node at cursor
+				// Get the syntax tree
 				const tree = syntaxTree(context.state);
-				const node = tree.resolveInner(context.pos, -1);
+				
+				// Determine completion contexts by walking up the tree
+				const contexts = determineCompletionContexts(tree, context.pos);
 				
 				// Find which clauses are already used
 				const usedClauses = findUsedClauses(tree.topNode);
 				
-				// Get completions for this node
-				let completions = getCompletionsForNode(node, config, usedClauses);
+				// Build completions for each context
+				let completions: Completion[] = [];
+				for (const ctx of contexts) {
+					completions.push(...buildCompletionsForContext(ctx, config, usedClauses));
+				}
 				
 				// Filter by current word
 				if (word.text) {
