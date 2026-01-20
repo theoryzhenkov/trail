@@ -3,6 +3,10 @@
  *
  * This module provides the main entry points for parsing, validating,
  * and executing TQL queries.
+ * 
+ * Two APIs are available:
+ * - Legacy API: parse(), validate(), execute() - uses plain AST objects
+ * - New API: TQL namespace with class-based nodes
  */
 
 // Re-export types
@@ -34,11 +38,69 @@ export type {BuiltinFunction, FunctionContext, FileMetadata} from "./builtins";
 export {TQLError, ParseError, ValidationError, RuntimeError, ValidationErrors} from "./errors";
 export type {ValidationErrorCode} from "./errors";
 
-// Re-export main functions
+// Re-export main functions (legacy API)
 export {tokenize, Lexer, LexerError} from "./lexer";
 export {parse, Parser} from "./parser";
 export {validate, Validator, createValidationContext} from "./validator";
 export {execute} from "./executor";
+
+// ============================================================================
+// New Node-based API
+// ============================================================================
+
+// Export the new TQL namespace with class-based nodes
+export {TQL} from "./nodes";
+
+// Export new parser/lexer (for direct use)
+export {
+	parse as parseNodes,
+	Parser as NodeParser,
+	ParseError as NodeParseError,
+	tokenize as tokenizeNodes,
+	Lexer as NodeLexer,
+	LexerError as NodeLexerError,
+} from "./nodes";
+
+// Export node types for type checking
+export type {
+	NodeDoc,
+	Span as NodeSpan,
+	Value as NodeValue,
+	QueryResult as NodeQueryResult,
+} from "./nodes/types";
+
+// Export node classes
+export {
+	QueryNode,
+	FromNode,
+	RelationSpecNode,
+	SortNode,
+	SortKeyNode,
+	DisplayNode,
+} from "./nodes/clauses";
+
+export {
+	LogicalNode,
+	CompareNode,
+	ArithNode,
+	UnaryNotNode,
+	InNode,
+	RangeNode,
+	PropertyNode,
+	CallNode,
+	AggregateNode,
+	DateExprNode,
+} from "./nodes/expressions";
+
+export {
+	StringNode,
+	NumberNode,
+	BooleanNode,
+	NullNode,
+	DurationNode,
+	DateLiteralNode,
+	RelativeDateNode,
+} from "./nodes/literals";
 
 // Re-export utilities
 export {emptyResult} from "./result";
