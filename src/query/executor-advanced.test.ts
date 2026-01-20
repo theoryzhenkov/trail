@@ -245,5 +245,134 @@ describe("TQL Executor - Advanced Features", () => {
 			const paths = collectPaths(result.results);
 			expect(paths).toContain("child.md");
 		});
+
+		it("should process chains at natural graph leaves (unlimited depth)", () => {
+			// Test the bug: from up >> @"Siblings" should work when hitting natural leaf
+			// Graph: Grandfather -> Dad -> Son
+			// Grandfather has no parents (natural leaf)
+			// Grandfather should have siblings via chain
+			const graph: MockGraph = {
+				files: [
+					{ path: "son.md", properties: {} },
+					{ path: "dad.md", properties: {} },
+					{ path: "grandfather.md", properties: {} },
+					{ path: "grandfather-sibling.md", properties: {} },
+				],
+				edges: [
+					{ from: "dad.md", to: "son.md", relation: "down" },
+					{ from: "grandfather.md", to: "dad.md", relation: "down" },
+					{ from: "son.md", to: "dad.md", relation: "up" },
+					{ from: "dad.md", to: "grandfather.md", relation: "up" },
+					// Grandfather has no parents (natural leaf)
+					// Grandfather has a sibling
+					{ from: "grandfather.md", to: "grandfather-sibling.md", relation: "sibling" },
+				],
+				relations: ["up", "down", "sibling"],
+				groups: [],
+			};
+
+			// Group that finds siblings
+			const siblingsGroup = createMockGroup(
+				"Siblings",
+				`group "Siblings" from sibling`,
+				["sibling"],
+				["Siblings"]
+			);
+			graph.groups = [siblingsGroup];
+
+			// Query: from son, go up unlimited, then find siblings at leaf nodes
+			const result = runQuery(
+				`group "Test" from up >> @"Siblings"`,
+				graph,
+				"son.md"
+			);
+
+			expect(result.visible).toBe(true);
+			const paths = collectPaths(result.results);
+			// Should find grandfather-sibling when we reach grandfather (natural leaf)
+			expect(paths).toContain("grandfather-sibling.md");
+		});
+
+		it("should process chains at natural graph leaves (with depth limit)", () => {
+			// Similar test but with depth limit that doesn't reach the leaf
+			const graph: MockGraph = {
+				files: [
+					{ path: "son.md", properties: {} },
+					{ path: "dad.md", properties: {} },
+					{ path: "grandfather.md", properties: {} },
+					{ path: "dad-sibling.md", properties: {} },
+				],
+				edges: [
+					{ from: "dad.md", to: "son.md", relation: "down" },
+					{ from: "grandfather.md", to: "dad.md", relation: "down" },
+					{ from: "son.md", to: "dad.md", relation: "up" },
+					{ from: "dad.md", to: "grandfather.md", relation: "up" },
+					// Dad has a sibling
+					{ from: "dad.md", to: "dad-sibling.md", relation: "sibling" },
+				],
+				relations: ["up", "down", "sibling"],
+				groups: [],
+			};
+
+			const siblingsGroup = createMockGroup(
+				"Siblings",
+				`group "Siblings" from sibling`,
+				["sibling"],
+				["Siblings"]
+			);
+			graph.groups = [siblingsGroup];
+
+			// Query: from son, go up depth 1 (reaches dad), then find siblings
+			const result = runQuery(
+				`group "Test" from up :depth 1 >> @"Siblings"`,
+				graph,
+				"son.md"
+			);
+
+			expect(result.visible).toBe(true);
+			const paths = collectPaths(result.results);
+			// Should find dad-sibling when we reach depth limit at dad
+			expect(paths).toContain("dad-sibling.md");
+		});
+
+		it("should NOT process chains at starting node if it has no edges", () => {
+			// Test that chains are only processed at nodes reached through traversal
+			// If starting node has no edges, chains should not be processed
+			const graph: MockGraph = {
+				files: [
+					{ path: "isolated.md", properties: {} },
+					{ path: "sibling.md", properties: {} },
+				],
+				edges: [
+					// isolated.md has no up edges (it's isolated)
+					// isolated.md has a sibling, but we shouldn't find it via chain
+					{ from: "isolated.md", to: "sibling.md", relation: "sibling" },
+				],
+				relations: ["up", "sibling"],
+				groups: [],
+			};
+
+			const siblingsGroup = createMockGroup(
+				"Siblings",
+				`group "Siblings" from sibling`,
+				["sibling"],
+				["Siblings"]
+			);
+			graph.groups = [siblingsGroup];
+
+			// Query: from isolated node, go up (no edges), then find siblings
+			// Should NOT find siblings because we never traversed any up edges
+			const result = runQuery(
+				`group "Test" from up >> @"Siblings"`,
+				graph,
+				"isolated.md"
+			);
+
+			expect(result.visible).toBe(true);
+			const paths = collectPaths(result.results);
+			// Should NOT find sibling because chains are only processed at nodes reached through traversal
+			expect(paths).not.toContain("sibling.md");
+			expect(paths).toHaveLength(0);
+		});
 	});
 });

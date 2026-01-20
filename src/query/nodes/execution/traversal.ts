@@ -283,6 +283,36 @@ function traverseWithPartialFlatten(
 		});
 	}
 
+	// If no edges found (natural graph leaf), check for chains/extend
+	// Only process chains at nodes reached through traversal (traversalPath.length > 1),
+	// not at the starting node if it has no edges
+	if (edges.length === 0 && traversalPath.length > 1 && currentDepth <= maxDepth) {
+		if (options.chain && options.chain.length > 0) {
+			return extendFromChain(
+				ctx,
+				sourcePath,
+				options.chain,
+				ancestorPaths,
+				traversalPath,
+				warnings,
+				pruneExpr,
+				resolveGroup
+			);
+		}
+		if (extendGroup && resolveGroup) {
+			return extendFromGroup(
+				ctx,
+				sourcePath,
+				extendGroup,
+				ancestorPaths,
+				traversalPath,
+				warnings,
+				pruneExpr,
+				resolveGroup
+			);
+		}
+	}
+
 	return results;
 }
 
@@ -474,6 +504,36 @@ function traverseRelation(
 			hasFilteredAncestor: false,
 			children,
 		});
+	}
+
+	// If no edges found (natural graph leaf), check for chains/extend
+	// Only process chains at nodes reached through traversal (traversalPath.length > 1),
+	// not at the starting node if it has no edges
+	if (edges.length === 0 && traversalPath.length > 1 && currentDepth <= maxDepth) {
+		if (options.chain && options.chain.length > 0) {
+			return extendFromChain(
+				ctx,
+				sourcePath,
+				options.chain,
+				ancestorPaths,
+				traversalPath,
+				warnings,
+				pruneExpr,
+				resolveGroup
+			);
+		}
+		if (extendGroup && resolveGroup) {
+			return extendFromGroup(
+				ctx,
+				sourcePath,
+				extendGroup,
+				ancestorPaths,
+				traversalPath,
+				warnings,
+				pruneExpr,
+				resolveGroup
+			);
+		}
 	}
 
 	return results;
