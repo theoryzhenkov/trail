@@ -40,6 +40,7 @@ export function buildSettings(savedData: Partial<TrailSettings> | null): TrailSe
 	
 	// Start with saved or default values
 	let tqlGroups = data.tqlGroups ?? [];
+	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
 	let legacyGroups = data.groups ?? [];
 	
 	// If no TQL groups but has legacy groups, apply defaults first
@@ -69,6 +70,7 @@ export function buildSettings(savedData: Partial<TrailSettings> | null): TrailSe
  * Note: Legacy groups are auto-migrated on load, so this should typically be false
  */
 export function hasLegacyGroups(settings: TrailSettings): boolean {
+	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration check
 	return settings.groups.length > 0;
 }
 
@@ -78,5 +80,6 @@ export function hasLegacyGroups(settings: TrailSettings): boolean {
  */
 export function savedDataNeedsMigration(savedData: Partial<TrailSettings> | null): boolean {
 	if (!savedData) return false;
+	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration check
 	return Array.isArray(savedData.groups) && savedData.groups.length > 0;
 }

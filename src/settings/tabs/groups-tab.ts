@@ -557,6 +557,7 @@ export class GroupsTabRenderer {
 			.setDesc("These groups use the old format. Migrate them to TQL for full functionality.")
 			.setHeading();
 
+		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration UI
 		for (const [index, group] of this.plugin.settings.groups.entries()) {
 			this.renderLegacyGroupSection(section, group, index);
 		}
@@ -574,6 +575,7 @@ export class GroupsTabRenderer {
 		migrateBtn.addEventListener("click", () => {
 			const tqlGroup = migrateGroup(group);
 			this.plugin.settings.tqlGroups.push(tqlGroup);
+			// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
 			this.plugin.settings.groups.splice(index, 1);
 			void this.plugin.saveSettings();
 			new Notice(`Migrated "${group.name}" to TQL`);
@@ -582,6 +584,7 @@ export class GroupsTabRenderer {
 
 		const deleteBtn = actions.createEl("button", {text: "Delete", cls: "mod-warning"});
 		deleteBtn.addEventListener("click", () => {
+			// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
 			this.plugin.settings.groups.splice(index, 1);
 			void this.plugin.saveSettings();
 			this.display();

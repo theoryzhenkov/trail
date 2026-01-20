@@ -398,6 +398,7 @@ export class RelationsTabRenderer {
 		if (!oldName || oldName === newName) {
 			return;
 		}
+		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for legacy migration support
 		for (const group of this.plugin.settings.groups) {
 			for (const member of group.members) {
 				if (member.relation === oldName) {
@@ -408,6 +409,7 @@ export class RelationsTabRenderer {
 	}
 
 	private removeGroupMemberRelations(targetName: string) {
+		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for legacy migration support
 		for (const group of this.plugin.settings.groups) {
 			group.members = group.members.filter((member) => member.relation !== targetName);
 		}
