@@ -2,10 +2,14 @@
  * contains(haystack, needle) - Check if string contains substring
  */
 
-import {FunctionNode, toString} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode, toString} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class ContainsFunction extends FunctionNode {
+@register("ContainsNode", {function: "contains"})
+export class ContainsFunction extends FunctionExprNode {
 	static minArity = 2;
 	static maxArity = 2;
 	static documentation: NodeDoc = {
@@ -16,7 +20,12 @@ export class ContainsFunction extends FunctionNode {
 		examples: ['contains(title, "draft")', 'contains(file.name, "project")'],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const haystack = toString(args[0] ?? null);
 		const needle = toString(args[1] ?? null);
 		return haystack.includes(needle);

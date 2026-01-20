@@ -5,9 +5,11 @@
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {ExecutorContext} from "../context";
+import {register} from "../registry";
 
 export type RelativeDateKind = "today" | "yesterday" | "tomorrow" | "startOfWeek" | "endOfWeek";
 
+@register("RelativeDateNode")
 export class RelativeDateNode extends ExprNode {
 	readonly kind: RelativeDateKind;
 

@@ -2,11 +2,14 @@
  * prop(name) - Access property by name (for reserved names)
  */
 
-import {FunctionNode, toString} from "./FunctionNode";
-import type {Value, NodeDoc} from "../types";
+import {FunctionExprNode, toString} from "../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../types";
 import type {ExecutorContext} from "../context";
+import type {ExprNode} from "../base/ExprNode";
+import {register} from "../registry";
 
-export class PropFunction extends FunctionNode {
+@register("PropNode", {function: "prop"})
+export class PropFunction extends FunctionExprNode {
 	static minArity = 1;
 	static maxArity = 1;
 	static documentation: NodeDoc = {
@@ -17,12 +20,17 @@ export class PropFunction extends FunctionNode {
 		examples: ['prop("type")', 'prop("file.name")'],
 	};
 
-	static evaluate(args: Value[], ctx: ExecutorContext): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const name = toString(args[0] ?? null);
-		
+
 		// Support dot notation for nested access
 		const parts = name.split(".");
-		
+
 		// Check for special prefixes
 		if (parts[0] === "file" && parts[1]) {
 			return ctx.getFileProperty(parts[1]);
@@ -30,7 +38,7 @@ export class PropFunction extends FunctionNode {
 		if (parts[0] === "traversal" && parts[1]) {
 			return ctx.getTraversalProperty(parts[1]);
 		}
-		
+
 		return ctx.getPropertyValue(name);
 	}
 }

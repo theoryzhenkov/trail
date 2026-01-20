@@ -2,11 +2,14 @@
  * backlinks() - Get files linking to this file
  */
 
-import {FunctionNode} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
 import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class BacklinksFunction extends FunctionNode {
+@register("BacklinksNode", {function: "backlinks"})
+export class BacklinksFunction extends FunctionExprNode {
 	static minArity = 0;
 	static maxArity = 0;
 	static documentation: NodeDoc = {
@@ -17,7 +20,11 @@ export class BacklinksFunction extends FunctionNode {
 		examples: ["length(backlinks()) > 5"],
 	};
 
-	static evaluate(_args: Value[], ctx: ExecutorContext): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
 		const metadata = ctx.getFileMetadata(ctx.filePath);
 		if (!metadata) return [];
 		return metadata.backlinks;

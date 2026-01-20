@@ -9,3 +9,5 @@ export {UnaryNode} from "./UnaryNode";
 export {LiteralNode} from "./LiteralNode";
 export {ClauseNode} from "./ClauseNode";
 export {TokenNode} from "./TokenNode";
+export {FunctionExprNode, toString, toNumber, toDate, toArray} from "./FunctionExprNode";
+export {BuiltinNode, type BuiltinProperty} from "./BuiltinNode";

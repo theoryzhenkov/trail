@@ -28,14 +28,12 @@ export * from "./literals";
 
 // Functions - import to register all functions
 import "./functions";
-export * from "./functions";
 
 // Clauses
 export * from "./clauses";
 
-// Lexer and Parser
-export {tokenize, Lexer, LexerError} from "./lexer";
-export {parse, Parser, ParseError} from "./parser";
+// Parser
+export {parse, ParseError} from "./parser";
 
 // ============================================================================
 // TQL Pipeline API

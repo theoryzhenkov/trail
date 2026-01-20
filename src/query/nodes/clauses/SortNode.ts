@@ -5,7 +5,9 @@
 import {ClauseNode} from "../base/ClauseNode";
 import {SortKeyNode} from "./SortKeyNode";
 import type {Span, NodeDoc, ValidationContext} from "../types";
+import {register} from "../registry";
 
+@register("SortNode", {clause: true})
 export class SortNode extends ClauseNode {
 	readonly keys: SortKeyNode[];
 

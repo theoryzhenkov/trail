@@ -2,10 +2,14 @@
  * dateDiff(date1, date2, unit) - Get difference between dates
  */
 
-import {FunctionNode, toString} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode, toString} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class DateDiffFunction extends FunctionNode {
+@register("DateDiffNode", {function: "dateDiff"})
+export class DateDiffFunction extends FunctionExprNode {
 	static minArity = 3;
 	static maxArity = 3;
 	static documentation: NodeDoc = {
@@ -16,7 +20,12 @@ export class DateDiffFunction extends FunctionNode {
 		examples: ['dateDiff(due, today, "d") < 7', 'dateDiff(created, now(), "m")'],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const date1 = args[0] ?? null;
 		const date2 = args[1] ?? null;
 		const unit = toString(args[2] ?? null);

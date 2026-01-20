@@ -1,11 +1,9 @@
 /**
  * Function Node Exports
- * 
- * Import this module to register all built-in functions.
+ *
+ * Import this module to register all built-in functions with the registry.
+ * Each function uses the @register decorator which auto-registers on import.
  */
-
-// Base
-export {FunctionNode, registerFunc, toString} from "./FunctionNode";
 
 // String functions
 export * from "./string";
@@ -24,6 +22,3 @@ export * from "./date";
 
 // Property access
 export {PropFunction} from "./PropFunction";
-
-// Register all functions on import
-import "./register";

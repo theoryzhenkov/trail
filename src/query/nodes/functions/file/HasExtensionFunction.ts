@@ -2,11 +2,14 @@
  * hasExtension(ext) - Check file extension
  */
 
-import {FunctionNode, toString} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode, toString} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
 import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class HasExtensionFunction extends FunctionNode {
+@register("HasExtensionNode", {function: "hasExtension"})
+export class HasExtensionFunction extends FunctionExprNode {
 	static minArity = 1;
 	static maxArity = 1;
 	static documentation: NodeDoc = {
@@ -17,7 +20,12 @@ export class HasExtensionFunction extends FunctionNode {
 		examples: ['hasExtension("md")', 'hasExtension("pdf")'],
 	};
 
-	static evaluate(args: Value[], ctx: ExecutorContext): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const ext = toString(args[0] ?? null).toLowerCase();
 		const path = ctx.filePath.toLowerCase();
 		const expectedExt = ext.startsWith(".") ? ext : "." + ext;

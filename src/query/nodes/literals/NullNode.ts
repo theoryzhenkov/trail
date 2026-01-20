@@ -4,7 +4,9 @@
 
 import {LiteralNode} from "../base/LiteralNode";
 import type {Span, NodeDoc} from "../types";
+import {register} from "../registry";
 
+@register("NullNode")
 export class NullNode extends LiteralNode<null> {
 	static documentation: NodeDoc = {
 		title: "Null Literal",

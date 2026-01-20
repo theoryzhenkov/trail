@@ -2,11 +2,14 @@
  * inFolder(folder) - Check if file is in folder
  */
 
-import {FunctionNode, toString} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode, toString} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
 import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class InFolderFunction extends FunctionNode {
+@register("InFolderNode", {function: "inFolder"})
+export class InFolderFunction extends FunctionExprNode {
 	static minArity = 1;
 	static maxArity = 1;
 	static documentation: NodeDoc = {
@@ -17,11 +20,16 @@ export class InFolderFunction extends FunctionNode {
 		examples: ['inFolder("Projects")', 'inFolder("Archive/2024")'],
 	};
 
-	static evaluate(args: Value[], ctx: ExecutorContext): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const folder = toString(args[0] ?? null);
 		const metadata = ctx.getFileMetadata(ctx.filePath);
 		if (!metadata) return false;
-		
+
 		const fileFolder = metadata.folder;
 		// Check if file is in the folder or a subfolder
 		return fileFolder === folder || fileFolder.startsWith(folder + "/");

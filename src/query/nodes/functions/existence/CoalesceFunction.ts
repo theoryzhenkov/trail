@@ -2,10 +2,14 @@
  * coalesce(value1, value2, ...) - Return first non-null value
  */
 
-import {FunctionNode} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class CoalesceFunction extends FunctionNode {
+@register("CoalesceNode", {function: "coalesce"})
+export class CoalesceFunction extends FunctionExprNode {
 	static minArity = 1;
 	static maxArity = Infinity;
 	static documentation: NodeDoc = {
@@ -16,7 +20,12 @@ export class CoalesceFunction extends FunctionNode {
 		examples: ["coalesce(alias, file.name)", "coalesce(due, created)"],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		for (const arg of args) {
 			if (arg !== null && arg !== undefined) {
 				return arg;

@@ -4,6 +4,7 @@
 
 import {ExprNode} from "../base/ExprNode";
 import {PropertyNode} from "./PropertyNode";
+import {InlineQueryNode} from "./InlineQueryNode";
 import type {Span, Value, NodeDoc, ValidationContext, QueryResultNode} from "../types";
 import type {ExecutorContext} from "../context";
 import {traverse, type TraversalOptions} from "../execution/traversal";
@@ -20,10 +21,9 @@ export interface GroupRefSource {
 	span: Span;
 }
 
-export interface InlineFromSource {
-	type: "inlineFrom";
-	relations: RelationSpecData[];
-	span: Span;
+export interface InlineQuerySource {
+	type: "inlineQuery";
+	node: InlineQueryNode;
 }
 
 export interface BareIdentifierSource {
@@ -40,7 +40,7 @@ export interface RelationSpecData {
 	span: Span;
 }
 
-export type AggregateSource = GroupRefSource | InlineFromSource | BareIdentifierSource;
+export type AggregateSource = GroupRefSource | InlineQuerySource | BareIdentifierSource;
 
 @register("AggregateNode", {expr: true})
 export class AggregateNode extends ExprNode {
@@ -56,9 +56,9 @@ export class AggregateNode extends ExprNode {
 		syntax: "func(source[, property|condition])",
 		examples: [
 			"count(children)",
-			"sum(from tasks, points)",
-			'any(subtasks, status = "done")',
-			'all(group("Tasks"), priority > 0)',
+			"sum(@(from tasks), points)",
+			'any(@(from subtasks), status = "done")',
+			"all(group(Tasks), priority > 0)",
 		],
 	};
 
@@ -111,6 +111,11 @@ export class AggregateNode extends ExprNode {
 	}
 
 	private executeSubquery(ctx: ExecutorContext): QueryResultNode[] {
+		// Handle InlineQueryNode source - delegate to its executeQuery
+		if (this.source.type === "inlineQuery") {
+			return this.source.node.executeQuery(ctx);
+		}
+
 		const fromPath = ctx.filePath;
 		const relations = this.resolveSourceRelations(ctx);
 		const results: QueryResultNode[] = [];
@@ -140,10 +145,7 @@ export class AggregateNode extends ExprNode {
 				| {from: {relations: Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: number | true}>}}
 				| undefined;
 			return groupQuery?.from.relations ?? [];
-		} else if (this.source.type === "inlineFrom") {
-			// Explicit from clause
-			return this.source.relations;
-		} else {
+		} else if (this.source.type === "bareIdentifier") {
 			// Bare identifier - resolve to group or relation
 			const groupQuery = ctx.resolveGroupQuery(this.source.name) as
 				| {from: {relations: Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: number | true}>}}
@@ -159,6 +161,9 @@ export class AggregateNode extends ExprNode {
 					},
 				];
 			}
+		} else {
+			// inlineQuery - should not reach here as it's handled in executeSubquery
+			return [];
 		}
 	}
 
@@ -286,12 +291,9 @@ export class AggregateNode extends ExprNode {
 			if (!ctx.hasGroup(this.source.name)) {
 				ctx.addError(`Unknown group: ${this.source.name}`, this.source.span, "UNKNOWN_GROUP");
 			}
-		} else if (this.source.type === "inlineFrom") {
-			for (const rel of this.source.relations) {
-				if (!ctx.hasRelation(rel.name)) {
-					ctx.addError(`Unknown relation: ${rel.name}`, rel.span, "UNKNOWN_RELATION");
-				}
-			}
+		} else if (this.source.type === "inlineQuery") {
+			// Delegate validation to the inline query node
+			this.source.node.validate(ctx);
 		} else if (this.source.type === "bareIdentifier") {
 			const name = this.source.name;
 			const isGroup = ctx.hasGroup(name);
@@ -299,7 +301,7 @@ export class AggregateNode extends ExprNode {
 
 			if (isGroup && isRelation) {
 				ctx.addError(
-					`"${name}" is both a group and a relation. Use group("${name}") or \`from ${name}\` to disambiguate.`,
+					`"${name}" is both a group and a relation. Use group("${name}") or @(from ${name}) to disambiguate.`,
 					this.source.span,
 					"AMBIGUOUS_IDENTIFIER"
 				);

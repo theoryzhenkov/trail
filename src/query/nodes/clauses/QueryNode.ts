@@ -6,18 +6,21 @@ import {ClauseNode} from "../base/ClauseNode";
 import {FromNode} from "./FromNode";
 import {SortNode} from "./SortNode";
 import {DisplayNode} from "./DisplayNode";
-import {ExprNode} from "../base/ExprNode";
+import {PruneNode} from "./PruneNode";
+import {WhereNode} from "./WhereNode";
+import {WhenNode} from "./WhenNode";
 import type {Span, NodeDoc, ValidationContext, QueryResult, QueryResultNode} from "../types";
 import type {ExecutorContext} from "../context";
-import {traverse, type TraversalOptions} from "../execution/traversal";
-import {sortNodes} from "../execution/sorting";
+import {executeQueryClauses} from "../execution/query-executor";
+import {register} from "../registry";
 
+@register("QueryNode", {clause: true})
 export class QueryNode extends ClauseNode {
 	readonly group: string;
 	readonly from: FromNode;
-	readonly prune?: ExprNode;
-	readonly where?: ExprNode;
-	readonly when?: ExprNode;
+	readonly prune?: PruneNode;
+	readonly where?: WhereNode;
+	readonly when?: WhenNode;
 	readonly sort?: SortNode;
 	readonly display?: DisplayNode;
 
@@ -31,9 +34,9 @@ export class QueryNode extends ClauseNode {
 		group: string,
 		from: FromNode,
 		span: Span,
-		prune?: ExprNode,
-		where?: ExprNode,
-		when?: ExprNode,
+		prune?: PruneNode,
+		where?: WhereNode,
+		when?: WhenNode,
 		sort?: SortNode,
 		display?: DisplayNode
 	) {
@@ -79,8 +82,7 @@ export class QueryNode extends ClauseNode {
 		// Evaluate WHEN clause against active file
 		if (this.when) {
 			ctx.setCurrentFile(ctx.activeFilePath, ctx.activeFileProperties);
-			const whenResult = this.when.evaluate(ctx);
-			if (!ctx.isTruthy(whenResult)) {
+			if (!this.when.test(ctx)) {
 				return {
 					visible: false,
 					results: [],
@@ -90,17 +92,17 @@ export class QueryNode extends ClauseNode {
 			}
 		}
 
-		// Traverse FROM clause
-		const results = this.traverse(ctx);
+		// Execute query clauses using shared logic
+		const results = executeQueryClauses(ctx, {
+			from: this.from,
+			prune: this.prune,
+			where: this.where,
+			sort: this.sort,
+			startPath: ctx.activeFilePath,
+		});
 
-		// Apply WHERE filter
-		const filtered = this.where ? this.applyWhereFilter(results, ctx) : results;
-
-		// Sort results
-		const sorted = this.sort ? this.sortResults(filtered, ctx) : filtered;
-
-		// Apply DISPLAY clause
-		const displayed = this.applyDisplay(sorted);
+		// Apply DISPLAY clause (QueryNode-specific)
+		const displayed = this.applyDisplay(results);
 
 		return {
 			visible: true,
@@ -108,83 +110,6 @@ export class QueryNode extends ClauseNode {
 			warnings: ctx.getWarnings(),
 			errors: ctx.hasErrors() ? ctx.getErrors() : undefined,
 		};
-	}
-
-	private traverse(ctx: ExecutorContext): QueryResultNode[] {
-		const results: QueryResultNode[] = [];
-
-		// Build group resolver for extend functionality
-		const resolveGroup = (name: string): TraversalOptions[] | undefined => {
-			const groupQuery = ctx.resolveGroupQuery(name) as QueryNode | undefined;
-			if (!groupQuery) return undefined;
-
-			return groupQuery.from.relations.map((rel) => ({
-				startPath: "", // Will be set by caller
-				relation: rel.name,
-				maxDepth: rel.depth === "unlimited" ? Infinity : rel.depth,
-				extendGroup: rel.extend,
-				flatten: rel.flatten,
-				pruneExpr: this.prune,
-				resolveGroup,
-			}));
-		};
-
-		// Traverse each relation in the FROM clause
-		for (const relSpec of this.from.relations) {
-			const options: TraversalOptions = {
-				startPath: ctx.activeFilePath,
-				relation: relSpec.name,
-				maxDepth: relSpec.depth === "unlimited" ? Infinity : relSpec.depth,
-				extendGroup: relSpec.extend,
-				flatten: relSpec.flatten,
-				pruneExpr: this.prune,
-				resolveGroup,
-			};
-
-			const result = traverse(ctx, options);
-			results.push(...result.nodes);
-
-			// Add warnings from traversal
-			for (const warning of result.warnings) {
-				ctx.addWarning(warning.message);
-			}
-		}
-
-		return results;
-	}
-
-	private applyWhereFilter(nodes: QueryResultNode[], ctx: ExecutorContext): QueryResultNode[] {
-		// Filter nodes based on WHERE clause
-		const result: QueryResultNode[] = [];
-
-		for (const node of nodes) {
-			ctx.setCurrentFile(node.path, node.properties);
-			ctx.setTraversal({
-				depth: node.depth,
-				relation: node.relation,
-				isImplied: node.implied,
-				parent: node.parent,
-				path: node.traversalPath,
-			});
-
-			const whereResult = this.where!.evaluate(ctx);
-			const filteredChildren = this.applyWhereFilter(node.children, ctx);
-
-			if (ctx.isTruthy(whereResult)) {
-				result.push({...node, children: filteredChildren});
-			} else if (filteredChildren.length > 0) {
-				result.push(
-					...filteredChildren.map((child) => ({...child, hasFilteredAncestor: true}))
-				);
-			}
-		}
-
-		return result;
-	}
-
-	private sortResults(nodes: QueryResultNode[], ctx: ExecutorContext): QueryResultNode[] {
-		if (!this.sort) return nodes;
-		return sortNodes(nodes, this.sort.keys, ctx);
 	}
 
 	private applyDisplay(nodes: QueryResultNode[]): QueryResultNode[] {

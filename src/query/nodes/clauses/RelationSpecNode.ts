@@ -4,7 +4,9 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import type {Span, NodeDoc, ValidationContext} from "../types";
+import {register} from "../registry";
 
+@register("RelationSpecNode", {clause: true})
 export class RelationSpecNode extends ClauseNode {
 	readonly name: string;
 	readonly depth: number | "unlimited";

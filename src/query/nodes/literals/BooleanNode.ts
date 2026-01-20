@@ -4,7 +4,9 @@
 
 import {LiteralNode} from "../base/LiteralNode";
 import type {Span, NodeDoc} from "../types";
+import {register} from "../registry";
 
+@register("BooleanNode")
 export class BooleanNode extends LiteralNode<boolean> {
 	static documentation: NodeDoc = {
 		title: "Boolean Literal",

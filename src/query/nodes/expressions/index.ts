@@ -9,13 +9,13 @@ export {UnaryNotNode} from "./UnaryNotNode";
 export {InNode} from "./InNode";
 export {RangeNode} from "./RangeNode";
 export {PropertyNode} from "./PropertyNode";
-export {CallNode, registerFunction, getFunction, hasFunction} from "./CallNode";
+// Function utilities are exported from docs.ts and registry.ts
 export {
 	AggregateNode,
 	type AggregateFunc,
 	type AggregateSource,
 	type GroupRefSource,
-	type InlineFromSource,
+	type InlineQuerySource,
 	type BareIdentifierSource,
 	type RelationSpecData,
 } from "./AggregateNode";
@@ -27,6 +27,7 @@ export {
 	type PropertyBase,
 	type DateOffset,
 } from "./DateExprNode";
+export {InlineQueryNode} from "./InlineQueryNode";
 
 // Re-export base classes
 export {ExprNode} from "../base/ExprNode";

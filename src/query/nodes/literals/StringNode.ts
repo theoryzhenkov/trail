@@ -4,7 +4,9 @@
 
 import {LiteralNode} from "../base/LiteralNode";
 import type {Span, NodeDoc} from "../types";
+import {register} from "../registry";
 
+@register("StringNode")
 export class StringNode extends LiteralNode<string> {
 	static documentation: NodeDoc = {
 		title: "String Literal",

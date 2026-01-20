@@ -2,10 +2,14 @@
  * now() - Get current date and time
  */
 
-import {FunctionNode} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class NowFunction extends FunctionNode {
+@register("NowNode", {function: "now"})
+export class NowFunction extends FunctionExprNode {
 	static minArity = 0;
 	static maxArity = 0;
 	static documentation: NodeDoc = {
@@ -16,7 +20,11 @@ export class NowFunction extends FunctionNode {
 		examples: ["file.modified > now() - 7d"],
 	};
 
-	static evaluate(): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(_ctx: ExecutorContext): Value {
 		return new Date();
 	}
 }

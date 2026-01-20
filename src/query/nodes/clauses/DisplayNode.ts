@@ -5,7 +5,9 @@
 import {ClauseNode} from "../base/ClauseNode";
 import {PropertyNode} from "../expressions/PropertyNode";
 import type {Span, NodeDoc, ValidationContext} from "../types";
+import {register} from "../registry";
 
+@register("DisplayNode", {clause: true})
 export class DisplayNode extends ClauseNode {
 	readonly all: boolean;
 	readonly properties: PropertyNode[];

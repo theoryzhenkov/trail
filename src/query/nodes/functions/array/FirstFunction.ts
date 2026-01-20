@@ -2,10 +2,14 @@
  * first(array) - Get first element
  */
 
-import {FunctionNode} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class FirstFunction extends FunctionNode {
+@register("FirstNode", {function: "first"})
+export class FirstFunction extends FunctionExprNode {
 	static minArity = 1;
 	static maxArity = 1;
 	static documentation: NodeDoc = {
@@ -16,7 +20,12 @@ export class FirstFunction extends FunctionNode {
 		examples: ['first(tags) = "important"'],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const value = args[0] ?? null;
 		if (Array.isArray(value) && value.length > 0) {
 			return value[0] ?? null;

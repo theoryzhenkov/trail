@@ -43,6 +43,12 @@ export interface RegisterOptions {
 	keyword?: string;
 	/** Register as an expression node */
 	expr?: boolean;
+	/** Register as a function with this name */
+	function?: string;
+	/** Register as a clause node */
+	clause?: boolean;
+	/** Register as a builtin with this name */
+	builtin?: string;
 }
 
 /**
@@ -52,6 +58,7 @@ class NodeRegistry {
 	private nodesByType = new Map<string, NodeClass>();
 	private tokensByKeyword = new Map<string, TokenClass>();
 	private exprNodes = new Map<string, NodeClass<ExprNode>>();
+	private functionsByName = new Map<string, NodeClass<ExprNode>>();
 	private completableNodes = new Map<string, CompletableClass>();
 
 	/**
@@ -94,6 +101,21 @@ class NodeRegistry {
 	}
 
 	/**
+	 * Register a function node class by function name
+	 */
+	registerFunction(name: string, cls: NodeClass<ExprNode>): void {
+		this.functionsByName.set(name.toLowerCase(), cls);
+		this.nodesByType.set(cls.name, cls);
+		this.exprNodes.set(cls.name, cls);
+
+		// Track if it has completion metadata
+		const completable = (cls as unknown as CompletableClass).completable;
+		if (completable) {
+			this.completableNodes.set(name, cls as unknown as CompletableClass);
+		}
+	}
+
+	/**
 	 * Get a node class by type
 	 */
 	getNodeClass(type: string): NodeClass | undefined {
@@ -112,6 +134,34 @@ class NodeRegistry {
 	 */
 	getExprClass(type: string): NodeClass<ExprNode> | undefined {
 		return this.exprNodes.get(type);
+	}
+
+	/**
+	 * Get a function node class by function name
+	 */
+	getFunctionClass(name: string): NodeClass<ExprNode> | undefined {
+		return this.functionsByName.get(name.toLowerCase());
+	}
+
+	/**
+	 * Check if a function is registered
+	 */
+	hasFunction(name: string): boolean {
+		return this.functionsByName.has(name.toLowerCase());
+	}
+
+	/**
+	 * Get all registered function names
+	 */
+	getAllFunctionNames(): string[] {
+		return Array.from(this.functionsByName.keys());
+	}
+
+	/**
+	 * Get all registered function classes
+	 */
+	getAllFunctionClasses(): Map<string, NodeClass<ExprNode>> {
+		return new Map(this.functionsByName);
 	}
 
 	/**
@@ -187,6 +237,11 @@ export const registry = new NodeRegistry();
  * export class LogicalNode extends BinaryNode<ExprNode> {
  *   // ...
  * }
+ *
+ * @register("ContainsNode", {function: "contains"})
+ * export class ContainsNode extends FunctionExprNode {
+ *   // ...
+ * }
  * ```
  */
 export function register(type: string, options?: RegisterOptions) {
@@ -200,6 +255,13 @@ export function register(type: string, options?: RegisterOptions) {
 		if (options?.expr) {
 			registry.registerExpr(type, cls as unknown as NodeClass<ExprNode>);
 		}
+
+		if (options?.function) {
+			registry.registerFunction(options.function, cls as unknown as NodeClass<ExprNode>);
+		}
+
+		// Note: clause and builtin options are just markers for documentation
+		// They don't require special registration beyond the base register() call
 
 		return cls;
 	};
@@ -231,4 +293,41 @@ export function getAllTokenClasses(): TokenClass[] {
  */
 export function isTokenKeyword(keyword: string): boolean {
 	return registry.hasToken(keyword);
+}
+
+/**
+ * Helper to get function class by name
+ */
+export function getFunctionClass(name: string): NodeClass<ExprNode> | undefined {
+	return registry.getFunctionClass(name);
+}
+
+/**
+ * Helper to check if a function exists
+ */
+export function hasFunction(name: string): boolean {
+	return registry.hasFunction(name);
+}
+
+/**
+ * Helper to get all function names
+ */
+export function getAllFunctionNames(): string[] {
+	return registry.getAllFunctionNames();
+}
+
+/**
+ * Helper to get all function classes
+ */
+export function getAllFunctionClasses(): Map<string, NodeClass<ExprNode>> {
+	return registry.getAllFunctionClasses();
+}
+
+/**
+ * Generic helper to get node documentation by type and name
+ * This is a convenience wrapper - prefer using docs.ts for documentation access
+ */
+export function getNodeDoc(type: string, name?: string): NodeDoc | undefined {
+	const cls = registry.getNodeClass(type);
+	return (cls as unknown as {documentation?: NodeDoc})?.documentation;
 }

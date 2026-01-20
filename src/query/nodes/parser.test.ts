@@ -1,78 +1,14 @@
 /**
- * Tests for the new TQL Parser that creates node class instances
+ * Tests for the TQL Parser using Lezer + tree converter
  */
 
 import {describe, it, expect} from "vitest";
 import {parse, ParseError} from "./parser";
-import {tokenize, LexerError} from "./lexer";
-import {QueryNode, FromNode} from "./clauses";
-import {LogicalNode, CompareNode, PropertyNode, CallNode} from "./expressions";
-import {StringNode, NumberNode, BooleanNode, NullNode, DurationNode} from "./literals";
+import {QueryNode, FromNode, WhereNode} from "./clauses";
+import {LogicalNode, CompareNode, PropertyNode} from "./expressions";
+import {ExistsFunction} from "./functions/existence";
+import {StringNode, NumberNode, BooleanNode, NullNode} from "./literals";
 import {DateExprNode} from "./expressions";
-import {
-	GroupToken, FromToken, WhereToken, WhenToken, StringToken, NumberToken,
-	IdentifierToken, EOFToken,
-} from "./tokens";
-
-describe("TQL Lexer", () => {
-	describe("Basic tokenization", () => {
-		it("should tokenize keywords", () => {
-			const tokens = tokenize("group from where when");
-			expect(tokens[0]).toBeInstanceOf(GroupToken);
-			expect(tokens[1]).toBeInstanceOf(FromToken);
-			expect(tokens[2]).toBeInstanceOf(WhereToken);
-			expect(tokens[3]).toBeInstanceOf(WhenToken);
-			expect(tokens[4]).toBeInstanceOf(EOFToken);
-		});
-
-		it("should tokenize string literals", () => {
-			const tokens = tokenize('"hello world"');
-			expect(tokens[0]).toBeInstanceOf(StringToken);
-			expect(tokens[0]?.value).toBe("hello world");
-		});
-
-		it("should tokenize number literals", () => {
-			const tokens = tokenize("42 3.14");
-			expect(tokens[0]).toBeInstanceOf(NumberToken);
-			expect(tokens[0]?.value).toBe("42");
-			expect(tokens[1]).toBeInstanceOf(NumberToken);
-			expect(tokens[1]?.value).toBe("3.14");
-		});
-
-		it("should tokenize identifiers", () => {
-			const tokens = tokenize("myProperty file.name");
-			expect(tokens[0]).toBeInstanceOf(IdentifierToken);
-			expect(tokens[0]?.value).toBe("myProperty");
-		});
-
-		it("should handle escape sequences in strings", () => {
-			const tokens = tokenize('"line1\\nline2"');
-			expect(tokens[0]).toBeInstanceOf(StringToken);
-			expect(tokens[0]?.value).toBe("line1\nline2");
-		});
-
-		it("should throw on unterminated strings", () => {
-			expect(() => tokenize('"unterminated')).toThrow(LexerError);
-		});
-	});
-
-	describe("Operator tokenization", () => {
-		it("should tokenize comparison operators", () => {
-			const tokens = tokenize("= != < > <= >= =? !=?");
-			expect(tokens.length).toBe(9); // 8 operators + EOF
-		});
-
-		it("should tokenize arithmetic operators", () => {
-			const tokens = tokenize("+ -");
-			expect(tokens.length).toBe(3); // 2 operators + EOF
-		});
-
-		it("should tokenize range operator", () => {
-			const tokens = tokenize("..");
-			expect(tokens.length).toBe(2); // 1 operator + EOF
-		});
-	});
-});
 
 describe("TQL Parser", () => {
 	describe("Basic query parsing", () => {
@@ -106,8 +42,9 @@ describe("TQL Parser", () => {
 	describe("WHERE clause parsing", () => {
 		it("should parse simple comparison", () => {
 			const query = parse('group "Test" from up where status = "active"');
-			expect(query.where).toBeInstanceOf(CompareNode);
-			const compare = query.where as CompareNode;
+			expect(query.where).toBeInstanceOf(WhereNode);
+			expect(query.where!.expression).toBeInstanceOf(CompareNode);
+			const compare = query.where!.expression as CompareNode;
 			expect(compare.op).toBe("=");
 			expect(compare.left).toBeInstanceOf(PropertyNode);
 			expect(compare.right).toBeInstanceOf(StringNode);
@@ -115,58 +52,60 @@ describe("TQL Parser", () => {
 
 		it("should parse logical AND", () => {
 			const query = parse('group "Test" from up where a = 1 and b = 2');
-			expect(query.where).toBeInstanceOf(LogicalNode);
-			const logical = query.where as LogicalNode;
+			expect(query.where).toBeInstanceOf(WhereNode);
+			expect(query.where!.expression).toBeInstanceOf(LogicalNode);
+			const logical = query.where!.expression as LogicalNode;
 			expect(logical.op).toBe("and");
 		});
 
 		it("should parse logical OR", () => {
 			const query = parse('group "Test" from up where a = 1 or b = 2');
-			expect(query.where).toBeInstanceOf(LogicalNode);
-			const logical = query.where as LogicalNode;
+			expect(query.where).toBeInstanceOf(WhereNode);
+			expect(query.where!.expression).toBeInstanceOf(LogicalNode);
+			const logical = query.where!.expression as LogicalNode;
 			expect(logical.op).toBe("or");
 		});
 
 		it("should parse function calls", () => {
 			const query = parse('group "Test" from up where exists(priority)');
-			expect(query.where).toBeInstanceOf(CallNode);
-			const call = query.where as CallNode;
-			expect(call.name).toBe("exists");
-			expect(call.args.length).toBe(1);
+			expect(query.where).toBeInstanceOf(WhereNode);
+			expect(query.where!.expression).toBeInstanceOf(ExistsFunction);
+			const func = query.where!.expression as ExistsFunction;
+			expect(func.args.length).toBe(1);
 		});
 	});
 
 	describe("Literal parsing", () => {
 		it("should parse string literals", () => {
 			const query = parse('group "Test" from up where name = "value"');
-			const compare = query.where as CompareNode;
+			const compare = query.where!.expression as CompareNode;
 			expect(compare.right).toBeInstanceOf(StringNode);
 			expect((compare.right as StringNode).value).toBe("value");
 		});
 
 		it("should parse number literals", () => {
 			const query = parse('group "Test" from up where priority = 5');
-			const compare = query.where as CompareNode;
+			const compare = query.where!.expression as CompareNode;
 			expect(compare.right).toBeInstanceOf(NumberNode);
 			expect((compare.right as NumberNode).value).toBe(5);
 		});
 
 		it("should parse boolean literals", () => {
 			const query = parse('group "Test" from up where active = true');
-			const compare = query.where as CompareNode;
+			const compare = query.where!.expression as CompareNode;
 			expect(compare.right).toBeInstanceOf(BooleanNode);
 			expect((compare.right as BooleanNode).value).toBe(true);
 		});
 
 		it("should parse null literal", () => {
 			const query = parse('group "Test" from up where status = null');
-			const compare = query.where as CompareNode;
+			const compare = query.where!.expression as CompareNode;
 			expect(compare.right).toBeInstanceOf(NullNode);
 		});
 
 		it("should parse relative date literals", () => {
 			const query = parse('group "Test" from up where date = today');
-			const compare = query.where as CompareNode;
+			const compare = query.where!.expression as CompareNode;
 			// Relative dates are wrapped in DateExprNode
 			expect(compare.right).toBeInstanceOf(DateExprNode);
 			const dateExpr = compare.right as DateExprNode;

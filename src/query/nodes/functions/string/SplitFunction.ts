@@ -2,10 +2,14 @@
  * split(str, delimiter) - Split string into array
  */
 
-import {FunctionNode, toString} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode, toString} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class SplitFunction extends FunctionNode {
+@register("SplitNode", {function: "split"})
+export class SplitFunction extends FunctionExprNode {
 	static minArity = 2;
 	static maxArity = 2;
 	static documentation: NodeDoc = {
@@ -16,7 +20,12 @@ export class SplitFunction extends FunctionNode {
 		examples: ['split(path, "/")', 'split(tags_string, ",")'],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const str = toString(args[0] ?? null);
 		const delimiter = toString(args[1] ?? null);
 		return str.split(delimiter);

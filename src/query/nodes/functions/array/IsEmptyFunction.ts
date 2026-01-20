@@ -2,10 +2,14 @@
  * isEmpty(array) - Check if array is empty
  */
 
-import {FunctionNode} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class IsEmptyFunction extends FunctionNode {
+@register("IsEmptyNode", {function: "isEmpty"})
+export class IsEmptyFunction extends FunctionExprNode {
 	static minArity = 1;
 	static maxArity = 1;
 	static documentation: NodeDoc = {
@@ -16,7 +20,12 @@ export class IsEmptyFunction extends FunctionNode {
 		examples: ["isEmpty(tags)", "not isEmpty(children)"],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const value = args[0] ?? null;
 		if (value === null) return true;
 		if (Array.isArray(value)) return value.length === 0;

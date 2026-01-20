@@ -2,10 +2,14 @@
  * ifnull(value, default) - Return default if value is null
  */
 
-import {FunctionNode} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class IfNullFunction extends FunctionNode {
+@register("IfNullNode", {function: "ifnull"})
+export class IfNullFunction extends FunctionExprNode {
 	static minArity = 2;
 	static maxArity = 2;
 	static documentation: NodeDoc = {
@@ -16,7 +20,12 @@ export class IfNullFunction extends FunctionNode {
 		examples: ['ifnull(status, "unknown")', "ifnull(priority, 0)"],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const value = args[0];
 		const defaultValue = args[1] ?? null;
 		return value !== null && value !== undefined ? value : defaultValue;

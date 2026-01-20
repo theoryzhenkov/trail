@@ -7,15 +7,27 @@
 
 import type {NodeDoc} from "./types";
 import {registry} from "./registry";
-import {getAllFunctionDocs, getFunctionDoc, getAllFunctionNames} from "./expressions/CallNode";
+import {FunctionExprNode} from "./base/FunctionExprNode";
 import {BUILTINS, getAllBuiltinProperties, getBuiltinDoc, type BuiltinProperty} from "./builtins";
 
 // Import tokens to trigger registration
 import "./tokens/keywords";
 
 // Re-export for convenience
-export {getAllFunctionDocs, getFunctionDoc, getAllFunctionNames};
 export {BUILTINS, getAllBuiltinProperties, getBuiltinDoc, type BuiltinProperty};
+
+/**
+ * Get documentation for any registered node by name
+ * Works for functions, keywords, and other registered nodes
+ */
+export function getDoc(name: string): NodeDoc | undefined {
+	// Try function first
+	const funcDoc = getFunctionDoc(name);
+	if (funcDoc) return funcDoc;
+	
+	// Try keyword
+	return getKeywordDoc(name);
+}
 
 /**
  * Get documentation for a keyword
@@ -23,6 +35,15 @@ export {BUILTINS, getAllBuiltinProperties, getBuiltinDoc, type BuiltinProperty};
 export function getKeywordDoc(keyword: string): NodeDoc | undefined {
 	const cls = registry.getTokenClass(keyword);
 	return cls?.documentation;
+}
+
+/**
+ * Get documentation for a function
+ */
+export function getFunctionDoc(name: string): NodeDoc | undefined {
+	const cls = registry.getFunctionClass(name);
+	if (!cls) return undefined;
+	return (cls as unknown as typeof FunctionExprNode).documentation;
 }
 
 /**
@@ -41,6 +62,21 @@ export function getAllKeywordDocs(): Record<string, NodeDoc> {
 	for (const cls of registry.getAllTokenClasses()) {
 		if (cls.keyword && cls.documentation) {
 			result[cls.keyword.toLowerCase()] = cls.documentation;
+		}
+	}
+	return result;
+}
+
+/**
+ * Get all function documentation
+ */
+export function getAllFunctionDocs(): Map<string, NodeDoc> {
+	const result = new Map<string, NodeDoc>();
+	const classes = registry.getAllFunctionClasses();
+	for (const [name, cls] of classes) {
+		const doc = (cls as unknown as typeof FunctionExprNode).documentation;
+		if (doc) {
+			result.set(name, doc);
 		}
 	}
 	return result;

@@ -2,10 +2,14 @@
  * startsWith(str, prefix) - Check if string starts with prefix
  */
 
-import {FunctionNode, toString} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode, toString} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class StartsWithFunction extends FunctionNode {
+@register("StartsWithNode", {function: "startsWith"})
+export class StartsWithFunction extends FunctionExprNode {
 	static minArity = 2;
 	static maxArity = 2;
 	static documentation: NodeDoc = {
@@ -16,7 +20,12 @@ export class StartsWithFunction extends FunctionNode {
 		examples: ['startsWith(file.name, "2024")'],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const str = toString(args[0] ?? null);
 		const prefix = toString(args[1] ?? null);
 		return str.startsWith(prefix);

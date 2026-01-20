@@ -440,7 +440,7 @@ describe("TQL Executor", () => {
 			graph.groups = [childrenGroup];
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where count(group("Children")) > 0`,
+				`group "Test" from down depth 1 where count(group(Children)) > 0`,
 				graph,
 				"root.md"
 			);
@@ -468,7 +468,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where count(from down depth 1) > 0`,
+				`group "Test" from down depth 1 where count(@(from down depth 1)) > 0`,
 				graph,
 				"root.md"
 			);
@@ -563,7 +563,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where sum(from down depth 1, value) = 0`,
+				`group "Test" from down depth 1 where sum(@(from down depth 1), value) = 0`,
 				graph,
 				"root.md"
 			);
@@ -590,7 +590,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where avg(from down depth 1, score) >= 90`,
+				`group "Test" from down depth 1 where avg(@(from down depth 1), score) >= 90`,
 				graph,
 				"root.md"
 			);
@@ -620,7 +620,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where min(from down depth 1, priority) = 1`,
+				`group "Test" from down depth 1 where min(@(from down depth 1), priority) = 1`,
 				graph,
 				"root.md"
 			);
@@ -648,7 +648,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where max(from down depth 1, priority) = 3`,
+				`group "Test" from down depth 1 where max(@(from down depth 1), priority) = 3`,
 				graph,
 				"root.md"
 			);
@@ -675,7 +675,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where any(from down depth 1, status = "done")`,
+				`group "Test" from down depth 1 where any(@(from down depth 1), status = "done")`,
 				graph,
 				"root.md"
 			);
@@ -709,7 +709,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where all(from down depth 1, status = "done")`,
+				`group "Test" from down depth 1 where all(@(from down depth 1), status = "done")`,
 				graph,
 				"root.md"
 			);
@@ -740,7 +740,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where sum(from down depth 1, value) = 10`,
+				`group "Test" from down depth 1 where sum(@(from down depth 1), value) = 10`,
 				graph,
 				"root.md"
 			);
@@ -764,7 +764,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where count(from down depth 1) = 0`,
+				`group "Test" from down depth 1 where count(@(from down depth 1)) = 0`,
 				graph,
 				"root.md"
 			);
@@ -792,7 +792,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where count(from down ) = 2`,
+				`group "Test" from down depth 1 where count(@(from down)) = 2`,
 				graph,
 				"root.md"
 			);

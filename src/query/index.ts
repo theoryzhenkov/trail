@@ -26,8 +26,7 @@ export type {
 // Parser & Lexer
 // ============================================================================
 
-export {parse, Parser, ParseError} from "./nodes/parser";
-export {tokenize, Lexer, LexerError} from "./nodes/lexer";
+export {parse, ParseError} from "./nodes/parser";
 
 // ============================================================================
 // Execution
@@ -68,7 +67,6 @@ export {
 	InNode,
 	RangeNode,
 	PropertyNode,
-	CallNode,
 	AggregateNode,
 	DateExprNode,
 } from "./nodes/expressions";

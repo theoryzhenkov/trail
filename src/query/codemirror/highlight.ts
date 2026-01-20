@@ -18,6 +18,10 @@ import {styleTags, tags as t} from "@lezer/highlight";
 /**
  * Highlighting props for TQL grammar nodes.
  * Maps node names to Lezer highlight tags.
+ * 
+ * Note: Operators like =, !=, etc. are not styled here because they're
+ * inline tokens in the grammar. ViewPlugin-based highlighting in language.ts
+ * handles operator styling.
  */
 export const highlighting = styleTags({
 	// Keywords - clause starters (structural)
@@ -47,14 +51,8 @@ export const highlighting = styleTags({
 	// Functions
 	"FunctionCall/Identifier": t.function(t.variableName),
 	
-	// Operators
-	"= != < > <= >= =? !=? + - ..": t.operator,
-	"!": t.operator,
-	
-	// Punctuation
-	"( )": t.paren,
-	",": t.separator,
-	".": t.derefOperator,
+	// Inline query
+	"@": t.keyword,
 	
 	// Comments
 	LineComment: t.lineComment,

@@ -71,15 +71,26 @@ ArithExpr { arithTerm (("+" | "-") arithTerm)* }
 arithTerm {
   ParenExpr |
   FunctionCall |
+  InlineQuery |
   BuiltinIdentifier |
   PropertyAccess |
   SimpleLiteral |
   DateExpr
 }
 
+// Inline query expression for use in aggregate functions
+// Executes a full query recursively and returns the result set
+InlineQuery { "@" "(" InlineQueryBody ")" }
+
+InlineQueryBody { From Prune? Where? Sort? }
+
 ParenExpr { "(" expression ")" }
 
-FunctionCall { Identifier "(" ArgList? ")" }
+// FunctionName allows keywords that are also valid function names
+// This is needed because @specialize makes keywords global
+FunctionName { Identifier | kw<"all"> | kw<"group"> }
+
+FunctionCall { FunctionName "(" ArgList? ")" }
 
 ArgList { expression ("," expression)* }
 
@@ -140,16 +151,16 @@ Null { @specialize[@name=Null]<Identifier, "null"> }
     ("T" @digit @digit ":" @digit @digit ":" @digit @digit)?
   }
   
-  BuiltinIdentifier { "$" $[a-zA-Z] $[a-zA-Z0-9_]* }
+  BuiltinIdentifier { "$" $[a-zA-Z_À-ÿА-я一-龯] $[a-zA-Z0-9_À-ÿА-я一-龯-]* }
   
-  Identifier { $[a-zA-Z_] $[a-zA-Z0-9_]* }
+  Identifier { $[a-zA-Z_À-ÿА-я一-龯] $[a-zA-Z0-9_À-ÿА-я一-龯-]* }
   
   LineComment { "//" ![\n]* }
   
   // Operators - longer ones first for correct matching
   "!=?" "=?" "!=" "<=" ">=" ".."
   "=" "<" ">" "+" "-" "!" "."
-  "(" ")" ","
+  "(" ")" "," "@"
   
   @precedence { Duration, Number }
   @precedence { DateLiteral, Number }

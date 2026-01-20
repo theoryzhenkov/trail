@@ -2,10 +2,14 @@
  * hours(date) - Get hours from date
  */
 
-import {FunctionNode} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class HoursFunction extends FunctionNode {
+@register("HoursNode", {function: "hours"})
+export class HoursFunction extends FunctionExprNode {
 	static minArity = 1;
 	static maxArity = 1;
 	static documentation: NodeDoc = {
@@ -16,7 +20,12 @@ export class HoursFunction extends FunctionNode {
 		examples: ["hours(file.modified) < 12  // morning"],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const value = args[0] ?? null;
 		if (value instanceof Date) {
 			return value.getHours();

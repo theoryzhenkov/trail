@@ -5,9 +5,11 @@
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {ExecutorContext} from "../context";
+import {register} from "../registry";
 
 export type DurationUnit = "d" | "w" | "m" | "y";
 
+@register("DurationNode")
 export class DurationNode extends ExprNode {
 	readonly value: number;
 	readonly unit: DurationUnit;

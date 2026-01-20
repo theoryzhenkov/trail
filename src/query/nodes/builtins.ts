@@ -5,18 +5,11 @@
  */
 
 import type {NodeDoc} from "./types";
+import {BuiltinNode, type BuiltinProperty} from "./base/BuiltinNode";
+import {register} from "./registry";
 
 /**
- * Built-in property definition
- */
-export interface BuiltinProperty {
-	name: string;
-	type: string;
-	description: string;
-}
-
-/**
- * Built-in identifier (namespace) definition
+ * Built-in identifier (namespace) definition (for backwards compatibility)
  */
 export interface BuiltinIdentifier {
 	name: string;
@@ -27,10 +20,9 @@ export interface BuiltinIdentifier {
 /**
  * $file namespace - file metadata properties
  */
-export const FILE_BUILTIN: BuiltinIdentifier = {
-	name: "$file",
-	description: "File metadata namespace",
-	properties: [
+@register("FileBuiltin", {builtin: "$file"})
+export class FileBuiltin extends BuiltinNode {
+	static properties: BuiltinProperty[] = [
 		{name: "name", type: "string", description: "File name without extension"},
 		{name: "path", type: "string", description: "Full file path"},
 		{name: "folder", type: "string", description: "Parent folder path"},
@@ -38,40 +30,71 @@ export const FILE_BUILTIN: BuiltinIdentifier = {
 		{name: "modified", type: "date", description: "Last modification date"},
 		{name: "size", type: "number", description: "File size in bytes"},
 		{name: "tags", type: "array", description: "File tags"},
-	],
-};
+	];
+
+	static documentation: NodeDoc = {
+		title: "$file",
+		description: "File metadata namespace",
+		syntax: "$file.property",
+		examples: ["$file.name", "$file.modified", "$file.tags"],
+	};
+}
 
 /**
  * $traversal namespace - traversal context properties
  */
-export const TRAVERSAL_BUILTIN: BuiltinIdentifier = {
-	name: "$traversal",
-	description: "Traversal context namespace",
-	properties: [
+@register("TraversalBuiltin", {builtin: "$traversal"})
+export class TraversalBuiltin extends BuiltinNode {
+	static properties: BuiltinProperty[] = [
 		{name: "depth", type: "number", description: "Depth from active file"},
 		{name: "relation", type: "string", description: "Relation that led here"},
 		{name: "isImplied", type: "boolean", description: "Whether edge is implied"},
 		{name: "parent", type: "string", description: "Parent node path"},
 		{name: "path", type: "array", description: "Full path from root"},
-	],
-};
+	];
+
+	static documentation: NodeDoc = {
+		title: "$traversal",
+		description: "Traversal context namespace",
+		syntax: "$traversal.property",
+		examples: ["$traversal.depth", "$traversal.relation"],
+	};
+}
 
 /**
  * $chain - special sort identifier
  */
-export const CHAIN_BUILTIN: BuiltinIdentifier = {
-	name: "$chain",
-	description: "Sort by sequence position in traversal chain",
-	properties: [],
-};
+@register("ChainBuiltin", {builtin: "$chain"})
+export class ChainBuiltin extends BuiltinNode {
+	static properties: BuiltinProperty[] = [];
+
+	static documentation: NodeDoc = {
+		title: "$chain",
+		description: "Sort by sequence position in traversal chain",
+		syntax: "$chain",
+		examples: ["$chain"],
+	};
+}
 
 /**
- * All built-in identifiers
+ * All built-in identifiers (for backwards compatibility)
  */
 export const BUILTINS: BuiltinIdentifier[] = [
-	FILE_BUILTIN,
-	TRAVERSAL_BUILTIN,
-	CHAIN_BUILTIN,
+	{
+		name: "$file",
+		description: "File metadata namespace",
+		properties: FileBuiltin.properties,
+	},
+	{
+		name: "$traversal",
+		description: "Traversal context namespace",
+		properties: TraversalBuiltin.properties,
+	},
+	{
+		name: "$chain",
+		description: "Sort by sequence position in traversal chain",
+		properties: ChainBuiltin.properties,
+	},
 ];
 
 /**
@@ -105,6 +128,18 @@ export function getBuiltinDoc(name: string): NodeDoc | undefined {
 	const builtin = getBuiltin(name);
 	if (!builtin) return undefined;
 	
+	// Try to get documentation from the node class first
+	if (name === "$file") {
+		return FileBuiltin.documentation;
+	}
+	if (name === "$traversal") {
+		return TraversalBuiltin.documentation;
+	}
+	if (name === "$chain") {
+		return ChainBuiltin.documentation;
+	}
+	
+	// Fallback to generating from data
 	return {
 		title: builtin.name,
 		description: builtin.description,
@@ -114,3 +149,6 @@ export function getBuiltinDoc(name: string): NodeDoc | undefined {
 		examples: builtin.properties.slice(0, 2).map(p => `${builtin.name}.${p.name}`),
 	};
 }
+
+// Re-export BuiltinProperty for backwards compatibility
+export type {BuiltinProperty} from "./base/BuiltinNode";

@@ -62,10 +62,10 @@ function canVisualizeQuery(ast: QueryNode): boolean {
 	if (ast.prune) return false;
 
 	// WHEN must be simple (single comparison or missing)
-	if (ast.when && !isSimpleCondition(ast.when)) return false;
+	if (ast.when && !isSimpleCondition(ast.when.expression)) return false;
 
 	// WHERE must be simple (single comparison or missing)
-	if (ast.where && !isSimpleCondition(ast.where)) return false;
+	if (ast.where && !isSimpleCondition(ast.where.expression)) return false;
 
 	// SORT must be simple (single key or missing)
 	if (ast.sort && (ast.sort.keys.length > 1 || ast.sort.keys[0]?.key === "chain")) return false;
@@ -115,8 +115,8 @@ export function parseToVisual(query: string): VisualQuery | null {
 				name: r.name,
 				depth: r.depth,
 			})),
-			where: parseConditionClause(ast.where),
-			when: parseConditionClause(ast.when),
+			where: parseConditionClause(ast.where?.expression),
+			when: parseConditionClause(ast.when?.expression),
 			sort: parseSortClause(ast),
 			display: parseDisplayClause(ast),
 		};

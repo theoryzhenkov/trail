@@ -2,10 +2,14 @@
  * last(array) - Get last element
  */
 
-import {FunctionNode} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class LastFunction extends FunctionNode {
+@register("LastNode", {function: "last"})
+export class LastFunction extends FunctionExprNode {
 	static minArity = 1;
 	static maxArity = 1;
 	static documentation: NodeDoc = {
@@ -16,7 +20,12 @@ export class LastFunction extends FunctionNode {
 		examples: ["last(path_parts)"],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const value = args[0] ?? null;
 		if (Array.isArray(value) && value.length > 0) {
 			return value[value.length - 1] ?? null;

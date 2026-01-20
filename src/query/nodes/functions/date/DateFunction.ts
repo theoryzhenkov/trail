@@ -2,10 +2,14 @@
  * date(string) - Parse string to date
  */
 
-import {FunctionNode, toString} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode, toString} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class DateFunction extends FunctionNode {
+@register("DateNode", {function: "date"})
+export class DateFunction extends FunctionExprNode {
 	static minArity = 1;
 	static maxArity = 1;
 	static documentation: NodeDoc = {
@@ -16,7 +20,12 @@ export class DateFunction extends FunctionNode {
 		examples: ['date("2024-01-15")', "date(created_string)"],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const str = toString(args[0] ?? null);
 		const date = new Date(str);
 		return isNaN(date.getTime()) ? null : date;

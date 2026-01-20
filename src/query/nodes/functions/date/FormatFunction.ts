@@ -2,10 +2,14 @@
  * format(date, pattern) - Format date as string
  */
 
-import {FunctionNode, toString} from "../FunctionNode";
-import type {Value, NodeDoc} from "../../types";
+import {FunctionExprNode, toString} from "../../base/FunctionExprNode";
+import type {Value, NodeDoc, Span} from "../../types";
+import type {ExecutorContext} from "../../context";
+import type {ExprNode} from "../../base/ExprNode";
+import {register} from "../../registry";
 
-export class FormatFunction extends FunctionNode {
+@register("FormatNode", {function: "format"})
+export class FormatFunction extends FunctionExprNode {
 	static minArity = 2;
 	static maxArity = 2;
 	static documentation: NodeDoc = {
@@ -16,10 +20,15 @@ export class FormatFunction extends FunctionNode {
 		examples: ['format(due, "YYYY-MM-DD")', 'format(time, "HH:mm")'],
 	};
 
-	static evaluate(args: Value[]): Value {
+	constructor(args: ExprNode[], span: Span) {
+		super(args, span);
+	}
+
+	evaluate(ctx: ExecutorContext): Value {
+		const args = this.evaluateArgs(ctx);
 		const value = args[0] ?? null;
 		const pattern = toString(args[1] ?? null);
-		
+
 		if (!(value instanceof Date)) {
 			return null;
 		}
