@@ -20,6 +20,9 @@ export * from "./base";
 // Tokens
 export * from "./tokens";
 
+// Modifiers (metadata-only, for completion)
+import "./modifiers";
+
 // Expressions
 export * from "./expressions";
 

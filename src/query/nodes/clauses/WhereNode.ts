@@ -6,7 +6,7 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import type {ExprNode} from "../base/ExprNode";
-import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
+import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
@@ -18,13 +18,21 @@ export class WhereNode extends ClauseNode {
 
 	static documentation: NodeDoc = {
 		title: "WHERE clause",
-		description: "Filters results to only include nodes where the expression is true.",
-		syntax: "where expression",
+		description:
+			"Filters results after traversal. Non-matching nodes are hidden but their children may still appear with a gap indicator.",
+		syntax: "where Expression",
 		examples: [
-			"where status = \"done\"",
-			"where priority > 3",
-			"where tags in \"important\"",
+			"where priority >= 3",
+			'where status != "archived"',
+			'where hasTag("active") and exists(due)',
 		],
+	};
+
+	static completable: Completable = {
+		keywords: ["where"],
+		context: "clause",
+		priority: 80,
+		category: "keyword",
 	};
 
 	constructor(expression: ExprNode, span: Span) {

@@ -4,7 +4,7 @@
 
 import {UnaryNode} from "../base/UnaryNode";
 import {ExprNode} from "../base/ExprNode";
-import type {Span, Value, NodeDoc, CompletionContext} from "../types";
+import type {Span, Value, NodeDoc, CompletionContext, Completable} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
@@ -13,13 +13,20 @@ export class NotExprNode extends UnaryNode {
 	static providesContexts: CompletionContext[] = ["expression"];
 
 	static documentation: NodeDoc = {
-		title: "NOT Operator",
-		description: "Logical NOT. Inverts the truthiness of the expression.",
-		syntax: "not expr | !expr",
+		title: "NOT operator",
+		description: "Logical NOT. Inverts the condition. Can also use '!' prefix.",
+		syntax: "not Expr | !Expr",
 		examples: ['not status = "archived"', '!hasTag("private")'],
 	};
 
 	static highlighting = "operatorKeyword" as const;
+
+	static completable: Completable = {
+		keywords: ["not"],
+		context: "expression",
+		priority: 80,
+		category: "operator",
+	};
 
 	constructor(operand: ExprNode, span: Span) {
 		super(operand, span);

@@ -9,7 +9,15 @@ import {DisplayNode} from "./DisplayNode";
 import {PruneNode} from "./PruneNode";
 import {WhereNode} from "./WhereNode";
 import {WhenNode} from "./WhenNode";
-import type {Span, NodeDoc, ValidationContext, QueryResult, QueryResultNode, CompletionContext} from "../types";
+import type {
+	Span,
+	NodeDoc,
+	ValidationContext,
+	QueryResult,
+	QueryResultNode,
+	CompletionContext,
+	Completable,
+} from "../types";
 import type {ExecutorContext} from "../context";
 import {executeQueryClauses} from "../execution/query-executor";
 import {register} from "../registry";
@@ -30,6 +38,13 @@ export class QueryNode extends ClauseNode {
 		title: "TQL Query",
 		description: "A complete TQL query with group name, FROM clause, and optional filtering/sorting.",
 		syntax: 'group "Name" from ... [prune ...] [where ...] [when ...] [sort ...] [display ...]',
+	};
+
+	static completable: Completable = {
+		keywords: ["group"],
+		context: "query-start",
+		priority: 100,
+		category: "keyword",
 	};
 
 	constructor(

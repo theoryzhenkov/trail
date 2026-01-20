@@ -7,9 +7,10 @@
 
 import type {Node} from "./base/Node";
 import type {TokenNode} from "./base/TokenNode";
+import type {ModifierNode} from "./base/ModifierNode";
 import type {ExprNode} from "./base/ExprNode";
 import type {BuiltinProperty} from "./base/BuiltinNode";
-import type {Completable, CompletionContext, NodeDoc, ContextProvider} from "./types";
+import type {Completable, CompletionContext, NodeDoc, ContextProvider, HighlightCategory} from "./types";
 
 /**
  * Type for a node class constructor
@@ -37,6 +38,16 @@ export type BuiltinClass = NodeClass & {
 };
 
 /**
+ * Type for a modifier class (metadata-only, not instantiated)
+ */
+export type ModifierClass = typeof ModifierNode & {
+	keyword: string;
+	documentation?: NodeDoc;
+	completable?: Completable;
+	highlighting?: HighlightCategory;
+};
+
+/**
  * Type for any class with static completion metadata
  */
 export interface CompletableClass {
@@ -58,6 +69,8 @@ export interface RegisterOptions {
 	clause?: boolean;
 	/** Register as a builtin with this name */
 	builtin?: string;
+	/** Register as a modifier (metadata-only, not instantiated in AST) */
+	modifier?: boolean;
 }
 
 /**
@@ -66,6 +79,7 @@ export interface RegisterOptions {
 class NodeRegistry {
 	private nodesByType = new Map<string, NodeClass>();
 	private tokensByKeyword = new Map<string, TokenClass>();
+	private modifiersByKeyword = new Map<string, ModifierClass>();
 	private exprNodes = new Map<string, NodeClass<ExprNode>>();
 	private functionsByName = new Map<string, NodeClass<ExprNode>>();
 	private completableNodes = new Map<string, CompletableClass>();
@@ -116,6 +130,33 @@ class NodeRegistry {
 		if (cls.completable) {
 			this.completableNodes.set(keyword, cls);
 		}
+	}
+
+	/**
+	 * Register a modifier class by its keyword.
+	 * Modifiers are metadata-only and not instantiated in the AST.
+	 */
+	registerModifier(keyword: string, cls: ModifierClass): void {
+		this.modifiersByKeyword.set(keyword.toLowerCase(), cls);
+
+		// Track for completion
+		if (cls.completable) {
+			this.completableNodes.set(keyword, cls);
+		}
+	}
+
+	/**
+	 * Get a modifier class by keyword
+	 */
+	getModifierClass(keyword: string): ModifierClass | undefined {
+		return this.modifiersByKeyword.get(keyword.toLowerCase());
+	}
+
+	/**
+	 * Get all registered modifier classes
+	 */
+	getAllModifierClasses(): ModifierClass[] {
+		return Array.from(this.modifiersByKeyword.values());
 	}
 
 	/**
@@ -372,8 +413,19 @@ export const registry = new NodeRegistry();
  * ```
  */
 export function register(type: string, options?: RegisterOptions) {
-	return function <T extends NodeClass>(cls: T): T {
-		registry.register(type, cls);
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	return function <T extends NodeClass | (new (...args: any[]) => any)>(cls: T): T {
+		// Modifiers are metadata-only and don't get registered as regular nodes
+		if (options?.modifier) {
+			const modifierCls = cls as unknown as ModifierClass;
+			const keyword = modifierCls.keyword;
+			if (keyword) {
+				registry.registerModifier(keyword, modifierCls);
+			}
+			return cls;
+		}
+
+		registry.register(type, cls as NodeClass);
 
 		if (options?.keyword) {
 			registry.registerToken(options.keyword, cls as unknown as TokenClass);

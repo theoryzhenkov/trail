@@ -3,7 +3,7 @@
  */
 
 import {ExprNode} from "../base/ExprNode";
-import type {Span, Value, NodeDoc, ValidationContext, CompletionContext} from "../types";
+import type {Span, Value, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
@@ -15,13 +15,20 @@ export class InExprNode extends ExprNode {
 	static providesContexts: CompletionContext[] = ["after-expression"];
 
 	static documentation: NodeDoc = {
-		title: "IN Operator",
-		description: "Checks if value is in collection (array membership) or substring in string.",
-		syntax: "value in collection",
-		examples: ['"tag" in tags', '"sub" in title', '"work" in file.tags'],
+		title: "IN operator",
+		description: "Checks membership in array, substring in string, or value in range.",
+		syntax: "Value in Collection | Value in Lower..Upper",
+		examples: ['"tag" in tags', '"sub" in title', "priority in 1..5", "date in 2024-01-01..today"],
 	};
 
 	static highlighting = "operatorKeyword" as const;
+
+	static completable: Completable = {
+		keywords: ["in"],
+		context: "after-expression",
+		priority: 85,
+		category: "operator",
+	};
 
 	constructor(value: ExprNode, collection: ExprNode, span: Span) {
 		super(span);

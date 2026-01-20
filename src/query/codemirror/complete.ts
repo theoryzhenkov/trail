@@ -18,8 +18,9 @@ import {registry} from "../nodes/registry";
 import type {CompletionContext as TQLCompletionContext} from "../nodes/types";
 import {getAllFunctionDocs, getAllBuiltinProperties, getBuiltins} from "../nodes/docs";
 
-// Import tokens and functions to trigger registration
+// Import tokens, modifiers, and functions to trigger registration
 import "../nodes/tokens/keywords";
+import "../nodes/modifiers";
 import "../nodes/functions";
 // Import clauses to trigger registration
 import "../nodes/clauses";
@@ -260,8 +261,8 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 	return autocompletion({
 		override: [
 			(context: CompletionContext): CompletionResult | null => {
-				// Match word at cursor
-				const word = context.matchBefore(/[\w.$]*$/);
+				// Match word at cursor (including optional : prefix for modifiers like :depth, :chain)
+				const word = context.matchBefore(/[:?\w.$]*$/);
 				if (!word) return null;
 				
 				// Allow empty matches at start of line or after whitespace
@@ -316,7 +317,7 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 				return {
 					from: word.from,
 					options: completions,
-					validFor: /^[\w.$]*$/,
+					validFor: /^[:?\w.$]*$/,
 				};
 			}
 		],

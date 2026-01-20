@@ -6,7 +6,7 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import type {ExprNode} from "../base/ExprNode";
-import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
+import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
@@ -18,13 +18,17 @@ export class PruneNode extends ClauseNode {
 
 	static documentation: NodeDoc = {
 		title: "PRUNE clause",
-		description: "Stops traversal at nodes where the expression is true. The pruned node is still included, but its children are not traversed.",
-		syntax: "prune expression",
-		examples: [
-			"prune status = \"archived\"",
-			"prune $depth > 3",
-			"prune type = \"folder\"",
-		],
+		description:
+			"Stops traversal at nodes matching the expression. Matching nodes and their subtrees are not visited.",
+		syntax: "prune Expression",
+		examples: ['prune status = "archived"', 'prune hasTag("private")', "prune traversal.depth > 5"],
+	};
+
+	static completable: Completable = {
+		keywords: ["prune"],
+		context: "clause",
+		priority: 50,
+		category: "keyword",
 	};
 
 	constructor(expression: ExprNode, span: Span) {

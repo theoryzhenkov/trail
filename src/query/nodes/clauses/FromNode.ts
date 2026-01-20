@@ -5,13 +5,13 @@
 import {ClauseNode} from "../base/ClauseNode";
 import {RelationSpecNode} from "./RelationSpecNode";
 import {InlineQueryNode} from "../expressions/InlineQueryNode";
-import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
+import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import {register} from "../registry";
 
 /**
  * A chain target can be a relation spec, group reference, or inline query
  */
-export type ChainTarget = 
+export type ChainTarget =
 	| {type: "relation"; spec: RelationSpecNode}
 	| {type: "group"; name: string; span: Span}
 	| {type: "inline"; query: InlineQueryNode};
@@ -32,9 +32,17 @@ export class FromNode extends ClauseNode {
 
 	static documentation: NodeDoc = {
 		title: "FROM clause",
-		description: "Specifies which relations to traverse from the active file. Supports chaining with >> operator.",
-		syntax: "from relation [modifiers] [>> target], ...",
-		examples: ["from up", "from up >> next", 'from up >> @"Children"', "from up :depth 2 >> next"],
+		description:
+			"Specifies which relations to traverse. Supports multiple relations with depth, flatten, and chaining modifiers.",
+		syntax: "from Relation [:depth N] [:flatten] [>> Target], ...",
+		examples: ["from up", "from up, down :depth 2", "from up >> next", 'from up :depth 2 >> @"Children"'],
+	};
+
+	static completable: Completable = {
+		keywords: ["from"],
+		context: "after-group-name",
+		priority: 100,
+		category: "keyword",
 	};
 
 	constructor(chains: RelationChain[], span: Span) {

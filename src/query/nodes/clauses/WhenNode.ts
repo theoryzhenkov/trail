@@ -6,7 +6,7 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import type {ExprNode} from "../base/ExprNode";
-import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
+import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
@@ -18,13 +18,17 @@ export class WhenNode extends ClauseNode {
 
 	static documentation: NodeDoc = {
 		title: "WHEN clause",
-		description: "Conditionally shows the query only when the expression (evaluated against the active file) is true.",
-		syntax: "when expression",
-		examples: [
-			"when type = \"project\"",
-			"when status != \"archived\"",
-			"when tags in \"active\"",
-		],
+		description:
+			"Conditional visibility for the entire group. If the active file doesn't match, the group is hidden.",
+		syntax: "when Expression",
+		examples: ['when type = "project"', 'when hasTag("daily")', 'when file.folder = "Projects"'],
+	};
+
+	static completable: Completable = {
+		keywords: ["when"],
+		context: "clause",
+		priority: 70,
+		category: "keyword",
 	};
 
 	constructor(expression: ExprNode, span: Span) {

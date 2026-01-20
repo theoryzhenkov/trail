@@ -4,7 +4,7 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import {PropertyNode} from "../expressions/PropertyNode";
-import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
+import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import {register} from "../registry";
 
 @register("DisplayNode", {clause: true})
@@ -17,8 +17,15 @@ export class DisplayNode extends ClauseNode {
 	static documentation: NodeDoc = {
 		title: "DISPLAY clause",
 		description: "Specifies which properties to show in the Trail pane UI.",
-		syntax: "display all | display property, ...",
-		examples: ["display all", "display status, priority", "display all, file.modified"],
+		syntax: "display Property, ... | all [, Property, ...]",
+		examples: ["display status, priority", "display all", "display all, file.modified"],
+	};
+
+	static completable: Completable = {
+		keywords: ["display"],
+		context: "clause",
+		priority: 40,
+		category: "keyword",
 	};
 
 	constructor(all: boolean, properties: PropertyNode[], span: Span) {
