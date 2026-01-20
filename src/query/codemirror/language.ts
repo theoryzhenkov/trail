@@ -20,37 +20,27 @@ import {
 } from "@codemirror/language";
 import {Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate} from "@codemirror/view";
 import {RangeSetBuilder} from "@codemirror/state";
+import {
+	getClauseKeywords,
+	getModifierKeywords,
+	getOperatorKeywords,
+	getLiteralKeywords,
+} from "../nodes/docs";
 
 /**
  * TQL keywords categorized by type
+ * Now sourced from node class static properties via the docs module.
  */
-const CLAUSE_KEYWORDS = new Set([
-	"group", "from", "prune", "where", "when", "sort", "display"
-]);
+const CLAUSE_KEYWORDS = new Set(getClauseKeywords());
 
-const MODIFIER_KEYWORDS = new Set([
-	"depth", "unlimited", "extend", "flatten", "by", "asc", "desc", "all", "chain"
-]);
+const MODIFIER_KEYWORDS = new Set(getModifierKeywords());
 
-const LOGICAL_KEYWORDS = new Set([
-	"and", "or", "not", "in"
-]);
+const LOGICAL_KEYWORDS = new Set(getOperatorKeywords());
 
-const LITERAL_KEYWORDS = new Set([
-	"true", "false", "null"
-]);
+const LITERAL_KEYWORDS = new Set(getLiteralKeywords());
 
 const DATE_KEYWORDS = new Set([
 	"today", "yesterday", "tomorrow", "startofweek", "endofweek"
-]);
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const ALL_KEYWORDS = new Set([
-	...CLAUSE_KEYWORDS,
-	...MODIFIER_KEYWORDS,
-	...LOGICAL_KEYWORDS,
-	...LITERAL_KEYWORDS,
-	...DATE_KEYWORDS,
 ]);
 
 /**
