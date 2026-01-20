@@ -1,6 +1,6 @@
 {
 	"name": "trail",
-	"version": "4.0.0-beta.1",
+	"version": "4.1.0-beta.1",
 	"description": "Add typed relations to your notes and traverse them via a powerful hierarchy view.",
 	"main": "main.js",
 	"type": "module",

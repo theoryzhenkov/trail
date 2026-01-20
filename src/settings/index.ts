@@ -1,6 +1,7 @@
 import {GroupDefinition, RelationDefinition, RelationGroup} from "../types";
 import {createDefaultRelations, createDefaultTqlGroups} from "./defaults";
 import {migrateAllGroups} from "../query/migration";
+import {migrateAllTqlSyntax, needsSyntaxMigration} from "../query/syntax-migration";
 
 export {TrailSettingTab} from "./settings-tab";
 
@@ -55,7 +56,10 @@ export function buildSettings(savedData: Partial<TrailSettings> | null): TrailSe
 		tqlGroups = [...tqlGroups, ...migrated];
 		legacyGroups = []; // Clear after migration
 	}
-	
+
+	// Auto-migrate TQL syntax from 3.x to 4.x
+	migrateAllTqlSyntax(tqlGroups);
+
 	return {
 		relations: data.relations ?? createDefaultRelations(),
 		tqlGroups,
@@ -75,11 +79,26 @@ export function hasLegacyGroups(settings: TrailSettings): boolean {
 }
 
 /**
- * Check if saved data has legacy groups that need migration
+ * Check if saved data has legacy groups or old TQL syntax that need migration
  * Used to determine if settings should be saved after loading
  */
 export function savedDataNeedsMigration(savedData: Partial<TrailSettings> | null): boolean {
 	if (!savedData) return false;
+
+	// Check for legacy groups
 	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration check
-	return Array.isArray(savedData.groups) && savedData.groups.length > 0;
+	if (Array.isArray(savedData.groups) && savedData.groups.length > 0) {
+		return true;
+	}
+
+	// Check for TQL syntax needing migration (3.x → 4.x)
+	if (Array.isArray(savedData.tqlGroups)) {
+		for (const group of savedData.tqlGroups) {
+			if (group.query && needsSyntaxMigration(group.query)) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
