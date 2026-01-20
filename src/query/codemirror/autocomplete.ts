@@ -331,6 +331,32 @@ function getRegistryCompletions(contexts: TQLCompletionContext[]): Completion[] 
 }
 
 /**
+ * Built-in identifier completions ($file, $traversal, $chain)
+ */
+function createBuiltinIdentifierCompletions(): Completion[] {
+	return [
+		{
+			label: "$file",
+			type: "variable",
+			detail: "built-in",
+			info: "File metadata namespace (use $file.name, $file.modified, etc.)",
+		},
+		{
+			label: "$traversal",
+			type: "variable",
+			detail: "built-in",
+			info: "Traversal context namespace (use $traversal.depth, $traversal.relation, etc.)",
+		},
+		{
+			label: "$chain",
+			type: "variable",
+			detail: "built-in",
+			info: "Sort by sequence position in traversal chain",
+		},
+	];
+}
+
+/**
  * Create function completions from the registry
  */
 function createFunctionCompletions(): Completion[] {
@@ -686,11 +712,12 @@ export interface TQLAutocompleteConfig {
 export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 	const functionCompletions = createFunctionCompletions();
 	const propertyCompletions = createPropertyCompletions();
+	const builtinIdentifierCompletions = createBuiltinIdentifierCompletions();
 	
 	return autocompletion({
 		override: [
 			(context: CMCompletionContext): CompletionResult | null => {
-				const word = context.matchBefore(/[\w.]*$/);
+				const word = context.matchBefore(/[\w.$]*$/);
 				if (!word) return null;
 				
 				// Allow empty matches at start of line or after whitespace
@@ -762,6 +789,7 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 						...getAvailableClauseCompletions(state),
 						// Include expression completions (functions, properties, etc.)
 						...functionCompletions,
+						...builtinIdentifierCompletions,
 						...propertyCompletions,
 						...getRegistryCompletions(["expression", "after-expression"]),
 					];
@@ -784,6 +812,7 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 					completions = [
 						...getAvailableClauseCompletions(state),
 						...functionCompletions,
+						...builtinIdentifierCompletions,
 						...propertyCompletions,
 						...getRegistryCompletions(["expression", "after-expression"]),
 					];
@@ -792,6 +821,7 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 				case "expression":
 					completions = [
 						...functionCompletions,
+						...builtinIdentifierCompletions,
 						...propertyCompletions,
 						...getRegistryCompletions(["expression", "after-expression"]),
 						// Also allow transitioning to other clauses
@@ -800,14 +830,16 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 					break;
 					
 					case "awaitingSortBy":
+						// Sort is followed directly by a key (property, $chain, or $file.*)
 						completions = [
-							{label: "by", type: "keyword", detail: "modifier", info: "Sort by property"},
+							...builtinIdentifierCompletions,
+							...propertyCompletions,
 						];
 						break;
 					
 				case "awaitingSortKey":
 					completions = [
-						{label: "chain", type: "keyword", detail: "sort mode", info: "Sort by sequence position"},
+						...builtinIdentifierCompletions,
 						...getRegistryCompletions(["sort-key"]),
 						...propertyCompletions,
 						// Allow transitioning to other clauses
@@ -818,6 +850,7 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 				case "awaitingDisplayValue":
 					completions = [
 						...getRegistryCompletions(["display"]),
+						...builtinIdentifierCompletions,
 						...propertyCompletions,
 						// Allow transitioning to other clauses
 						...getAvailableClauseCompletions(state),
@@ -838,7 +871,7 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 				return {
 					from: word.from,
 					options: completions,
-					validFor: /^[\w.]*$/,
+					validFor: /^[\w.$]*$/,
 				};
 			}
 		],
