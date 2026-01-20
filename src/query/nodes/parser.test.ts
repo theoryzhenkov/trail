@@ -54,14 +54,12 @@ describe("TQL Parser", () => {
 			const query = parse('group "Test" from up where a = 1 and b = 2');
 			expect(query.where).toBeInstanceOf(WhereNode);
 			expect(query.where!.expression).toBeInstanceOf(AndExprNode);
-			const logical = query.where!.expression as AndExprNode;
 		});
 
 		it("should parse logical OR", () => {
 			const query = parse('group "Test" from up where a = 1 or b = 2');
 			expect(query.where).toBeInstanceOf(WhereNode);
 			expect(query.where!.expression).toBeInstanceOf(OrExprNode);
-			const logical = query.where!.expression as OrExprNode;
 		});
 
 		it("should parse function calls", () => {

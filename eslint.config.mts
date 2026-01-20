@@ -18,7 +18,8 @@ export default tseslint.config(
 					]
 				},
 				tsconfigRootDir: import.meta.dirname,
-				extraFileExtensions: ['.json']
+				extraFileExtensions: ['.json'],
+				warnOnUnsupportedTypeScriptVersion: false,
 			},
 		},
 	},

@@ -25,6 +25,6 @@ export class SortToken extends TokenNode {
 		context: "clause",
 		priority: 60,
 		category: "keyword",
-		snippet: "sort $1",
+		snippet: "sort",
 	};
 }

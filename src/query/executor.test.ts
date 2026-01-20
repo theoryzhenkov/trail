@@ -5,13 +5,11 @@
 
 import {describe, it, expect} from "vitest";
 import {
-	createMockContext,
 	TestGraphs,
 	collectPaths,
 	runQuery,
 	createMockGroup,
 	type MockGraph,
-	type MockGroup,
 } from "./test-utils";
 
 describe("TQL Executor", () => {

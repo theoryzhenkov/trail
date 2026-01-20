@@ -4,7 +4,7 @@
  */
 
 import {describe, it, expect} from "vitest";
-import {runQuery, MockGraph, collectPaths} from "./test-utils";
+import {runQuery, MockGraph} from "./test-utils";
 
 describe("TQL Executor - Flatten", () => {
 	describe("Basic flatten behavior", () => {
