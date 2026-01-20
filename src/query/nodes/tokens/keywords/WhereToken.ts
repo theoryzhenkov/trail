@@ -3,10 +3,8 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
-import {register} from "../../registry";
 import type {NodeDoc} from "../../types";
 
-@register("Where", {keyword: "where"})
 export class WhereToken extends TokenNode {
 	static keyword = "where";
 	static highlighting = "keyword" as const;

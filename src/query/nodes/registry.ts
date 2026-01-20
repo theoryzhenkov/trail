@@ -1,8 +1,8 @@
 /**
- * Node Registry and @register Decorator
+ * Node Registry
  * 
- * Provides a central registry for all node types and a decorator
- * for auto-registration.
+ * Provides a central registry for all node types.
+ * Uses function-based registration instead of decorators for compatibility.
  */
 
 import type {Node} from "./base/Node";
@@ -12,11 +12,17 @@ import type {ExprNode} from "./base/ExprNode";
 /**
  * Type for a node class constructor
  */
-export type NodeClass<T extends Node = Node> = {
-	new (...args: never[]): T;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type NodeClass<T extends Node = Node> = new (...args: any[]) => T;
+
+/**
+ * Type for a token class constructor
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type TokenClass = (new (...args: any[]) => TokenNode) & {
+	keyword?: string;
 	documentation?: unknown;
 	highlighting?: string;
-	keyword?: string;
 };
 
 /**
@@ -24,7 +30,7 @@ export type NodeClass<T extends Node = Node> = {
  */
 class NodeRegistry {
 	private nodesByType = new Map<string, NodeClass>();
-	private tokensByKeyword = new Map<string, NodeClass<TokenNode>>();
+	private tokensByKeyword = new Map<string, TokenClass>();
 	private exprNodes = new Map<string, NodeClass<ExprNode>>();
 
 	/**
@@ -37,7 +43,7 @@ class NodeRegistry {
 	/**
 	 * Register a token class by its keyword
 	 */
-	registerToken(keyword: string, cls: NodeClass<TokenNode>): void {
+	registerToken(keyword: string, cls: TokenClass): void {
 		this.tokensByKeyword.set(keyword.toLowerCase(), cls);
 	}
 
@@ -59,7 +65,7 @@ class NodeRegistry {
 	/**
 	 * Get a token class by keyword
 	 */
-	getTokenClass(keyword: string): NodeClass<TokenNode> | undefined {
+	getTokenClass(keyword: string): TokenClass | undefined {
 		return this.tokensByKeyword.get(keyword.toLowerCase());
 	}
 
@@ -80,7 +86,7 @@ class NodeRegistry {
 	/**
 	 * Get all registered token classes
 	 */
-	getAllTokenClasses(): NodeClass<TokenNode>[] {
+	getAllTokenClasses(): TokenClass[] {
 		return Array.from(this.tokensByKeyword.values());
 	}
 
@@ -105,33 +111,22 @@ class NodeRegistry {
 export const registry = new NodeRegistry();
 
 /**
- * @register decorator for node classes
- * 
- * Usage:
- *   @register('logical')
- *   export class LogicalNode extends BinaryNode { ... }
- * 
- * For tokens with keywords:
- *   @register('And', { keyword: 'and' })
- *   export class AndToken extends TokenNode { ... }
+ * Register a node class (function-based alternative to decorator)
  */
 export function register(
 	type: string,
+	cls: NodeClass,
 	options?: {keyword?: string; expr?: boolean}
-): ClassDecorator {
-	return function <T extends NodeClass>(target: T): T {
-		registry.register(type, target);
+): void {
+	registry.register(type, cls);
 
-		if (options?.keyword) {
-			registry.registerToken(options.keyword, target as NodeClass<TokenNode>);
-		}
+	if (options?.keyword) {
+		registry.registerToken(options.keyword, cls as TokenClass);
+	}
 
-		if (options?.expr) {
-			registry.registerExpr(type, target as NodeClass<ExprNode>);
-		}
-
-		return target;
-	};
+	if (options?.expr) {
+		registry.registerExpr(type, cls as NodeClass<ExprNode>);
+	}
 }
 
 /**
@@ -144,14 +139,14 @@ export function getNodeClass(type: string): NodeClass | undefined {
 /**
  * Helper to get token class by keyword
  */
-export function getTokenClass(keyword: string): NodeClass<TokenNode> | undefined {
+export function getTokenClass(keyword: string): TokenClass | undefined {
 	return registry.getTokenClass(keyword);
 }
 
 /**
  * Helper to get all token classes
  */
-export function getAllTokenClasses(): NodeClass<TokenNode>[] {
+export function getAllTokenClasses(): TokenClass[] {
 	return registry.getAllTokenClasses();
 }
 

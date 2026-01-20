@@ -4,10 +4,8 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import {SortKeyNode} from "./SortKeyNode";
-import {register} from "../registry";
 import type {Span, NodeDoc, ValidationContext} from "../types";
 
-@register("sort")
 export class SortNode extends ClauseNode {
 	readonly keys: SortKeyNode[];
 

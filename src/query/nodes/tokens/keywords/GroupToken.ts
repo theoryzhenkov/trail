@@ -3,10 +3,8 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
-import {register} from "../../registry";
 import type {NodeDoc} from "../../types";
 
-@register("Group", {keyword: "group"})
 export class GroupToken extends TokenNode {
 	static keyword = "group";
 	static highlighting = "keyword" as const;

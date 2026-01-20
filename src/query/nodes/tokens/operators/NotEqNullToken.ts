@@ -3,10 +3,8 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
-import {register} from "../../registry";
 import type {NodeDoc} from "../../types";
 
-@register("NotEqNull", {keyword: "!=?"})
 export class NotEqNullToken extends TokenNode {
 	static keyword = "!=?";
 	static highlighting = "operator" as const;

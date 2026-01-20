@@ -2,10 +2,9 @@
  * split(str, delimiter) - Split string into array
  */
 
-import {FunctionNode, func, toString} from "../FunctionNode";
+import {FunctionNode, toString} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("split")
 export class SplitFunction extends FunctionNode {
 	static minArity = 2;
 	static maxArity = 2;

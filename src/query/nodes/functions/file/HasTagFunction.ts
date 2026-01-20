@@ -2,11 +2,10 @@
  * hasTag(tag) - Check if file has tag
  */
 
-import {FunctionNode, func, toString} from "../FunctionNode";
+import {FunctionNode, toString} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 import type {ExecutorContext} from "../../context";
 
-@func("hasTag")
 export class HasTagFunction extends FunctionNode {
 	static minArity = 1;
 	static maxArity = 1;

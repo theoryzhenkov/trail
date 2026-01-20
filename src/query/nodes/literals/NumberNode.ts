@@ -3,10 +3,8 @@
  */
 
 import {LiteralNode} from "../base/LiteralNode";
-import {register} from "../registry";
 import type {Span, NodeDoc} from "../types";
 
-@register("number", {expr: true})
 export class NumberNode extends LiteralNode<number> {
 	static documentation: NodeDoc = {
 		title: "Number Literal",

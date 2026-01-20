@@ -3,7 +3,6 @@
  */
 
 import {ExprNode} from "../base/ExprNode";
-import {register} from "../registry";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {ExecutorContext} from "../context";
 
@@ -40,7 +39,6 @@ export interface RelationSpecData {
 
 export type AggregateSource = GroupRefSource | InlineFromSource | BareIdentifierSource;
 
-@register("aggregate", {expr: true})
 export class AggregateNode extends ExprNode {
 	readonly func: AggregateFunc;
 	readonly source: AggregateSource;

@@ -2,10 +2,9 @@
  * year(date) - Get year from date
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("year")
 export class YearFunction extends FunctionNode {
 	static minArity = 1;
 	static maxArity = 1;

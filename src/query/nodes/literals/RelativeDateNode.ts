@@ -3,13 +3,11 @@
  */
 
 import {ExprNode} from "../base/ExprNode";
-import {register} from "../registry";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {ExecutorContext} from "../context";
 
 export type RelativeDateKind = "today" | "yesterday" | "tomorrow" | "startOfWeek" | "endOfWeek";
 
-@register("relativeDate", {expr: true})
 export class RelativeDateNode extends ExprNode {
 	readonly kind: RelativeDateKind;
 

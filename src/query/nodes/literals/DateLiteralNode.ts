@@ -3,10 +3,8 @@
  */
 
 import {LiteralNode} from "../base/LiteralNode";
-import {register} from "../registry";
 import type {Span, NodeDoc} from "../types";
 
-@register("date", {expr: true})
 export class DateLiteralNode extends LiteralNode<Date> {
 	static documentation: NodeDoc = {
 		title: "Date Literal",

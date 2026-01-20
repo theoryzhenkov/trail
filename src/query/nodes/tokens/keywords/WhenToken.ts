@@ -3,10 +3,8 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
-import {register} from "../../registry";
 import type {NodeDoc} from "../../types";
 
-@register("When", {keyword: "when"})
 export class WhenToken extends TokenNode {
 	static keyword = "when";
 	static highlighting = "keyword" as const;

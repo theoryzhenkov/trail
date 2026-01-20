@@ -2,10 +2,9 @@
  * contains(haystack, needle) - Check if string contains substring
  */
 
-import {FunctionNode, func, toString} from "../FunctionNode";
+import {FunctionNode, toString} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("contains")
 export class ContainsFunction extends FunctionNode {
 	static minArity = 2;
 	static maxArity = 2;

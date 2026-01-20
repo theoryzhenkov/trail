@@ -33,6 +33,10 @@ export * from "./functions";
 // Clauses
 export * from "./clauses";
 
+// Lexer and Parser
+export {tokenize, Lexer, LexerError} from "./lexer";
+export {parse, Parser, ParseError} from "./parser";
+
 // ============================================================================
 // TQL Pipeline API
 // ============================================================================
@@ -40,6 +44,7 @@ export * from "./clauses";
 import type {QueryContext, QueryResult} from "./types";
 import {QueryNode} from "./clauses/QueryNode";
 import {ExecutorContext, createValidationContext} from "./context";
+import {parse} from "./parser";
 
 /**
  * TQL Pipeline API
@@ -53,12 +58,9 @@ import {ExecutorContext, createValidationContext} from "./context";
 export const TQL = {
 	/**
 	 * Parse a TQL query string into a QueryNode
-	 * 
-	 * Note: This is a placeholder - actual parsing implemented in parser.ts
 	 */
-	parse(_input: string): QueryNode {
-		// Placeholder - will be implemented when parser is rewritten
-		throw new Error("TQL.parse() not yet implemented - use legacy parser for now");
+	parse(input: string): QueryNode {
+		return parse(input);
 	},
 
 	/**

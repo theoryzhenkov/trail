@@ -2,10 +2,9 @@
  * format(date, pattern) - Format date as string
  */
 
-import {FunctionNode, func, toString} from "../FunctionNode";
+import {FunctionNode, toString} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("format")
 export class FormatFunction extends FunctionNode {
 	static minArity = 2;
 	static maxArity = 2;

@@ -2,10 +2,9 @@
  * month(date) - Get month from date (1-12)
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("month")
 export class MonthFunction extends FunctionNode {
 	static minArity = 1;
 	static maxArity = 1;

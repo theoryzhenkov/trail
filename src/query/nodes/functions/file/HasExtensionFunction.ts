@@ -2,11 +2,10 @@
  * hasExtension(ext) - Check file extension
  */
 
-import {FunctionNode, func, toString} from "../FunctionNode";
+import {FunctionNode, toString} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 import type {ExecutorContext} from "../../context";
 
-@func("hasExtension")
 export class HasExtensionFunction extends FunctionNode {
 	static minArity = 1;
 	static maxArity = 1;

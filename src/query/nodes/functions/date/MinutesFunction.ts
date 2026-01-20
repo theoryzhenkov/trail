@@ -2,10 +2,9 @@
  * minutes(date) - Get minutes from date
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("minutes")
 export class MinutesFunction extends FunctionNode {
 	static minArity = 1;
 	static maxArity = 1;

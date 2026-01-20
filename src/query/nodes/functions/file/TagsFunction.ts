@@ -2,11 +2,10 @@
  * tags() - Get all tags from file
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 import type {ExecutorContext} from "../../context";
 
-@func("tags")
 export class TagsFunction extends FunctionNode {
 	static minArity = 0;
 	static maxArity = 0;

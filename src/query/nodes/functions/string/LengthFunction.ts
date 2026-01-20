@@ -2,10 +2,9 @@
  * length(str) - Get string length
  */
 
-import {FunctionNode, func, toString} from "../FunctionNode";
+import {FunctionNode, toString} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("length")
 export class LengthFunction extends FunctionNode {
 	static minArity = 1;
 	static maxArity = 1;

@@ -2,10 +2,9 @@
  * last(array) - Get last element
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("last")
 export class LastFunction extends FunctionNode {
 	static minArity = 1;
 	static maxArity = 1;

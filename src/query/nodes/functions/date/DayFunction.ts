@@ -2,10 +2,9 @@
  * day(date) - Get day of month from date
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("day")
 export class DayFunction extends FunctionNode {
 	static minArity = 1;
 	static maxArity = 1;

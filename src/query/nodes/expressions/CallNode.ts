@@ -6,7 +6,6 @@
  */
 
 import {ExprNode} from "../base/ExprNode";
-import {register} from "../registry";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {ExecutorContext} from "../context";
 
@@ -41,7 +40,6 @@ export function hasFunction(name: string): boolean {
 	return functionRegistry.has(name.toLowerCase());
 }
 
-@register("call", {expr: true})
 export class CallNode extends ExprNode {
 	readonly name: string;
 	readonly args: ExprNode[];

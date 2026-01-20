@@ -7,11 +7,9 @@ import {FromNode} from "./FromNode";
 import {SortNode} from "./SortNode";
 import {DisplayNode} from "./DisplayNode";
 import {ExprNode} from "../base/ExprNode";
-import {register} from "../registry";
 import type {Span, NodeDoc, ValidationContext, QueryResult, QueryResultNode} from "../types";
 import type {ExecutorContext} from "../context";
 
-@register("query")
 export class QueryNode extends ClauseNode {
 	readonly group: string;
 	readonly from: FromNode;

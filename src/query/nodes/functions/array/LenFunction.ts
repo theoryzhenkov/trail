@@ -2,10 +2,9 @@
  * len(array) - Get array length
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("len")
 export class LenFunction extends FunctionNode {
 	static minArity = 1;
 	static maxArity = 1;

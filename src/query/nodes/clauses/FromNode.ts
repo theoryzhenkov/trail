@@ -4,10 +4,8 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import {RelationSpecNode} from "./RelationSpecNode";
-import {register} from "../registry";
 import type {Span, NodeDoc, ValidationContext} from "../types";
 
-@register("from")
 export class FromNode extends ClauseNode {
 	readonly relations: RelationSpecNode[];
 

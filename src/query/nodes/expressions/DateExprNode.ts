@@ -3,7 +3,6 @@
  */
 
 import {ExprNode} from "../base/ExprNode";
-import {register} from "../registry";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {ExecutorContext} from "../context";
 
@@ -35,7 +34,6 @@ export interface DateOffset {
 	unit: "d" | "w" | "m" | "y";
 }
 
-@register("dateExpr", {expr: true})
 export class DateExprNode extends ExprNode {
 	readonly base: DateBase;
 	readonly offset?: DateOffset;

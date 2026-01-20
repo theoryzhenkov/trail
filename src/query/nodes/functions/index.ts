@@ -5,7 +5,7 @@
  */
 
 // Base
-export {FunctionNode, func, toString} from "./FunctionNode";
+export {FunctionNode, registerFunc, toString} from "./FunctionNode";
 
 // String functions
 export * from "./string";
@@ -24,3 +24,6 @@ export * from "./date";
 
 // Property access
 export {PropFunction} from "./PropFunction";
+
+// Register all functions on import
+import "./register";

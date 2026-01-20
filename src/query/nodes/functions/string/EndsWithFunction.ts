@@ -2,10 +2,9 @@
  * endsWith(str, suffix) - Check if string ends with suffix
  */
 
-import {FunctionNode, func, toString} from "../FunctionNode";
+import {FunctionNode, toString} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("endsWith")
 export class EndsWithFunction extends FunctionNode {
 	static minArity = 2;
 	static maxArity = 2;

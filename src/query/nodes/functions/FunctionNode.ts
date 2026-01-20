@@ -50,15 +50,12 @@ export function toString(value: Value): string {
 }
 
 /**
- * Decorator to register a function
+ * Register a function class
  */
-export function func(name: string) {
-	return function <T extends typeof FunctionNode>(target: T): T {
-		registerFunction(name, {
-			minArity: target.minArity,
-			maxArity: target.maxArity,
-			evaluate: target.evaluate.bind(target),
-		});
-		return target;
-	};
+export function registerFunc(name: string, cls: typeof FunctionNode): void {
+	registerFunction(name, {
+		minArity: cls.minArity,
+		maxArity: cls.maxArity,
+		evaluate: cls.evaluate.bind(cls),
+	});
 }

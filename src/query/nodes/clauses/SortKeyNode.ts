@@ -4,10 +4,8 @@
 
 import {ClauseNode} from "../base/ClauseNode";
 import {PropertyNode} from "../expressions/PropertyNode";
-import {register} from "../registry";
 import type {Span, NodeDoc, ValidationContext} from "../types";
 
-@register("sortKey")
 export class SortKeyNode extends ClauseNode {
 	readonly key: "chain" | PropertyNode;
 	readonly direction: "asc" | "desc";

@@ -2,10 +2,9 @@
  * isEmpty(array) - Check if array is empty
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("isEmpty")
 export class IsEmptyFunction extends FunctionNode {
 	static minArity = 1;
 	static maxArity = 1;

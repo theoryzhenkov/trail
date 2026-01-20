@@ -2,10 +2,9 @@
  * ifnull(value, default) - Return default if value is null
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("ifnull")
 export class IfNullFunction extends FunctionNode {
 	static minArity = 2;
 	static maxArity = 2;

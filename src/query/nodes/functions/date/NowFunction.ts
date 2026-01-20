@@ -2,10 +2,9 @@
  * now() - Get current date and time
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("now")
 export class NowFunction extends FunctionNode {
 	static minArity = 0;
 	static maxArity = 0;

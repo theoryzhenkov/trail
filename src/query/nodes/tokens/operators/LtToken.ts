@@ -3,10 +3,8 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
-import {register} from "../../registry";
 import type {NodeDoc} from "../../types";
 
-@register("Lt", {keyword: "<"})
 export class LtToken extends TokenNode {
 	static keyword = "<";
 	static highlighting = "operator" as const;

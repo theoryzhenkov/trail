@@ -3,11 +3,9 @@
  */
 
 import {ExprNode} from "../base/ExprNode";
-import {register} from "../registry";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {ExecutorContext} from "../context";
 
-@register("range", {expr: true})
 export class RangeNode extends ExprNode {
 	readonly value: ExprNode;
 	readonly lower: ExprNode;

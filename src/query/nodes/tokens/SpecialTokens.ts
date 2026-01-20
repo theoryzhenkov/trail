@@ -6,12 +6,10 @@
  */
 
 import {TokenNode} from "../base/TokenNode";
-import {register} from "../registry";
 
 /**
  * End of File token
  */
-@register("EOF")
 export class EOFToken extends TokenNode {
 	static highlighting = undefined;
 }
@@ -19,7 +17,6 @@ export class EOFToken extends TokenNode {
 /**
  * String literal token
  */
-@register("String")
 export class StringToken extends TokenNode {
 	static highlighting = "string" as const;
 }
@@ -27,7 +24,6 @@ export class StringToken extends TokenNode {
 /**
  * Number literal token
  */
-@register("Number")
 export class NumberToken extends TokenNode {
 	static highlighting = "number" as const;
 }
@@ -35,7 +31,6 @@ export class NumberToken extends TokenNode {
 /**
  * Boolean literal token (value is "true" or "false")
  */
-@register("Boolean")
 export class BooleanToken extends TokenNode {
 	static highlighting = "atom" as const;
 }
@@ -43,7 +38,6 @@ export class BooleanToken extends TokenNode {
 /**
  * Duration literal token (e.g., "7d", "1w", "2m", "1y")
  */
-@register("Duration")
 export class DurationToken extends TokenNode {
 	static highlighting = "number" as const;
 }
@@ -51,7 +45,6 @@ export class DurationToken extends TokenNode {
 /**
  * Date literal token (ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
  */
-@register("DateLiteral")
 export class DateLiteralToken extends TokenNode {
 	static highlighting = "number" as const;
 }
@@ -59,7 +52,6 @@ export class DateLiteralToken extends TokenNode {
 /**
  * Identifier token (variable names, property names, relation names)
  */
-@register("Identifier")
 export class IdentifierToken extends TokenNode {
 	static highlighting = "variable" as const;
 }

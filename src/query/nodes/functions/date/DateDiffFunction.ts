@@ -2,10 +2,9 @@
  * dateDiff(date1, date2, unit) - Get difference between dates
  */
 
-import {FunctionNode, func, toString} from "../FunctionNode";
+import {FunctionNode, toString} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("dateDiff")
 export class DateDiffFunction extends FunctionNode {
 	static minArity = 3;
 	static maxArity = 3;

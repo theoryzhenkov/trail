@@ -2,10 +2,9 @@
  * coalesce(value1, value2, ...) - Return first non-null value
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 
-@func("coalesce")
 export class CoalesceFunction extends FunctionNode {
 	static minArity = 1;
 	static maxArity = Infinity;

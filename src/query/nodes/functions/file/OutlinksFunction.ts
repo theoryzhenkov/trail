@@ -2,11 +2,10 @@
  * outlinks() - Get files this file links to
  */
 
-import {FunctionNode, func} from "../FunctionNode";
+import {FunctionNode} from "../FunctionNode";
 import type {Value, NodeDoc} from "../../types";
 import type {ExecutorContext} from "../../context";
 
-@func("outlinks")
 export class OutlinksFunction extends FunctionNode {
 	static minArity = 0;
 	static maxArity = 0;
