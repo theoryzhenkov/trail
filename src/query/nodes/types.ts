@@ -158,6 +158,7 @@ export type CompletionContext =
 	| "after-group-name" // After group name (expects "from")
 	| "clause" // Position where clause keywords are valid
 	| "relation" // After "from" or in relation position
+	| "after-relation" // After relation name (depth, extend, flatten modifiers)
 	| "expression" // Expression position (where, when, prune, etc.)
 	| "after-expression" // After an expression (and, or, operators)
 	| "sort-key" // After "sort"

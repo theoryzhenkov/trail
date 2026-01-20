@@ -5,12 +5,17 @@
  */
 
 import {
-	CompletionContext,
+	CompletionContext as CMCompletionContext,
 	CompletionResult,
 	Completion,
 	autocompletion,
 	snippet,
 } from "@codemirror/autocomplete";
+import {registry, type CompletableClass} from "../nodes/registry";
+import type {CompletionContext as TQLCompletionContext} from "../nodes/types";
+
+// Import tokens to trigger registration
+import "../nodes/tokens/keywords";
 
 /**
  * Function documentation for autocomplete
@@ -269,52 +274,61 @@ export const TRAVERSAL_PROPERTIES: PropertyDoc[] = [
 ];
 
 /**
- * Keyword completions
+ * Convert a CompletableClass to a CodeMirror Completion
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const CLAUSE_COMPLETIONS: Completion[] = [
-	{label: "group", type: "keyword", detail: "clause", info: "Define group name"},
-	{label: "from", type: "keyword", detail: "clause", info: "Specify relations to traverse"},
-	{label: "prune", type: "keyword", detail: "clause", info: "Stop traversal at matching nodes"},
-	{label: "where", type: "keyword", detail: "clause", info: "Filter results"},
-	{label: "when", type: "keyword", detail: "clause", info: "Conditional visibility"},
-	{label: "sort", type: "keyword", detail: "clause", info: "Order results"},
-	{label: "display", type: "keyword", detail: "clause", info: "Properties to show"},
-];
+function completableToCompletion(cls: CompletableClass): Completion | null {
+	const completable = cls.completable;
+	if (!completable) return null;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const MODIFIER_COMPLETIONS: Completion[] = [
-	{label: "depth", type: "keyword", detail: "modifier", info: "Set traversal depth"},
-	{label: "unlimited", type: "keyword", detail: "value", info: "No depth limit"},
-	{label: "extend", type: "keyword", detail: "modifier", info: "Extend with another group"},
-	{label: "flatten", type: "keyword", detail: "modifier", info: "Output all reachable nodes as flat list"},
-	{label: "by", type: "keyword", detail: "modifier", info: "Sort by property"},
-	{label: "asc", type: "keyword", detail: "direction", info: "Ascending order"},
-	{label: "desc", type: "keyword", detail: "direction", info: "Descending order"},
-	{label: "all", type: "keyword", detail: "display", info: "Show all properties"},
-	{label: "chain", type: "keyword", detail: "sort", info: "Sort by sequence position"},
-];
+	const keyword = completable.keywords?.[0];
+	if (!keyword) return null;
 
-const LOGICAL_COMPLETIONS: Completion[] = [
-	{label: "and", type: "keyword", detail: "operator", info: "Logical AND"},
-	{label: "or", type: "keyword", detail: "operator", info: "Logical OR"},
-	{label: "not", type: "keyword", detail: "operator", info: "Logical NOT"},
-	{label: "in", type: "keyword", detail: "operator", info: "Membership check"},
-];
+	const doc = cls.documentation;
+	
+	// Map category to CodeMirror type
+	const typeMap: Record<string, string> = {
+		keyword: "keyword",
+		operator: "keyword",
+		function: "function",
+		property: "property",
+		value: "constant",
+	};
+	const type = typeMap[completable.category ?? "keyword"] ?? "keyword";
 
-const LITERAL_COMPLETIONS: Completion[] = [
-	{label: "true", type: "constant", detail: "boolean"},
-	{label: "false", type: "constant", detail: "boolean"},
-	{label: "null", type: "constant", detail: "null"},
-];
+	const completion: Completion = {
+		label: keyword,
+		type,
+		detail: completable.category ?? "keyword",
+		info: doc?.description,
+	};
 
-const DATE_COMPLETIONS: Completion[] = [
-	{label: "today", type: "constant", detail: "date", info: "Current date"},
-	{label: "yesterday", type: "constant", detail: "date", info: "Previous day"},
-	{label: "tomorrow", type: "constant", detail: "date", info: "Next day"},
-	{label: "startOfWeek", type: "constant", detail: "date", info: "Start of current week"},
-	{label: "endOfWeek", type: "constant", detail: "date", info: "End of current week"},
-];
+	if (completable.snippet) {
+		completion.apply = snippet(completable.snippet);
+	}
+
+	return completion;
+}
+
+/**
+ * Get completions from registry for given contexts
+ */
+function getRegistryCompletions(contexts: TQLCompletionContext[]): Completion[] {
+	const completions: Completion[] = [];
+	const seen = new Set<string>();
+
+	for (const ctx of contexts) {
+		const completables = registry.getCompletablesForContext(ctx);
+		for (const cls of completables) {
+			const completion = completableToCompletion(cls);
+			if (completion && !seen.has(completion.label)) {
+				seen.add(completion.label);
+				completions.push(completion);
+			}
+		}
+	}
+
+	return completions;
+}
 
 /**
  * Create function completions from the registry
@@ -675,7 +689,7 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 	
 	return autocompletion({
 		override: [
-			(context: CompletionContext): CompletionResult | null => {
+			(context: CMCompletionContext): CompletionResult | null => {
 				const word = context.matchBefore(/[\w.]*$/);
 				if (!word) return null;
 				
@@ -732,29 +746,26 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 						}));
 						break;
 					
-					case "afterRelation":
-						// After a relation name - can add modifiers, comma for more relations, or clauses
-						// Also include expression completions since user might be starting an expression clause
-						completions = [
-							{label: "depth", type: "keyword", detail: "modifier", info: "Set traversal depth"},
-							{label: "extend", type: "keyword", detail: "modifier", info: "Extend with another group"},
-							{label: "flatten", type: "keyword", detail: "modifier", info: "Output all reachable nodes as flat list"},
-							// Allow adding more relations
-							...config.getRelationNames().map(name => ({
-								label: name,
-								type: "variable",
-								detail: "relation",
-							})),
-							// Suggest available clauses (not group or from)
-							...getAvailableClauseCompletions(state),
-							// Include expression completions (functions, properties, etc.)
-							...functionCompletions,
-							...propertyCompletions,
-							...LOGICAL_COMPLETIONS,
-							...LITERAL_COMPLETIONS,
-							...DATE_COMPLETIONS,
-						];
-						break;
+				case "afterRelation":
+					// After a relation name - can add modifiers, comma for more relations, or clauses
+					// Also include expression completions since user might be starting an expression clause
+					completions = [
+						// Modifiers from registry (depth, extend, flatten)
+						...getRegistryCompletions(["after-relation"]),
+						// Allow adding more relations
+						...config.getRelationNames().map(name => ({
+							label: name,
+							type: "variable",
+							detail: "relation",
+						})),
+						// Suggest available clauses (not group or from)
+						...getAvailableClauseCompletions(state),
+						// Include expression completions (functions, properties, etc.)
+						...functionCompletions,
+						...propertyCompletions,
+						...getRegistryCompletions(["expression", "after-expression"]),
+					];
+					break;
 					
 					case "awaitingDepthValue":
 						completions = [
@@ -767,30 +778,26 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 						completions = [];
 						break;
 					
-					case "awaitingClause":
-						// Can add any unused optional clause
-						// Also include expression completions since user might be starting an expression
-						completions = [
-							...getAvailableClauseCompletions(state),
-							...functionCompletions,
-							...propertyCompletions,
-							...LOGICAL_COMPLETIONS,
-							...LITERAL_COMPLETIONS,
-							...DATE_COMPLETIONS,
-						];
-						break;
-					
-					case "expression":
-						completions = [
-							...functionCompletions,
-							...propertyCompletions,
-							...LOGICAL_COMPLETIONS,
-							...LITERAL_COMPLETIONS,
-							...DATE_COMPLETIONS,
-							// Also allow transitioning to other clauses
-							...getAvailableClauseCompletions(state),
-						];
-						break;
+				case "awaitingClause":
+					// Can add any unused optional clause
+					// Also include expression completions since user might be starting an expression
+					completions = [
+						...getAvailableClauseCompletions(state),
+						...functionCompletions,
+						...propertyCompletions,
+						...getRegistryCompletions(["expression", "after-expression"]),
+					];
+					break;
+				
+				case "expression":
+					completions = [
+						...functionCompletions,
+						...propertyCompletions,
+						...getRegistryCompletions(["expression", "after-expression"]),
+						// Also allow transitioning to other clauses
+						...getAvailableClauseCompletions(state),
+					];
+					break;
 					
 					case "awaitingSortBy":
 						completions = [
@@ -798,25 +805,24 @@ export function createTQLAutocomplete(config: TQLAutocompleteConfig) {
 						];
 						break;
 					
-					case "awaitingSortKey":
-						completions = [
-							{label: "chain", type: "keyword", detail: "sort mode", info: "Sort by sequence position"},
-							{label: "asc", type: "keyword", detail: "direction", info: "Ascending order"},
-							{label: "desc", type: "keyword", detail: "direction", info: "Descending order"},
-							...propertyCompletions,
-							// Allow transitioning to other clauses
-							...getAvailableClauseCompletions(state),
-						];
-						break;
-					
-					case "awaitingDisplayValue":
-						completions = [
-							{label: "all", type: "keyword", detail: "display", info: "Show all properties"},
-							...propertyCompletions,
-							// Allow transitioning to other clauses
-							...getAvailableClauseCompletions(state),
-						];
-						break;
+				case "awaitingSortKey":
+					completions = [
+						{label: "chain", type: "keyword", detail: "sort mode", info: "Sort by sequence position"},
+						...getRegistryCompletions(["sort-key"]),
+						...propertyCompletions,
+						// Allow transitioning to other clauses
+						...getAvailableClauseCompletions(state),
+					];
+					break;
+				
+				case "awaitingDisplayValue":
+					completions = [
+						...getRegistryCompletions(["display"]),
+						...propertyCompletions,
+						// Allow transitioning to other clauses
+						...getAvailableClauseCompletions(state),
+					];
+					break;
 				}
 				
 				// Filter by current word

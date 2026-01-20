@@ -4,7 +4,7 @@
 
 import {TokenNode} from "../../base/TokenNode";
 import {register} from "../../registry";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 @register("TodayToken", {keyword: "today"})
 export class TodayToken extends TokenNode {
@@ -14,5 +14,11 @@ export class TodayToken extends TokenNode {
 		title: "today",
 		description: "Current date at midnight. Supports arithmetic with durations.",
 		examples: ["date = today", "date > today - 7d"],
+	};
+	static completable: Completable = {
+		keywords: ["today"],
+		context: "expression",
+		priority: 50,
+		category: "value",
 	};
 }

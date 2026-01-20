@@ -4,7 +4,7 @@
 
 import {TokenNode} from "../../base/TokenNode";
 import {register} from "../../registry";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 @register("NullToken", {keyword: "null"})
 export class NullToken extends TokenNode {
@@ -14,5 +14,11 @@ export class NullToken extends TokenNode {
 		title: "null",
 		description: "Null value. Use =? and !=? for null-safe comparisons.",
 		examples: ["where status != null", "where priority =? null"],
+	};
+	static completable: Completable = {
+		keywords: ["null"],
+		context: "expression",
+		priority: 40,
+		category: "value",
 	};
 }

@@ -4,7 +4,7 @@
 
 import {TokenNode} from "../../base/TokenNode";
 import {register} from "../../registry";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 @register("TomorrowToken", {keyword: "tomorrow"})
 export class TomorrowToken extends TokenNode {
@@ -14,5 +14,11 @@ export class TomorrowToken extends TokenNode {
 		title: "tomorrow",
 		description: "Next day at midnight.",
 		examples: ["due = tomorrow", "due < tomorrow + 7d"],
+	};
+	static completable: Completable = {
+		keywords: ["tomorrow"],
+		context: "expression",
+		priority: 45,
+		category: "value",
 	};
 }

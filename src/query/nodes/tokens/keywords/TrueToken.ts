@@ -4,7 +4,7 @@
 
 import {TokenNode} from "../../base/TokenNode";
 import {register} from "../../registry";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 @register("TrueToken", {keyword: "true"})
 export class TrueToken extends TokenNode {
@@ -14,5 +14,11 @@ export class TrueToken extends TokenNode {
 		title: "true",
 		description: "Boolean true literal.",
 		examples: ["where active = true", "prune archived = true"],
+	};
+	static completable: Completable = {
+		keywords: ["true"],
+		context: "expression",
+		priority: 40,
+		category: "value",
 	};
 }

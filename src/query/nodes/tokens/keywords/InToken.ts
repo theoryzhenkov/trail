@@ -4,7 +4,7 @@
 
 import {TokenNode} from "../../base/TokenNode";
 import {register} from "../../registry";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 @register("InToken", {keyword: "in"})
 export class InToken extends TokenNode {
@@ -15,5 +15,11 @@ export class InToken extends TokenNode {
 		description: "Checks membership in array, substring in string, or value in range.",
 		syntax: "Value in Collection | Value in Lower..Upper",
 		examples: ['"tag" in tags', '"sub" in title', "priority in 1..5", "date in 2024-01-01..today"],
+	};
+	static completable: Completable = {
+		keywords: ["in"],
+		context: "after-expression",
+		priority: 85,
+		category: "operator",
 	};
 }

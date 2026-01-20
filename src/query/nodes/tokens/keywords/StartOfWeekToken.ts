@@ -4,7 +4,7 @@
 
 import {TokenNode} from "../../base/TokenNode";
 import {register} from "../../registry";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 @register("StartOfWeekToken", {keyword: "startofweek"})
 export class StartOfWeekToken extends TokenNode {
@@ -14,5 +14,11 @@ export class StartOfWeekToken extends TokenNode {
 		title: "startOfWeek",
 		description: "First day of the current week (Sunday) at midnight.",
 		examples: ["date >= startOfWeek", "modified > startOfWeek"],
+	};
+	static completable: Completable = {
+		keywords: ["startOfWeek"],
+		context: "expression",
+		priority: 35,
+		category: "value",
 	};
 }
