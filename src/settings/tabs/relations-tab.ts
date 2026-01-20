@@ -9,6 +9,7 @@ import type {
 } from "../../types";
 import {isValidRelationName, normalizeRelationName} from "../validation";
 import {createSectionDetails, IconSuggest, renderReorderControls} from "../components";
+import {createDefaultAliases} from "../defaults";
 
 export class RelationsTabRenderer {
 	private plugin: TrailPlugin;
@@ -37,28 +38,12 @@ export class RelationsTabRenderer {
 				setting.setDesc("Define relation types and their aliases.");
 			});
 
-		for (const [index, relation] of this.plugin.settings.relations.entries()) {
-			this.renderRelationSection(containerEl, relation, index, openSections);
-		}
-
-		new Setting(containerEl)
-			.addButton((button) => {
-				button
-					.setButtonText("Add relation")
-					.setCta()
-					.onClick(() => {
-						const newIndex = this.plugin.settings.relations.length;
-						this.plugin.settings.relations.push({
-							name: "",
-							aliases: [],
-							impliedRelations: []
-						});
-						openSections.add(newIndex);
-						void this.plugin.saveSettings();
-						this.display();
-					});
-			});
+	for (const [index, relation] of this.plugin.settings.relations.entries()) {
+		this.renderRelationSection(containerEl, relation, index, openSections);
 	}
+
+	this.renderAddRelationControl(containerEl, openSections);
+}
 
 	private renderRelationSection(
 		containerEl: HTMLElement,
@@ -413,5 +398,56 @@ export class RelationsTabRenderer {
 		for (const group of this.plugin.settings.groups) {
 			group.members = group.members.filter((member) => member.relation !== targetName);
 		}
+	}
+
+	private renderAddRelationControl(containerEl: HTMLElement, openSections: Set<number>) {
+		const setting = new Setting(containerEl)
+			.setName("Add new relation")
+			.setDesc("Create a relation type with standard aliases.");
+
+		let newRelationName = "";
+
+		setting
+			.addText((text) => {
+				text
+					.setPlaceholder("E.g., parent, cites, related-to")
+					.onChange((value) => {
+						newRelationName = value;
+					});
+			})
+			.addButton((button) => {
+				button
+					.setButtonText("Create")
+					.setCta()
+					.onClick(() => {
+						const normalized = normalizeRelationName(newRelationName);
+						
+						if (!normalized) {
+							new Notice("Relation name cannot be empty.");
+							return;
+						}
+						
+						if (!isValidRelationName(normalized)) {
+							new Notice("Relation names must use letters, numbers, underscore, or dash.");
+							return;
+						}
+						
+						if (this.isDuplicateRelationName(normalized, -1)) {
+							new Notice("Relation name already exists.");
+							return;
+						}
+
+						const newIndex = this.plugin.settings.relations.length;
+						this.plugin.settings.relations.push({
+							name: normalized,
+							aliases: createDefaultAliases(normalized),
+							impliedRelations: []
+						});
+						
+						openSections.add(newIndex);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
 	}
 }

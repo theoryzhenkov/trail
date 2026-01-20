@@ -60,7 +60,7 @@ from next depth 1, prev depth 1`,
 	];
 }
 
-function createDefaultAliases(name: string): RelationAlias[] {
+export function createDefaultAliases(name: string): RelationAlias[] {
 	return [
 		{type: "property", key: name},
 		{type: "dotProperty", key: `relations.${name}`},

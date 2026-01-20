@@ -88,31 +88,16 @@ export class GroupsTabRenderer {
 				setting.setDesc("Configure relation groups shown in the trail pane using TQL queries.");
 			});
 
-		for (const [index, group] of this.plugin.settings.tqlGroups.entries()) {
-			this.renderTqlGroupSection(containerEl, group, index, openGroupSections);
-		}
-
-		new Setting(containerEl)
-			.addButton((button) => {
-				button
-					.setButtonText("Add group")
-					.setCta()
-					.onClick(() => {
-						const newIndex = this.plugin.settings.tqlGroups.length;
-						this.plugin.settings.tqlGroups.push({
-							query: `group "New group"\nfrom up`,
-							enabled: true,
-						});
-						openGroupSections.add(newIndex);
-						void this.plugin.saveSettings();
-						this.display();
-					});
-			});
-
-		if (hasLegacyGroups(this.plugin.settings)) {
-			this.renderLegacyGroupsSection(containerEl);
-		}
+	for (const [index, group] of this.plugin.settings.tqlGroups.entries()) {
+		this.renderTqlGroupSection(containerEl, group, index, openGroupSections);
 	}
+
+	this.renderAddGroupControl(containerEl, openGroupSections);
+
+	if (hasLegacyGroups(this.plugin.settings)) {
+		this.renderLegacyGroupsSection(containerEl);
+	}
+}
 
 	private renderMigrationBanner(containerEl: HTMLElement) {
 		const banner = containerEl.createDiv({cls: "trail-migration-banner"});
@@ -547,6 +532,47 @@ export class GroupsTabRenderer {
 			const match = query.match(/group\s+"([^"]+)"/);
 			return match?.[1] ?? null;
 		}
+	}
+
+	private renderAddGroupControl(containerEl: HTMLElement, openGroupSections: Set<number>) {
+		const setting = new Setting(containerEl)
+			.setName("Add new group")
+			.setDesc("Create a TQL group to organize your trail pane.");
+
+		let newGroupName = "";
+
+		setting
+			.addText((text) => {
+				text
+					.setPlaceholder("E.g., Ancestors, Children, Siblings")
+					.onChange((value) => {
+						newGroupName = value;
+					});
+			})
+			.addButton((button) => {
+				button
+					.setButtonText("Create")
+					.setCta()
+					.onClick(() => {
+						const trimmed = newGroupName.trim();
+						
+						if (!trimmed) {
+							new Notice("Group name cannot be empty.");
+							return;
+						}
+
+						const newIndex = this.plugin.settings.tqlGroups.length;
+						const defaultRelation = this.plugin.settings.relations[0]?.name ?? "up";
+						this.plugin.settings.tqlGroups.push({
+							query: `group "${trimmed}"\nfrom ${defaultRelation}`,
+							enabled: true,
+						});
+						
+						openGroupSections.add(newIndex);
+						void this.plugin.saveSettings();
+						this.display();
+					});
+			});
 	}
 
 	private renderLegacyGroupsSection(containerEl: HTMLElement) {
