@@ -1,0 +1,23 @@
+/**
+ * DISPLAY keyword token
+ */
+
+import {TokenNode} from "../../base/TokenNode";
+import {register} from "../../registry";
+import type {NodeDoc} from "../../types";
+
+@register("Display", {keyword: "display"})
+export class DisplayToken extends TokenNode {
+	static keyword = "display";
+	static highlighting = "keyword" as const;
+	static documentation: NodeDoc = {
+		title: "DISPLAY clause",
+		description: "Specifies which properties to show in the Trail pane UI.",
+		syntax: "display Property, ... | all [, Property, ...]",
+		examples: [
+			"display status, priority",
+			"display all",
+			"display all, file.modified",
+		],
+	};
+}
