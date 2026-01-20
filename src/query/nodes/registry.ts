@@ -8,6 +8,7 @@
 import type {Node} from "./base/Node";
 import type {TokenNode} from "./base/TokenNode";
 import type {ExprNode} from "./base/ExprNode";
+import type {BuiltinProperty} from "./base/BuiltinNode";
 import type {Completable, CompletionContext, NodeDoc} from "./types";
 
 /**
@@ -25,6 +26,14 @@ export type TokenClass = (new (...args: any[]) => TokenNode) & {
 	documentation?: NodeDoc;
 	highlighting?: string;
 	completable?: Completable;
+};
+
+/**
+ * Type for a builtin class
+ */
+export type BuiltinClass = NodeClass & {
+	properties?: BuiltinProperty[];
+	documentation?: NodeDoc;
 };
 
 /**
@@ -60,6 +69,7 @@ class NodeRegistry {
 	private exprNodes = new Map<string, NodeClass<ExprNode>>();
 	private functionsByName = new Map<string, NodeClass<ExprNode>>();
 	private completableNodes = new Map<string, CompletableClass>();
+	private builtinsByName = new Map<string, BuiltinClass>();
 
 	/**
 	 * Register a node class by its type identifier
@@ -116,6 +126,13 @@ class NodeRegistry {
 	}
 
 	/**
+	 * Register a builtin class by builtin name
+	 */
+	registerBuiltin(name: string, cls: BuiltinClass): void {
+		this.builtinsByName.set(name, cls);
+	}
+
+	/**
 	 * Get a node class by type
 	 */
 	getNodeClass(type: string): NodeClass | undefined {
@@ -162,6 +179,20 @@ class NodeRegistry {
 	 */
 	getAllFunctionClasses(): Map<string, NodeClass<ExprNode>> {
 		return new Map(this.functionsByName);
+	}
+
+	/**
+	 * Get a builtin class by builtin name
+	 */
+	getBuiltinClass(name: string): BuiltinClass | undefined {
+		return this.builtinsByName.get(name);
+	}
+
+	/**
+	 * Get all builtin classes
+	 */
+	getAllBuiltinClasses(): Map<string, BuiltinClass> {
+		return new Map(this.builtinsByName);
 	}
 
 	/**
@@ -260,8 +291,9 @@ export function register(type: string, options?: RegisterOptions) {
 			registry.registerFunction(options.function, cls as unknown as NodeClass<ExprNode>);
 		}
 
-		// Note: clause and builtin options are just markers for documentation
-		// They don't require special registration beyond the base register() call
+	if (options?.builtin) {
+		registry.registerBuiltin(options.builtin, cls as unknown as BuiltinClass);
+	}
 
 		return cls;
 	};
@@ -321,6 +353,20 @@ export function getAllFunctionNames(): string[] {
  */
 export function getAllFunctionClasses(): Map<string, NodeClass<ExprNode>> {
 	return registry.getAllFunctionClasses();
+}
+
+/**
+ * Helper to get builtin class by name
+ */
+export function getBuiltinClass(name: string): BuiltinClass | undefined {
+	return registry.getBuiltinClass(name);
+}
+
+/**
+ * Helper to get all builtin classes
+ */
+export function getAllBuiltinClasses(): Map<string, BuiltinClass> {
+	return registry.getAllBuiltinClasses();
 }
 
 /**

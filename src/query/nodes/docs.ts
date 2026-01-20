@@ -8,13 +8,13 @@
 import type {NodeDoc} from "./types";
 import {registry} from "./registry";
 import {FunctionExprNode} from "./base/FunctionExprNode";
-import {BUILTINS, getAllBuiltinProperties, getBuiltinDoc, type BuiltinProperty} from "./builtins";
+import {getBuiltins, getAllBuiltinProperties, getBuiltinDoc, type BuiltinProperty} from "./builtins";
 
 // Import tokens to trigger registration
 import "./tokens/keywords";
 
 // Re-export for convenience
-export {BUILTINS, getAllBuiltinProperties, getBuiltinDoc, type BuiltinProperty};
+export {getBuiltins, getAllBuiltinProperties, getBuiltinDoc, type BuiltinProperty};
 
 /**
  * Get documentation for any registered node by name

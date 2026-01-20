@@ -6,7 +6,7 @@
 
 import type {NodeDoc} from "./types";
 import {BuiltinNode, type BuiltinProperty} from "./base/BuiltinNode";
-import {register} from "./registry";
+import {getAllBuiltinClasses, getBuiltinClass, register} from "./registry";
 
 /**
  * Built-in identifier (namespace) definition (for backwards compatibility)
@@ -77,31 +77,10 @@ export class ChainBuiltin extends BuiltinNode {
 }
 
 /**
- * All built-in identifiers (for backwards compatibility)
- */
-export const BUILTINS: BuiltinIdentifier[] = [
-	{
-		name: "$file",
-		description: "File metadata namespace",
-		properties: FileBuiltin.properties,
-	},
-	{
-		name: "$traversal",
-		description: "Traversal context namespace",
-		properties: TraversalBuiltin.properties,
-	},
-	{
-		name: "$chain",
-		description: "Sort by sequence position in traversal chain",
-		properties: ChainBuiltin.properties,
-	},
-];
-
-/**
  * Get built-in identifier by name
  */
 export function getBuiltin(name: string): BuiltinIdentifier | undefined {
-	return BUILTINS.find(b => b.name === name);
+	return getBuiltins().find(b => b.name === name);
 }
 
 /**
@@ -109,7 +88,7 @@ export function getBuiltin(name: string): BuiltinIdentifier | undefined {
  */
 export function getAllBuiltinProperties(): BuiltinProperty[] {
 	const result: BuiltinProperty[] = [];
-	for (const builtin of BUILTINS) {
+	for (const builtin of getBuiltins()) {
 		for (const prop of builtin.properties) {
 			result.push({
 				name: `${builtin.name.slice(1)}.${prop.name}`, // Remove $ prefix for property path
@@ -121,25 +100,34 @@ export function getAllBuiltinProperties(): BuiltinProperty[] {
 	return result;
 }
 
+export function getBuiltins(): BuiltinIdentifier[] {
+	const result: BuiltinIdentifier[] = [];
+	for (const [name, cls] of getAllBuiltinClasses()) {
+		const properties = cls.properties ?? [];
+		const description = cls.documentation?.description ?? "Built-in identifier";
+		result.push({
+			name,
+			description,
+			properties,
+		});
+	}
+	return result;
+}
+
 /**
  * Get documentation for a built-in identifier
  */
 export function getBuiltinDoc(name: string): NodeDoc | undefined {
-	const builtin = getBuiltin(name);
-	if (!builtin) return undefined;
+	const cls = getBuiltinClass(name);
+	if (!cls) return undefined;
 	
-	// Try to get documentation from the node class first
-	if (name === "$file") {
-		return FileBuiltin.documentation;
-	}
-	if (name === "$traversal") {
-		return TraversalBuiltin.documentation;
-	}
-	if (name === "$chain") {
-		return ChainBuiltin.documentation;
+	if (cls.documentation) {
+		return cls.documentation;
 	}
 	
 	// Fallback to generating from data
+	const builtin = getBuiltin(name);
+	if (!builtin) return undefined;
 	return {
 		title: builtin.name,
 		description: builtin.description,

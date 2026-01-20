@@ -16,7 +16,7 @@ import {syntaxTree} from "@codemirror/language";
 import type {SyntaxNode} from "@lezer/common";
 import {registry} from "../nodes/registry";
 import type {CompletionContext as TQLCompletionContext} from "../nodes/types";
-import {getAllFunctionDocs, getAllBuiltinProperties, BUILTINS} from "../nodes/docs";
+import {getAllFunctionDocs, getAllBuiltinProperties, getBuiltins} from "../nodes/docs";
 
 // Import tokens and functions to trigger registration
 import "../nodes/tokens/keywords";
@@ -112,7 +112,7 @@ function createFunctionCompletions(): Completion[] {
  * Create built-in identifier completions from registered builtins
  */
 function createBuiltinIdentifierCompletions(): Completion[] {
-	return BUILTINS.map(builtin => ({
+	return getBuiltins().map(builtin => ({
 		label: builtin.name,
 		type: "variable",
 		detail: "built-in",
