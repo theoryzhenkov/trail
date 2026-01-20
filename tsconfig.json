@@ -17,6 +17,7 @@
 		"strictBindCallApply": true,
 		"allowSyntheticDefaultImports": true,
 		"useUnknownInCatchVariables": true,
+		"experimentalDecorators": true,
 		"lib": [
 			"DOM",
 			"ES5",

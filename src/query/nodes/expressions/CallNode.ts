@@ -1,6 +1,6 @@
 /**
  * CallNode - Function call expression
- * 
+ *
  * This is a dispatcher that looks up function implementations
  * from the function registry.
  */
@@ -8,6 +8,7 @@
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {ExecutorContext} from "../context";
+import {register} from "../registry";
 
 // Forward declaration - will be replaced with actual function registry
 type FunctionImpl = {
@@ -40,6 +41,7 @@ export function hasFunction(name: string): boolean {
 	return functionRegistry.has(name.toLowerCase());
 }
 
+@register("CallNode", {expr: true})
 export class CallNode extends ExprNode {
 	readonly name: string;
 	readonly args: ExprNode[];

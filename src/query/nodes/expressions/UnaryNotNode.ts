@@ -6,7 +6,9 @@ import {UnaryNode} from "../base/UnaryNode";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc} from "../types";
 import type {ExecutorContext} from "../context";
+import {register} from "../registry";
 
+@register("UnaryNotNode", {expr: true})
 export class UnaryNotNode extends UnaryNode {
 	static documentation: NodeDoc = {
 		title: "NOT Operator",

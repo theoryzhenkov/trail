@@ -6,7 +6,9 @@ import {BinaryNode} from "../base/BinaryNode";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc} from "../types";
 import type {ExecutorContext} from "../context";
+import {register} from "../registry";
 
+@register("ArithNode", {expr: true})
 export class ArithNode extends BinaryNode {
 	readonly op: "+" | "-";
 

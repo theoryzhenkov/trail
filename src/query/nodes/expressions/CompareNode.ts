@@ -6,9 +6,11 @@ import {BinaryNode} from "../base/BinaryNode";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc} from "../types";
 import type {ExecutorContext} from "../context";
+import {register} from "../registry";
 
 export type CompareOp = "=" | "!=" | "<" | ">" | "<=" | ">=" | "=?" | "!=?";
 
+@register("CompareNode", {expr: true})
 export class CompareNode extends BinaryNode {
 	readonly op: CompareOp;
 

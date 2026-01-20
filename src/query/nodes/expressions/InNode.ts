@@ -5,7 +5,9 @@
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {ExecutorContext} from "../context";
+import {register} from "../registry";
 
+@register("InNode", {expr: true})
 export class InNode extends ExprNode {
 	readonly value: ExprNode;
 	readonly collection: ExprNode;

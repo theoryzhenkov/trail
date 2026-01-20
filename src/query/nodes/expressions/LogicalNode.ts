@@ -6,7 +6,9 @@ import {BinaryNode} from "../base/BinaryNode";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc} from "../types";
 import type {ExecutorContext} from "../context";
+import {register} from "../registry";
 
+@register("LogicalNode", {expr: true})
 export class LogicalNode extends BinaryNode {
 	readonly op: "and" | "or";
 

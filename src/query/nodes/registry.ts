@@ -1,8 +1,8 @@
 /**
  * Node Registry
- * 
+ *
  * Provides a central registry for all node types.
- * Uses function-based registration instead of decorators for compatibility.
+ * Supports both decorator-based and function-based registration.
  */
 
 import type {Node} from "./base/Node";
@@ -24,6 +24,16 @@ export type TokenClass = (new (...args: any[]) => TokenNode) & {
 	documentation?: unknown;
 	highlighting?: string;
 };
+
+/**
+ * Registration options
+ */
+export interface RegisterOptions {
+	/** Register as a keyword token */
+	keyword?: string;
+	/** Register as an expression node */
+	expr?: boolean;
+}
 
 /**
  * Registry for all node types
@@ -111,22 +121,30 @@ class NodeRegistry {
 export const registry = new NodeRegistry();
 
 /**
- * Register a node class (function-based alternative to decorator)
+ * @register decorator - registers a node class with the registry
+ *
+ * @example
+ * ```typescript
+ * @register("LogicalNode", {expr: true})
+ * export class LogicalNode extends BinaryNode<ExprNode> {
+ *   // ...
+ * }
+ * ```
  */
-export function register(
-	type: string,
-	cls: NodeClass,
-	options?: {keyword?: string; expr?: boolean}
-): void {
-	registry.register(type, cls);
+export function register(type: string, options?: RegisterOptions) {
+	return function <T extends NodeClass>(cls: T): T {
+		registry.register(type, cls);
 
-	if (options?.keyword) {
-		registry.registerToken(options.keyword, cls as TokenClass);
-	}
+		if (options?.keyword) {
+			registry.registerToken(options.keyword, cls as unknown as TokenClass);
+		}
 
-	if (options?.expr) {
-		registry.registerExpr(type, cls as NodeClass<ExprNode>);
-	}
+		if (options?.expr) {
+			registry.registerExpr(type, cls as unknown as NodeClass<ExprNode>);
+		}
+
+		return cls;
+	};
 }
 
 /**

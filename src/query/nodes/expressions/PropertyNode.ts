@@ -5,7 +5,9 @@
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {ExecutorContext} from "../context";
+import {register} from "../registry";
 
+@register("PropertyNode", {expr: true})
 export class PropertyNode extends ExprNode {
 	readonly path: string[];
 

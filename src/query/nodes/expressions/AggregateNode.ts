@@ -7,6 +7,7 @@ import {PropertyNode} from "./PropertyNode";
 import type {Span, Value, NodeDoc, ValidationContext, QueryResultNode} from "../types";
 import type {ExecutorContext} from "../context";
 import {traverse, type TraversalOptions} from "../execution/traversal";
+import {register} from "../registry";
 
 export type AggregateFunc = "count" | "sum" | "avg" | "min" | "max" | "any" | "all";
 
@@ -41,6 +42,7 @@ export interface RelationSpecData {
 
 export type AggregateSource = GroupRefSource | InlineFromSource | BareIdentifierSource;
 
+@register("AggregateNode", {expr: true})
 export class AggregateNode extends ExprNode {
 	readonly func: AggregateFunc;
 	readonly source: AggregateSource;
