@@ -18,15 +18,15 @@ import {bracketMatching} from "@codemirror/language";
 
 import {tql} from "./language";
 import {tqlEditorTheme} from "./theme";
-import {createTQLAutocomplete} from "./autocomplete";
+import {createTQLAutocomplete} from "./complete";
 import {createTQLLinter} from "./linter";
 import {createTQLHover} from "./hover";
 
 // Re-export for external use
 export {tql, tqlLanguage, tqlHighlightPlugin} from "./language";
 export {tqlEditorTheme} from "./theme";
-export {createTQLAutocomplete, FUNCTION_DOCS, FILE_PROPERTIES, TRAVERSAL_PROPERTIES} from "./autocomplete";
-export type {TQLAutocompleteConfig} from "./autocomplete";
+export {createTQLAutocomplete} from "./complete";
+export type {TQLAutocompleteConfig} from "./complete";
 export {createTQLLinter} from "./linter";
 export {createTQLHover} from "./hover";
 

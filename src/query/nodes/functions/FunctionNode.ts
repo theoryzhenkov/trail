@@ -57,5 +57,6 @@ export function registerFunc(name: string, cls: typeof FunctionNode): void {
 		minArity: cls.minArity,
 		maxArity: cls.maxArity,
 		evaluate: cls.evaluate.bind(cls),
+		documentation: cls.documentation,
 	});
 }

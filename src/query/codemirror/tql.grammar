@@ -1,0 +1,169 @@
+// TQL (Trail Query Language) Lezer Grammar
+// 
+// This grammar defines the syntax for TQL queries used in the Trail Obsidian plugin.
+
+@top Query { Group From Prune? Where? When? Sort? Display? }
+
+// ============================================================================
+// Clauses
+// ============================================================================
+
+Group { kw<"group"> String }
+
+From { kw<"from"> RelationSpec ("," RelationSpec)* }
+
+RelationSpec { Identifier RelationModifier* }
+
+RelationModifier {
+  Depth |
+  Extend |
+  Flatten
+}
+
+Depth { kw<"depth"> Number }
+
+Extend { kw<"extend"> (Identifier | String) }
+
+Flatten { kw<"flatten"> Number? }
+
+Prune { kw<"prune"> expression }
+
+Where { kw<"where"> expression }
+
+When { kw<"when"> expression }
+
+Sort { kw<"sort"> SortKey ("," SortKey)* }
+
+SortKey { sortKeyExpr (kw<"asc"> | kw<"desc">)? }
+
+sortKeyExpr { BuiltinIdentifier | PropertyAccess }
+
+Display { kw<"display"> DisplayList }
+
+DisplayList {
+  kw<"all"> ("," PropertyAccess)* |
+  PropertyAccess ("," PropertyAccess)*
+}
+
+// ============================================================================
+// Expressions (precedence from lowest to highest)
+// ============================================================================
+
+expression { OrExpr }
+
+OrExpr { AndExpr (kw<"or"> AndExpr)* }
+
+AndExpr { NotExpr (kw<"and"> NotExpr)* }
+
+NotExpr { (kw<"not"> | "!") NotExpr | CompareExpr }
+
+CompareExpr { ArithExpr (compareOp ArithExpr | InExpr)? }
+
+InExpr { kw<"in"> ArithExpr RangeExpr? }
+
+RangeExpr { ".." ArithExpr }
+
+compareOp { "=" | "!=" | "<" | ">" | "<=" | ">=" | "=?" | "!=?" }
+
+// ArithExpr excludes DateExpr to avoid ambiguity with date offsets
+ArithExpr { arithTerm (("+" | "-") arithTerm)* }
+
+arithTerm {
+  ParenExpr |
+  FunctionCall |
+  BuiltinIdentifier |
+  PropertyAccess |
+  SimpleLiteral |
+  DateExpr
+}
+
+ParenExpr { "(" expression ")" }
+
+FunctionCall { Identifier "(" ArgList? ")" }
+
+ArgList { expression ("," expression)* }
+
+PropertyAccess { Identifier ("." Identifier)* }
+
+// ============================================================================
+// Literals
+// ============================================================================
+
+SimpleLiteral {
+  String |
+  Number |
+  Duration |
+  Boolean |
+  Null
+}
+
+// DateExpr is atomic - the parser greedily consumes the offset
+// This avoids ambiguity because Duration is lexically distinct from Number
+DateExpr { DateBase ~dateoffset DateOffset? }
+
+DateBase {
+  DateLiteral |
+  RelativeDate
+}
+
+DateOffset { ("+" | "-") Duration }
+
+RelativeDate {
+  kw<"today"> |
+  kw<"yesterday"> |
+  kw<"tomorrow"> |
+  kw<"startOfWeek"> |
+  kw<"endOfWeek">
+}
+
+Boolean { @specialize[@name=Boolean]<Identifier, "true" | "false"> }
+
+Null { @specialize[@name=Null]<Identifier, "null"> }
+
+// ============================================================================
+// Tokens
+// ============================================================================
+
+@tokens {
+  whitespace { @whitespace+ }
+  
+  String { '"' (!["\\] | "\\" _)* '"' }
+  
+  // Duration must come before Number for correct precedence
+  Duration { @digit+ $[dwmy] }
+  
+  Number { @digit+ ("." @digit+)? }
+  
+  // Date literal (ISO format YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+  DateLiteral { 
+    @digit @digit @digit @digit "-" @digit @digit "-" @digit @digit 
+    ("T" @digit @digit ":" @digit @digit ":" @digit @digit)?
+  }
+  
+  BuiltinIdentifier { "$" $[a-zA-Z] $[a-zA-Z0-9_]* }
+  
+  Identifier { $[a-zA-Z_] $[a-zA-Z0-9_]* }
+  
+  LineComment { "//" ![\n]* }
+  
+  // Operators - longer ones first for correct matching
+  "!=?" "=?" "!=" "<=" ">=" ".."
+  "=" "<" ">" "+" "-" "!" "."
+  "(" ")" ","
+  
+  @precedence { Duration, Number }
+  @precedence { DateLiteral, Number }
+  @precedence { "!=?", "!=", "!" }
+  @precedence { "=?", "=" }
+  @precedence { "<=", "<" }
+  @precedence { ">=", ">" }
+  @precedence { "..", "." }
+}
+
+@skip { whitespace | LineComment }
+
+kw<term> { @specialize[@name={term}]<Identifier, term> }
+
+@external propSource highlighting from "./highlight"
+
+@detectDelim

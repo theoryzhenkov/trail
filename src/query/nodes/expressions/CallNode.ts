@@ -10,11 +10,12 @@ import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
-// Forward declaration - will be replaced with actual function registry
-type FunctionImpl = {
+// Function implementation with documentation
+export type FunctionImpl = {
 	minArity: number;
 	maxArity: number;
 	evaluate: (args: Value[], ctx: ExecutorContext) => Value;
+	documentation?: NodeDoc;
 };
 
 // Function registry - will be populated by function nodes
@@ -39,6 +40,33 @@ export function getFunction(name: string): FunctionImpl | undefined {
  */
 export function hasFunction(name: string): boolean {
 	return functionRegistry.has(name.toLowerCase());
+}
+
+/**
+ * Get all registered function names
+ */
+export function getAllFunctionNames(): string[] {
+	return Array.from(functionRegistry.keys());
+}
+
+/**
+ * Get function documentation
+ */
+export function getFunctionDoc(name: string): NodeDoc | undefined {
+	return functionRegistry.get(name.toLowerCase())?.documentation;
+}
+
+/**
+ * Get all function documentation
+ */
+export function getAllFunctionDocs(): Map<string, NodeDoc> {
+	const result = new Map<string, NodeDoc>();
+	for (const [name, impl] of functionRegistry) {
+		if (impl.documentation) {
+			result.set(name, impl.documentation);
+		}
+	}
+	return result;
 }
 
 @register("CallNode", {expr: true})

@@ -6,8 +6,10 @@
  */
 
 import {hoverTooltip, Tooltip, EditorView} from "@codemirror/view";
-import {FUNCTION_DOCS, FILE_PROPERTIES, TRAVERSAL_PROPERTIES} from "./autocomplete";
-import {getKeywordDoc} from "../nodes/docs";
+import {getKeywordDoc, getFunctionDoc, getAllBuiltinProperties} from "../nodes/docs";
+
+// Import functions to trigger registration
+import "../nodes/functions";
 
 /**
  * Get word at position
@@ -61,57 +63,26 @@ function createTooltipContent(word: string): HTMLElement | null {
 		});
 	}
 	
-	// Check if it's a function (might be followed by parenthesis)
-	const funcDoc = FUNCTION_DOCS[word] || FUNCTION_DOCS[wordLower];
+	// Check if it's a function
+	const funcDoc = getFunctionDoc(word) ?? getFunctionDoc(wordLower);
 	if (funcDoc) {
 		return createTooltipElement({
-			title: funcDoc.signature,
+			title: funcDoc.syntax ?? funcDoc.title,
 			description: funcDoc.description,
-			extra: `Returns: ${funcDoc.returnType}`,
+			examples: funcDoc.examples,
+			extra: funcDoc.returnType ? `Returns: ${funcDoc.returnType}` : undefined,
 		});
 	}
 	
-	// Check file properties
-	const fileProp = FILE_PROPERTIES.find(p => p.name === word);
-	if (fileProp) {
+	// Check built-in properties (file.*, traversal.*)
+	const builtinProps = getAllBuiltinProperties();
+	const prop = builtinProps.find(p => p.name === word);
+	if (prop) {
 		return createTooltipElement({
-			title: fileProp.name,
-			description: fileProp.description,
-			extra: `Type: ${fileProp.type}`,
+			title: prop.name,
+			description: prop.description,
+			extra: `Type: ${prop.type}`,
 		});
-	}
-	
-	// Check traversal properties
-	const traversalProp = TRAVERSAL_PROPERTIES.find(p => p.name === word);
-	if (traversalProp) {
-		return createTooltipElement({
-			title: traversalProp.name,
-			description: traversalProp.description,
-			extra: `Type: ${traversalProp.type}`,
-		});
-	}
-	
-	// Check if it starts with file. or traversal.
-	if (word.startsWith("file.")) {
-		const prop = FILE_PROPERTIES.find(p => p.name === word);
-		if (prop) {
-			return createTooltipElement({
-				title: prop.name,
-				description: prop.description,
-				extra: `Type: ${prop.type}`,
-			});
-		}
-	}
-	
-	if (word.startsWith("traversal.")) {
-		const prop = TRAVERSAL_PROPERTIES.find(p => p.name === word);
-		if (prop) {
-			return createTooltipElement({
-				title: prop.name,
-				description: prop.description,
-				extra: `Type: ${prop.type}`,
-			});
-		}
 	}
 	
 	return null;

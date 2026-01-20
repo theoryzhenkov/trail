@@ -7,9 +7,15 @@
 
 import type {NodeDoc} from "./types";
 import {registry} from "./registry";
+import {getAllFunctionDocs, getFunctionDoc, getAllFunctionNames} from "./expressions/CallNode";
+import {BUILTINS, getAllBuiltinProperties, getBuiltinDoc, type BuiltinProperty} from "./builtins";
 
 // Import tokens to trigger registration
 import "./tokens/keywords";
+
+// Re-export for convenience
+export {getAllFunctionDocs, getFunctionDoc, getAllFunctionNames};
+export {BUILTINS, getAllBuiltinProperties, getBuiltinDoc, type BuiltinProperty};
 
 /**
  * Get documentation for a keyword

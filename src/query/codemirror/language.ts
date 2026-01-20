@@ -1,275 +1,40 @@
 /**
  * TQL Language Definition for CodeMirror 6
  * 
- * Provides syntax highlighting for TQL queries using a stream parser.
+ * Provides syntax highlighting for TQL queries using a Lezer LR parser.
  * 
- * NOTE: CM6's native highlighting (via tokenTable + HighlightStyle) does NOT work
+ * NOTE: CM6's native highlighting (via styleTags + HighlightStyle) does NOT work
  * in Obsidian plugins due to module instance fragmentation. The @lezer/highlight
- * module used by StreamLanguage to create NodeTypes with styleTags is a different
- * instance than the one used by TreeHighlighter to read those props.
+ * module used to create NodeTypes with styleTags is a different instance than
+ * the one used by TreeHighlighter to read those props.
  * 
- * Instead, we use a ViewPlugin that manually tokenizes and applies decorations,
- * bypassing CM6's native highlighting system entirely.
+ * Instead, we use a ViewPlugin that reads the Lezer syntax tree and applies
+ * decorations based on node types, bypassing CM6's native highlighting system.
  */
 
 import {
-	StreamLanguage,
-	StreamParser,
-	StringStream,
+	LRLanguage,
 	LanguageSupport,
+	syntaxTree,
 } from "@codemirror/language";
 import {Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate} from "@codemirror/view";
 import {RangeSetBuilder} from "@codemirror/state";
-import {
-	getClauseKeywords,
-	getModifierKeywords,
-	getOperatorKeywords,
-	getLiteralKeywords,
-} from "../nodes/docs";
+import type {SyntaxNode} from "@lezer/common";
+import {parser} from "./parser";
 
 /**
- * TQL keywords categorized by type
- * Now sourced from node class static properties via the docs module.
+ * TQL language definition using the Lezer parser.
  */
-const CLAUSE_KEYWORDS = new Set(getClauseKeywords());
-
-const MODIFIER_KEYWORDS = new Set(getModifierKeywords());
-
-const LOGICAL_KEYWORDS = new Set(getOperatorKeywords());
-
-const LITERAL_KEYWORDS = new Set(getLiteralKeywords());
-
-const DATE_KEYWORDS = new Set([
-	"today", "yesterday", "tomorrow", "startofweek", "endofweek"
-]);
-
-/**
- * Built-in function names for highlighting
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const BUILTIN_FUNCTIONS = new Set([
-	// String functions
-	"contains", "startswith", "endswith", "length", "lower", "upper", "trim", "split", "matches",
-	// File functions
-	"infolder", "hasextension", "hastag", "tags", "haslink", "backlinks", "outlinks",
-	// Array functions
-	"len", "first", "last", "isempty",
-	// Existence functions
-	"exists", "coalesce", "ifnull",
-	// Date functions
-	"now", "date", "year", "month", "day", "weekday", "hours", "minutes", "format", "datediff",
-	// Property access
-	"prop",
-]);
-
-/**
- * Known property prefixes
- */
-const PROPERTY_PREFIXES = new Set([
-	"file", "traversal"
-]);
-
-/**
- * Stream parser state
- */
-interface TQLState {
-	inString: boolean;
-	stringChar: string;
-	context: "start" | "afterClause" | "expression" | "afterFrom" | "afterSort";
-}
-
-/**
- * TQL stream parser for CodeMirror.
- * Returns token type names that are mapped to Lezer tags via tokenTable.
- */
-const tqlParserBase = {
+export const tqlLanguage = LRLanguage.define({
 	name: "tql",
-	
-	startState(): TQLState {
-		return {
-			inString: false,
-			stringChar: "",
-			context: "start",
-		};
+	parser,
+	languageData: {
+		commentTokens: {line: "//"},
 	},
-	
-	token(stream: StringStream, state: TQLState): string | null {
-		// Handle string continuation
-		if (state.inString) {
-			return tokenizeString(stream, state);
-		}
-		
-		// Skip whitespace
-		if (stream.eatSpace()) {
-			return null;
-		}
-		
-		// String start
-		if (stream.peek() === '"') {
-			state.inString = true;
-			state.stringChar = '"';
-			stream.next();
-			return tokenizeString(stream, state);
-		}
-		
-		// Numbers and durations
-		if (/[0-9]/.test(stream.peek() ?? "")) {
-			return tokenizeNumber(stream);
-		}
-		
-		// Date literals (YYYY-MM-DD)
-		if (stream.match(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/, false)) {
-			stream.match(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/);
-			return "number";
-		}
-		
-		// Operators
-		if (stream.match("!=?") || stream.match("=?")) {
-			return "operator";
-		}
-		if (stream.match("!=") || stream.match("<=") || stream.match(">=") || stream.match("..")) {
-			return "operator";
-		}
-		if (/[=<>!+-]/.test(stream.peek() ?? "")) {
-			stream.next();
-			return "operator";
-		}
-		
-		// Delimiters
-		if (/[(),.]/.test(stream.peek() ?? "")) {
-			stream.next();
-			return "punctuation";
-		}
-		
-		// Identifiers and keywords (support Unicode letters and symbols)
-		// \p{L} = Letters, \p{So} = Other Symbols (includes №), \p{Sc} = Currency Symbols
-		if (/[\p{L}\p{So}\p{Sc}_]/u.test(stream.peek() ?? "")) {
-			return tokenizeIdentifier(stream, state);
-		}
-		
-		// Unknown character
-		stream.next();
-		return null;
-	},
-	
-	copyState(state: TQLState): TQLState {
-		return {...state};
-	},
-};
+});
 
 /**
- * Complete stream parser.
- * Note: tokenTable is not used since we use ViewPlugin-based highlighting.
- */
-const tqlStreamParser: StreamParser<TQLState> = {
-	...tqlParserBase,
-};
-
-function tokenizeString(stream: StringStream, state: TQLState): string {
-	let escaped = false;
-	
-	while (!stream.eol()) {
-		const char = stream.next();
-		
-		if (escaped) {
-			escaped = false;
-			continue;
-		}
-		
-		if (char === "\\") {
-			escaped = true;
-			continue;
-		}
-		
-		if (char === state.stringChar) {
-			state.inString = false;
-			break;
-		}
-	}
-	
-	return "string";
-}
-
-function tokenizeNumber(stream: StringStream): string {
-	// Consume digits
-	stream.match(/^\d+/);
-	
-	// Check for decimal
-	if (stream.peek() === "." && /\d/.test(stream.peek() ?? "")) {
-		stream.next();
-		stream.match(/^\d+/);
-	}
-	
-	// Check for duration suffix
-	if (/[dwmy]/.test(stream.peek() ?? "")) {
-		stream.next();
-		return "number"; // Duration
-	}
-	
-	return "number";
-}
-
-function tokenizeIdentifier(stream: StringStream, state: TQLState): string {
-	// Consume identifier (support Unicode letters, numbers, and symbols)
-	// \p{L} = Letters, \p{N} = Numbers, \p{So} = Other Symbols, \p{Sc} = Currency Symbols
-	stream.match(/^[\p{L}\p{So}\p{Sc}_][\p{L}\p{N}\p{So}\p{Sc}_-]*/u);
-	const word = stream.current().toLowerCase();
-	
-	// Check for clause keywords (structural - use "keyword" → t.keyword)
-	if (CLAUSE_KEYWORDS.has(word)) {
-		state.context = word === "from" ? "afterFrom" : 
-		               word === "sort" ? "afterSort" : "afterClause";
-		return "keyword";
-	}
-	
-	// Check for modifier keywords (secondary - maps to tags.typeName)
-	if (MODIFIER_KEYWORDS.has(word)) {
-		return "typeName";
-	}
-	
-	// Check for logical keywords (maps to tags.operatorKeyword)
-	if (LOGICAL_KEYWORDS.has(word)) {
-		return "operatorKeyword";
-	}
-	
-	// Check for literal keywords
-	if (LITERAL_KEYWORDS.has(word)) {
-		return "atom";
-	}
-	
-	// Check for date keywords
-	if (DATE_KEYWORDS.has(word)) {
-		return "atom";
-	}
-	
-	// Check if it's a function call (followed by parenthesis)
-	// Use "variableName.function" to get tags.function(tags.variableName)
-	if (stream.peek() === "(") {
-		return "variableName.function";
-	}
-	
-	// Check for property prefixes (file., traversal.)
-	if (PROPERTY_PREFIXES.has(word)) {
-		return "propertyName";
-	}
-	
-	// Context-based classification
-	if (state.context === "afterFrom") {
-		// After FROM, identifiers are relation names
-		return "variableName";
-	}
-	
-	// Default: variable/property name
-	return "variableName";
-}
-
-/**
- * Create the TQL language.
- */
-export const tqlLanguage = StreamLanguage.define(tqlStreamParser);
-
-/**
- * Decoration marks for different token types.
+ * Decoration marks for different node types.
  * These CSS classes are styled in styles.css.
  */
 const keywordMark = Decoration.mark({class: "tql-keyword"});
@@ -283,111 +48,172 @@ const functionMark = Decoration.mark({class: "tql-function"});
 const propertyMark = Decoration.mark({class: "tql-property"});
 const variableMark = Decoration.mark({class: "tql-variable"});
 const punctuationMark = Decoration.mark({class: "tql-punctuation"});
+const commentMark = Decoration.mark({class: "tql-comment"});
+const builtinMark = Decoration.mark({class: "tql-builtin"});
 
 /**
- * Map token types to decoration marks
+ * Map node names to decoration marks.
+ * Based on the grammar node names from parser.terms.ts
  */
-const tokenToMark: {[key: string]: Decoration} = {
-	keyword: keywordMark,
-	typeName: typeMark,
-	operatorKeyword: logicMark,
-	string: stringMark,
-	number: numberMark,
-	atom: atomMark,
-	operator: operatorMark,
-	"variableName.function": functionMark,
-	propertyName: propertyMark,
-	variableName: variableMark,
-	punctuation: punctuationMark,
+const nodeToMark: Record<string, Decoration> = {
+	// Keywords - clause starters
+	group: keywordMark,
+	from: keywordMark,
+	prune: keywordMark,
+	where: keywordMark,
+	when: keywordMark,
+	sort: keywordMark,
+	display: keywordMark,
+	
+	// Keywords - modifiers
+	depth: typeMark,
+	extend: typeMark,
+	flatten: typeMark,
+	asc: typeMark,
+	desc: typeMark,
+	all: typeMark,
+	
+	// Logical operators
+	and: logicMark,
+	or: logicMark,
+	not: logicMark,
+	in: logicMark,
+	
+	// Literals
+	String: stringMark,
+	Number: numberMark,
+	Duration: numberMark,
+	Boolean: atomMark,
+	Null: atomMark,
+	DateLiteral: numberMark,
+	
+	// Date keywords
+	today: atomMark,
+	yesterday: atomMark,
+	tomorrow: atomMark,
+	startOfWeek: atomMark,
+	endOfWeek: atomMark,
+	
+	// Identifiers
+	BuiltinIdentifier: builtinMark,
+	
+	// Comments
+	LineComment: commentMark,
 };
 
 /**
- * ViewPlugin that creates decorations by re-running the tokenizer.
- * This bypasses CM6's native highlighting which doesn't work in Obsidian plugins
- * due to @lezer/highlight module instance fragmentation.
+ * Node names for parent context detection
+ */
+const functionCallParents = new Set(["FunctionCall"]);
+const propertyAccessParents = new Set(["PropertyAccess", "SortKey"]);
+const relationSpecParents = new Set(["RelationSpec"]);
+
+/**
+ * Build decorations from the Lezer syntax tree.
  */
 function buildDecorations(view: EditorView): DecorationSet {
 	const builder = new RangeSetBuilder<Decoration>();
+	const tree = syntaxTree(view.state);
 	
 	for (const {from, to} of view.visibleRanges) {
-		const text = view.state.doc.sliceString(from, to);
-		let state = tqlParserBase.startState();
-		
-		// Simple stream implementation for tokenization
-		let lineStart = 0;
-		const lines = text.split("\n");
-		
-		for (const line of lines) {
-			const stream = {
-				string: line,
-				pos: 0,
-				start: 0,
-				eol: () => stream.pos >= line.length,
-				sol: () => stream.pos === 0,
-				peek: () => line[stream.pos] ?? "",
-				next: () => line[stream.pos++],
-				eat: (match: string | RegExp) => {
-					const ch = line[stream.pos] ?? "";
-					if (typeof match === "string" ? ch === match : match.test(ch)) {
-						stream.pos++;
-						return ch;
-					}
-					return undefined;
-				},
-				eatWhile: (match: RegExp) => {
-					const start = stream.pos;
-					while (stream.pos < line.length && match.test(line[stream.pos] ?? "")) {
-						stream.pos++;
-					}
-					return stream.pos > start;
-				},
-				eatSpace: () => {
-					const start = stream.pos;
-					while (stream.pos < line.length && /\s/.test(line[stream.pos] ?? "")) {
-						stream.pos++;
-					}
-					return stream.pos > start;
-				},
-				match: (pattern: RegExp | string, consume = true) => {
-					if (typeof pattern === "string") {
-						if (line.slice(stream.pos).startsWith(pattern)) {
-							if (consume) stream.pos += pattern.length;
-							return true;
-						}
-						return false;
-					}
-					const match = line.slice(stream.pos).match(pattern);
-					if (match && match.index === 0) {
-						if (consume) stream.pos += match[0].length;
-						return match;
-					}
-					return null;
-				},
-				current: () => line.slice(stream.start, stream.pos),
-				skipToEnd: () => { stream.pos = line.length; },
-			} as unknown as StringStream;
-			
-			while (!stream.eol()) {
-				stream.start = stream.pos;
-				const tokenType = tqlParserBase.token(stream, state);
-				
-				if (tokenType && tokenToMark[tokenType]) {
-					const tokenStart = from + lineStart + stream.start;
-					const tokenEnd = from + lineStart + stream.pos;
-					builder.add(tokenStart, tokenEnd, tokenToMark[tokenType]);
+		tree.iterate({
+			from,
+			to,
+			enter(node: SyntaxNode) {
+				const mark = getMarkForNode(node);
+				if (mark) {
+					builder.add(node.from, node.to, mark);
 				}
-			}
-			
-			lineStart += line.length + 1; // +1 for newline
-		}
+			},
+		});
 	}
 	
 	return builder.finish();
 }
 
 /**
+ * Determine the appropriate decoration mark for a syntax node.
+ */
+function getMarkForNode(node: SyntaxNode): Decoration | null {
+	const name = node.name;
+	
+	// Direct node type mapping
+	if (nodeToMark[name]) {
+		return nodeToMark[name];
+	}
+	
+	// Special handling for Identifier based on context
+	if (name === "Identifier") {
+		return getIdentifierMark(node);
+	}
+	
+	// Operators
+	if (isOperator(name)) {
+		return operatorMark;
+	}
+	
+	// Punctuation
+	if (isPunctuation(name)) {
+		return punctuationMark;
+	}
+	
+	return null;
+}
+
+/**
+ * Determine the mark for an Identifier based on its parent context.
+ */
+function getIdentifierMark(node: SyntaxNode): Decoration {
+	const parent = node.parent;
+	
+	if (!parent) {
+		return variableMark;
+	}
+	
+	// Function name in function call
+	if (functionCallParents.has(parent.name)) {
+		// Check if this is the first child (the function name)
+		const firstChild = parent.firstChild;
+		if (firstChild && firstChild.from === node.from) {
+			return functionMark;
+		}
+	}
+	
+	// Property access
+	if (propertyAccessParents.has(parent.name)) {
+		return propertyMark;
+	}
+	
+	// Relation name in RelationSpec
+	if (relationSpecParents.has(parent.name)) {
+		// First identifier is the relation name
+		const firstChild = parent.firstChild;
+		if (firstChild && firstChild.from === node.from) {
+			return variableMark;
+		}
+	}
+	
+	// Default
+	return variableMark;
+}
+
+/**
+ * Check if a node name represents an operator
+ */
+function isOperator(name: string): boolean {
+	return ["=", "!=", "<", ">", "<=", ">=", "=?", "!=?", "+", "-", "..", "!"].includes(name);
+}
+
+/**
+ * Check if a node name represents punctuation
+ */
+function isPunctuation(name: string): boolean {
+	return ["(", ")", ",", "."].includes(name);
+}
+
+/**
  * ViewPlugin for TQL syntax highlighting.
- * Manually applies decorations based on tokenization.
+ * Reads the Lezer syntax tree and applies decorations based on node types.
  */
 export const tqlHighlightPlugin = ViewPlugin.fromClass(class {
 	decorations: DecorationSet;

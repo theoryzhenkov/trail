@@ -14,6 +14,10 @@ node_modules
 main.js
 dist/
 
+# Generated Lezer parser files
+src/query/codemirror/parser.ts
+src/query/codemirror/parser.terms.ts
+
 # Exclude sourcemaps
 *.map
 
