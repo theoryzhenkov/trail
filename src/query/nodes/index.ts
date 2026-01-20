@@ -26,7 +26,7 @@ export * from "./expressions";
 // Literals
 export * from "./literals";
 
-// Functions - import to register all functions
+// Functions
 import "./functions";
 
 // Clauses
@@ -34,10 +34,6 @@ export * from "./clauses";
 
 // Parser
 export {parse, ParseError} from "./parser";
-
-// ============================================================================
-// TQL Pipeline API
-// ============================================================================
 
 import type {QueryContext, QueryResult} from "./types";
 import {QueryNode} from "./clauses/QueryNode";

@@ -21,19 +21,22 @@ import {getAllFunctionDocs, getAllBuiltinProperties, getBuiltins} from "../nodes
 // Import tokens and functions to trigger registration
 import "../nodes/tokens/keywords";
 import "../nodes/functions";
+// Import clauses to trigger registration
+import "../nodes/clauses";
 
 /**
- * Node types where we're inside a clause and expecting expression content
+ * Get expression clause Lezer names from registry (lazy initialization)
  */
-const EXPRESSION_CLAUSES = new Set(["Prune", "Where", "When"]);
+function getExpressionClauses(): Set<string> {
+	return registry.getExpressionClauseLezerNames();
+}
 
 /**
- * Node types where we're in an expression
+ * Get expression node Lezer names from registry (lazy initialization)
  */
-const EXPRESSION_NODES = new Set([
-	"OrExpr", "AndExpr", "NotExpr", "CompareExpr", "ArithExpr",
-	"ParenExpr", "FunctionCall", "PropertyAccess", "InExpr",
-]);
+function getExpressionNodes(): Set<string> {
+	return registry.getExpressionNodeLezerNames();
+}
 
 /**
  * Configuration for the autocomplete provider
@@ -283,12 +286,14 @@ function getCompletionsForNode(
 	}
 	
 	// Expression clauses (prune, where, when)
-	if (EXPRESSION_CLAUSES.has(name) || EXPRESSION_CLAUSES.has(parentName)) {
+	const expressionClauses = getExpressionClauses();
+	if (expressionClauses.has(name) || expressionClauses.has(parentName)) {
 		return [...expressionCompletions, ...clauseCompletions];
 	}
 	
 	// Inside any expression node
-	if (EXPRESSION_NODES.has(name) || EXPRESSION_NODES.has(parentName)) {
+	const expressionNodes = getExpressionNodes();
+	if (expressionNodes.has(name) || expressionNodes.has(parentName)) {
 		return [...expressionCompletions, ...clauseCompletions];
 	}
 	
@@ -320,7 +325,9 @@ function getCompletionsForNode(
 			if (grandparent.name === "From" || grandparent.name === "RelationSpec") {
 				return [...relationCompletions, ...getRegistryCompletions(["after-relation"])];
 			}
-			if (EXPRESSION_CLAUSES.has(grandparent.name) || EXPRESSION_NODES.has(grandparent.name)) {
+			const expressionClauses = getExpressionClauses();
+			const expressionNodes = getExpressionNodes();
+			if (expressionClauses.has(grandparent.name) || expressionNodes.has(grandparent.name)) {
 				return expressionCompletions;
 			}
 		}

@@ -70,6 +70,7 @@ class NodeRegistry {
 	private functionsByName = new Map<string, NodeClass<ExprNode>>();
 	private completableNodes = new Map<string, CompletableClass>();
 	private builtinsByName = new Map<string, BuiltinClass>();
+	private clauseNodes = new Map<string, NodeClass>();
 
 	/**
 	 * Register a node class by its type identifier
@@ -82,6 +83,14 @@ class NodeRegistry {
 		if (completable) {
 			this.completableNodes.set(type, cls as unknown as CompletableClass);
 		}
+	}
+
+	/**
+	 * Register a clause node class
+	 */
+	registerClause(type: string, cls: NodeClass): void {
+		this.clauseNodes.set(type, cls);
+		this.register(type, cls);
 	}
 
 	/**
@@ -252,6 +261,58 @@ class NodeRegistry {
 	getAllCompletables(): CompletableClass[] {
 		return Array.from(this.completableNodes.values());
 	}
+
+	/**
+	 * Get all registered clause node types
+	 */
+	getAllClauseTypes(): string[] {
+		return Array.from(this.clauseNodes.keys());
+	}
+
+	/**
+	 * Get Lezer grammar names for expression clause nodes (clauses that contain expressions).
+	 * These are clauses registered with clause: true that have an 'expression' property.
+	 * Returns the Lezer grammar name (registry name without "Node" suffix).
+	 * 
+	 * Expression clauses are identified by having a 'test' method that takes ExecutorContext,
+	 * which is unique to PruneNode, WhereNode, and WhenNode.
+	 */
+	getExpressionClauseLezerNames(): Set<string> {
+		const names = new Set<string>();
+		for (const [type, cls] of this.clauseNodes) {
+			// Expression clauses (PruneNode, WhereNode, WhenNode) have a 'test' method
+			// Check if the prototype has a 'test' method
+			const prototype = cls.prototype as Record<string, unknown>;
+			if (typeof prototype.test === "function") {
+				// Convert registry name to Lezer grammar name (remove "Node" suffix)
+				const lezerName = type.replace(/Node$/, "");
+				names.add(lezerName);
+			}
+		}
+		return names;
+	}
+
+	/**
+	 * Get Lezer grammar names for expression nodes.
+	 * Maps registered expression node types to their Lezer grammar names.
+	 */
+	getExpressionNodeLezerNames(): Set<string> {
+		const names = new Set<string>();
+		
+		// Map registry types to Lezer grammar names
+		// The Lezer grammar uses these names directly for expression nodes
+		const lezerExprNames = [
+			"OrExpr", "AndExpr", "NotExpr", "CompareExpr", "ArithExpr",
+			"ParenExpr", "FunctionCall", "PropertyAccess", "InExpr",
+		];
+		
+		// All of these are valid expression nodes in the Lezer grammar
+		for (const name of lezerExprNames) {
+			names.add(name);
+		}
+		
+		return names;
+	}
 }
 
 /**
@@ -291,9 +352,13 @@ export function register(type: string, options?: RegisterOptions) {
 			registry.registerFunction(options.function, cls as unknown as NodeClass<ExprNode>);
 		}
 
-	if (options?.builtin) {
-		registry.registerBuiltin(options.builtin, cls as unknown as BuiltinClass);
-	}
+		if (options?.clause) {
+			registry.registerClause(type, cls);
+		}
+
+		if (options?.builtin) {
+			registry.registerBuiltin(options.builtin, cls as unknown as BuiltinClass);
+		}
 
 		return cls;
 	};
