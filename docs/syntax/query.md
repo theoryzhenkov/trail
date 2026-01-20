@@ -8,11 +8,11 @@ TQL is a powerful query language for defining Trail groups. Instead of configuri
 
 ```
 group "Project Ancestors"
-from up depth unlimited
+from up :depth unlimited
 prune status = "archived"
 where priority >= 3
 when type = "project"
-sort by chain, date desc
+sort :chain, date :desc
 display status, priority
 ```
 
@@ -67,9 +67,10 @@ Specifies which relations to traverse and how.
 
 ```
 from up                           -- traverse up, unlimited depth
-from up depth 3                   -- traverse up, max 3 levels
-from up, down depth 2             -- multiple relations
-from up extend Children           -- extend with another group's config
+from up :depth 3                  -- traverse up, max 3 levels
+from up, down :depth 2            -- multiple relations
+from up >> @"Children"            -- chain with another group
+from up >> next                   -- chain with a relation
 ```
 
 #### Depth Modifier
@@ -78,25 +79,30 @@ Controls how many levels to traverse:
 
 | Syntax | Behavior |
 |--------|----------|
-| `depth unlimited` | Follow the chain as far as it goes (default) |
-| `depth 1` | Direct connections only |
-| `depth 2` | Direct connections + one level deeper |
-| `depth N` | Up to N levels |
+| `:depth unlimited` | Follow the chain as far as it goes (default) |
+| `:depth 1` | Direct connections only |
+| `:depth 2` | Direct connections + one level deeper |
+| `:depth N` | Up to N levels |
 
 ```
-from up depth unlimited           -- explicit unlimited
-from down depth 3                 -- max 3 levels deep
+from up :depth unlimited          -- explicit unlimited
+from down :depth 3                -- max 3 levels deep
 ```
 
-#### Extend Modifier
+#### Chaining Operator (`>>`)
 
-Continue traversal using another group's configuration. Useful for showing context.
+Chain traversals sequentially. At each leaf node, continue with the next target.
 
 ```
-from next depth 1 extend Ancestors
+from up >> @"Children"            -- traverse up, then continue with Children group
+from up >> next                   -- traverse up, then traverse next from each result
+from up >> next >> same           -- three-level chain
+from up :depth 2 >> @"Siblings"  -- traverse up (depth 2), then Siblings group
 ```
 
-This finds immediate `next` connections, then shows their ancestors.
+**Chaining vs Parallel:**
+- Comma (`,`) = parallel: `from up, down` traverses both from the start
+- `>>` = sequential: `from up >> down` traverses up first, then down from each result
 
 !!! note "Modifier Order"
     `depth` and `extend` can appear in any order: `depth 5 extend Children` equals `extend Children depth 5`.
@@ -165,7 +171,7 @@ For sequential relations (`next`/`prev`), `chain` preserves the sequence order:
 
 ```
 sort by chain                     -- keep sequence order
-sort by chain, priority desc      -- sequence first, then priority
+sort :chain, priority :desc      -- sequence first, then priority
 ```
 
 #### Sort Direction
@@ -260,9 +266,9 @@ Use dot notation for nested or prefixed properties:
 
 ```
 file.name                         -- filename without extension
-file.created                      -- creation date
-file.modified                     -- modification date
-traversal.depth                   -- depth from active file
+$file.created                     -- creation date
+$file.modified                    -- modification date
+$traversal.depth                  -- depth from active file
 ```
 
 ### Reserved Word Properties
@@ -291,13 +297,12 @@ prop("due-date")                  -- property with special characters
 | `file.size` | number | File size in bytes |
 | `file.tags` | string[] | Array of tags |
 
-### Traversal Context (`traversal.*`)
+### Traversal Context (`$traversal.*`)
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `traversal.depth` | number | Depth from active file |
-| `traversal.relation` | string | Relation name that led here |
-| `traversal.isImplied` | boolean | Whether edge is implied |
+| `$traversal.depth` | number | Depth from active file |
+| `$traversal.relation` | string | Relation name that led here |
 
 ---
 
@@ -452,7 +457,7 @@ from up depth unlimited, down depth 3
 prune status = "archived"
 where priority >=? 3 and hasTag("active")
 when type = "project"
-sort by chain, priority desc
+sort :chain, priority :desc
 display status, priority, file.modified
 ```
 
@@ -460,10 +465,10 @@ display status, priority, file.modified
 
 ```
 group "Related Notes"
-from up depth 1, down depth 2
+from up :depth 1, down :depth 2
 where file.folder != "Archive"
 when matches(file.name, "^\\d{4}-\\d{2}-\\d{2}$")
-sort by file.modified desc
+sort $file.modified :desc
 display all
 ```
 
@@ -471,9 +476,9 @@ display all
 
 ```
 group "Recent Changes"
-from up, down depth 2
+from up, down :depth 2
 where file.modified > today - 7d
-sort by file.modified desc
+sort $file.modified :desc
 display file.modified, status
 ```
 
@@ -494,8 +499,8 @@ display birthdate, relation
 ### Reserved Keywords
 
 ```
-group, from, depth, unlimited, extend, prune, where, when,
-sort, by, chain, asc, desc, display, all, and, or, not, in,
+group, from, prune, where, when,
+sort, display, all, and, or, not, in,
 true, false, null, today, yesterday, tomorrow, startOfWeek, endOfWeek
 ```
 

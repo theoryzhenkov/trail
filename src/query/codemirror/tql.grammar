@@ -20,21 +20,18 @@ QueryClause {
 
 Group { kw<"group"> String }
 
-From { kw<"from"> RelationSpec ("," RelationSpec)* }
+From { kw<"from"> RelationChain ("," RelationChain)* }
 
-RelationSpec { Identifier RelationModifier* }
+RelationChain { RelationSpec (">>" ChainTarget)* }
 
-RelationModifier {
-  Depth |
-  Extend |
-  Flatten
+ChainTarget { RelationSpec | GroupReference | InlineQuery }
+
+RelationSpec { Identifier RelationOption* }
+
+RelationOption {
+  ":depth" Number |
+  ":flatten" Number?
 }
-
-Depth { kw<"depth"> Number }
-
-Extend { kw<"extend"> (Identifier | String) }
-
-Flatten { kw<"flatten"> Number? }
 
 Prune { kw<"prune"> expression }
 
@@ -44,16 +41,20 @@ When { kw<"when"> expression }
 
 Sort { kw<"sort"> SortKey ("," SortKey)* }
 
-SortKey { sortKeyExpr (kw<"asc"> | kw<"desc">)? }
+SortKey { SortKeyExpr SortDirection? }
 
-sortKeyExpr { BuiltinIdentifier | PropertyAccess }
+SortKeyExpr { BuiltinPropertyAccess | PropertyAccess | ":chain" }
+
+SortDirection { ":asc" | ":desc" }
 
 Display { kw<"display"> DisplayList }
 
 DisplayList {
-  kw<"all"> ("," PropertyAccess)* |
-  PropertyAccess ("," PropertyAccess)*
+  kw<"all"> ("," DisplayItem)* |
+  DisplayItem ("," DisplayItem)*
 }
+
+DisplayItem { BuiltinPropertyAccess | PropertyAccess }
 
 // ============================================================================
 // Expressions (precedence from lowest to highest)
@@ -82,11 +83,15 @@ arithTerm {
   ParenExpr |
   FunctionCall |
   InlineQuery |
-  BuiltinIdentifier |
+  GroupReference |
+  BuiltinPropertyAccess |
   PropertyAccess |
   SimpleLiteral |
   DateExpr
 }
+
+// Group reference: @"Name"
+GroupReference { "@" String }
 
 // Inline query expression for use in aggregate functions
 // Executes a full query recursively and returns the result set
@@ -105,13 +110,16 @@ ParenExpr { "(" expression ")" }
 
 // FunctionName allows keywords that are also valid function names
 // This is needed because @specialize makes keywords global
-FunctionName { Identifier | kw<"all"> | kw<"group"> }
+FunctionName { Identifier | kw<"all"> }
 
 FunctionCall { FunctionName "(" ArgList? ")" }
 
 ArgList { expression ("," expression)* }
 
 PropertyAccess { Identifier ("." Identifier)* }
+
+// Builtin property access: $file.name, $traversal.depth
+BuiltinPropertyAccess { BuiltinIdentifier ("." Identifier)* }
 
 // ============================================================================
 // Literals
@@ -174,8 +182,11 @@ Null { @specialize[@name=Null]<Identifier, "null"> }
   
   LineComment { "//" ![\n]* }
   
+  // Option identifier: :depth, :flatten, :asc, :desc, :chain
+  OptionIdentifier { ":" $[a-zA-Z_À-ÿА-я一-龯№] $[a-zA-Z0-9_À-ÿА-я一-龯-№]* }
+  
   // Operators - longer ones first for correct matching
-  "!=?" "=?" "!=" "<=" ">=" ".."
+  "!=?" "=?" "!=" "<=" ">=" ".." ">>"
   "=" "<" ">" "+" "-" "!" "."
   "(" ")" "," "@"
   
@@ -186,6 +197,7 @@ Null { @specialize[@name=Null]<Identifier, "null"> }
   @precedence { "<=", "<" }
   @precedence { ">=", ">" }
   @precedence { "..", "." }
+  @precedence { ">>", "," }
 }
 
 @skip { whitespace | LineComment }

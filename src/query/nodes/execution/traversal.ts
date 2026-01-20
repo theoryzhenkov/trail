@@ -5,6 +5,7 @@
 import type {ExecutorContext} from "../context";
 import type {ExprNode} from "../base/ExprNode";
 import type {QueryResultNode, TraversalContext, QueryWarning} from "../types";
+import type {ChainTarget} from "../clauses/FromNode";
 
 /**
  * Options for traversal operations
@@ -16,8 +17,10 @@ export interface TraversalOptions {
 	relation: string;
 	/** Maximum depth (Infinity for unlimited) */
 	maxDepth: number;
-	/** Optional group name for extend */
+	/** Optional group name for extend (deprecated, use chain instead) */
 	extendGroup?: string;
+	/** Chain targets to continue traversal at leaf nodes */
+	chain?: ChainTarget[];
 	/** Flatten: true = flatten all (BFS), number = flatten from depth N */
 	flatten?: number | true;
 	/** Prune expression (skip nodes where this evaluates to true) */
@@ -173,7 +176,19 @@ function traverseWithPartialFlatten(
 	const {relation, maxDepth, extendGroup, pruneExpr, resolveGroup} = options;
 
 	if (currentDepth > maxDepth) {
-		// At leaf - check for extend
+		// At leaf - check for extend or chain
+		if (options.chain && options.chain.length > 0) {
+			return extendFromChain(
+				ctx,
+				traversalPath[traversalPath.length - 1]!,
+				options.chain,
+				ancestorPaths,
+				traversalPath,
+				warnings,
+				pruneExpr,
+				resolveGroup
+			);
+		}
 		if (extendGroup && resolveGroup) {
 			return extendFromGroup(
 				ctx,
@@ -365,7 +380,19 @@ function traverseRelation(
 	const {startPath, relation, maxDepth, extendGroup, pruneExpr, resolveGroup} = options;
 
 	if (currentDepth > maxDepth) {
-		// At leaf - check for extend
+		// At leaf - check for extend or chain
+		if (options.chain && options.chain.length > 0) {
+			return extendFromChain(
+				ctx,
+				traversalPath[traversalPath.length - 1]!,
+				options.chain,
+				ancestorPaths,
+				traversalPath,
+				warnings,
+				pruneExpr,
+				resolveGroup
+			);
+		}
 		if (extendGroup && resolveGroup) {
 			return extendFromGroup(
 				ctx,
@@ -449,6 +476,76 @@ function traverseRelation(
 		});
 	}
 
+	return results;
+}
+
+/**
+ * Extend traversal from chain targets
+ */
+function extendFromChain(
+	ctx: ExecutorContext,
+	sourcePath: string,
+	chain: ChainTarget[],
+	ancestorPaths: Set<string>,
+	traversalPath: string[],
+	warnings: QueryWarning[],
+	pruneExpr?: ExprNode,
+	resolveGroup?: (name: string) => TraversalOptions[] | undefined
+): QueryResultNode[] {
+	const results: QueryResultNode[] = [];
+	
+	for (const target of chain) {
+		if (target.type === "relation") {
+			// Continue with a relation
+			const childOptions: TraversalOptions = {
+				startPath: sourcePath,
+				relation: target.spec.name,
+				maxDepth: target.spec.depth === "unlimited" ? Infinity : target.spec.depth,
+				flatten: target.spec.flatten,
+				pruneExpr,
+				chain: chain.length > 1 ? chain.slice(1) : undefined,
+				resolveGroup,
+			};
+			
+			const newAncestors = new Set(ancestorPaths);
+			const nodes = traverseRelation(ctx, childOptions, 1, newAncestors, traversalPath, warnings);
+			results.push(...nodes);
+		} else if (target.type === "group") {
+			// Continue with a group
+			if (!resolveGroup) {
+				warnings.push({message: `Cannot resolve group: ${target.name}`});
+				continue;
+			}
+			
+			const groupRelations = resolveGroup(target.name);
+			if (!groupRelations) {
+				warnings.push({message: `Cannot resolve group: ${target.name}`});
+				continue;
+			}
+			
+			for (const relOptions of groupRelations) {
+				const childOptions: TraversalOptions = {
+					...relOptions,
+					startPath: sourcePath,
+					pruneExpr,
+					chain: chain.length > 1 ? chain.slice(1) : undefined,
+					resolveGroup,
+				};
+				
+				const newAncestors = new Set(ancestorPaths);
+				const nodes = traverseRelation(ctx, childOptions, 1, newAncestors, traversalPath, warnings);
+				results.push(...nodes);
+			}
+		} else if (target.type === "inline") {
+			// Continue with an inline query
+			// Execute the inline query from the current path
+			const inlineResults = target.query.executeQuery(ctx);
+			// For now, we'll add these results directly
+			// In the future, we might want to merge them with the traversal structure
+			results.push(...inlineResults);
+		}
+	}
+	
 	return results;
 }
 

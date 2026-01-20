@@ -8,7 +8,7 @@
 
 import type {QueryResultNode} from "../types";
 import type {ExecutorContext} from "../context";
-import type {FromNode} from "../clauses/FromNode";
+import type {FromNode, ChainTarget} from "../clauses/FromNode";
 import type {SortNode} from "../clauses/SortNode";
 import type {PruneNode} from "../clauses/PruneNode";
 import type {WhereNode} from "../clauses/WhereNode";
@@ -70,33 +70,38 @@ function traverseFrom(
 	// Extract prune expression for traversal
 	const pruneExpr = prune?.expression;
 
-	// Build group resolver for extend functionality
+	// Build group resolver for backwards compatibility with extendGroup
 	const resolveGroup = (name: string): TraversalOptions[] | undefined => {
 		const groupQuery = ctx.resolveGroupQuery(name) as
-			| {from: {relations: Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: number | true}>}}
+			| {from: FromNode}
 			| undefined;
 		if (!groupQuery) return undefined;
 
-		return groupQuery.from.relations.map((rel) => ({
-			startPath: "",
-			relation: rel.name,
-			maxDepth: rel.depth === "unlimited" ? Infinity : rel.depth,
-			extendGroup: rel.extend,
-			flatten: rel.flatten,
-			pruneExpr,
-			resolveGroup,
-		}));
+		// Convert the group's chains to TraversalOptions[]
+		const options: TraversalOptions[] = [];
+		for (const chain of groupQuery.from.chains) {
+			options.push({
+				startPath: "",
+				relation: chain.first.name,
+				maxDepth: chain.first.depth === "unlimited" ? Infinity : chain.first.depth,
+				flatten: chain.first.flatten,
+				pruneExpr,
+				chain: chain.chain.length > 0 ? chain.chain : undefined,
+				resolveGroup,
+			});
+		}
+		return options.length > 0 ? options : undefined;
 	};
 
-	// Traverse each relation in the FROM clause
-	for (const relSpec of from.relations) {
+	// Traverse each chain in the FROM clause
+	for (const relationChain of from.chains) {
 		const traversalOptions: TraversalOptions = {
 			startPath,
-			relation: relSpec.name,
-			maxDepth: relSpec.depth === "unlimited" ? Infinity : relSpec.depth,
-			extendGroup: relSpec.extend,
-			flatten: relSpec.flatten,
+			relation: relationChain.first.name,
+			maxDepth: relationChain.first.depth === "unlimited" ? Infinity : relationChain.first.depth,
+			flatten: relationChain.first.flatten,
 			pruneExpr,
+			chain: relationChain.chain.length > 0 ? relationChain.chain : undefined,
 			resolveGroup,
 		};
 

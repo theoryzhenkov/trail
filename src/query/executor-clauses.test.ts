@@ -11,7 +11,7 @@ describe("TQL Executor - Clauses", () => {
 		it("should show group when condition is true", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 when exists(name)`,
+				`group "Test" from down :depth 1 when exists(name)`,
 				graph,
 				"person1.md"
 			);
@@ -22,7 +22,7 @@ describe("TQL Executor - Clauses", () => {
 		it("should hide group when condition is false", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 when gender = "nonexistent"`,
+				`group "Test" from down :depth 1 when gender = "nonexistent"`,
 				graph,
 				"person1.md"
 			);
@@ -57,7 +57,7 @@ describe("TQL Executor - Clauses", () => {
 		it("should sort by property ascending", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 sort age asc`,
+				`group "Test" from down :depth 1 sort age :asc`,
 				graph,
 				"root.md"
 			);
@@ -73,7 +73,7 @@ describe("TQL Executor - Clauses", () => {
 		it("should sort by property descending", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 sort age desc`,
+				`group "Test" from down :depth 1 sort age :desc`,
 				graph,
 				"root.md"
 			);
@@ -91,7 +91,7 @@ describe("TQL Executor - Clauses", () => {
 		it("should include specified display properties", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 display name, age`,
+				`group "Test" from down :depth 1 display name, age`,
 				graph,
 				"root.md"
 			);

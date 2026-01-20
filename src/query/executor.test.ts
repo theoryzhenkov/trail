@@ -48,7 +48,7 @@ describe("TQL Executor", () => {
 		it("should respect depth limit", () => {
 			const graph = TestGraphs.simpleHierarchy();
 			const result = runQuery(
-				`group "Test" from down depth 1`,
+				`group "Test" from down :depth 1`,
 				graph,
 				"A.md"
 			);
@@ -64,7 +64,7 @@ describe("TQL Executor", () => {
 		it("should filter by property equality", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender = "female"`,
+				`group "Test" from down :depth 1 where gender = "female"`,
 				graph,
 				"root.md"
 			);
@@ -77,7 +77,7 @@ describe("TQL Executor", () => {
 		it("should filter by property inequality", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender != "male"`,
+				`group "Test" from down :depth 1 where gender != "male"`,
 				graph,
 				"root.md"
 			);
@@ -91,7 +91,7 @@ describe("TQL Executor", () => {
 		it("should filter with numeric comparison", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where age > 27`,
+				`group "Test" from down :depth 1 where age > 27`,
 				graph,
 				"root.md"
 			);
@@ -108,7 +108,7 @@ describe("TQL Executor", () => {
 		it("should filter with exists() function", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where exists(gender)`,
+				`group "Test" from down :depth 1 where exists(gender)`,
 				graph,
 				"root.md"
 			);
@@ -125,7 +125,7 @@ describe("TQL Executor", () => {
 		it("should filter with not exists() function", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where not exists(gender)`,
+				`group "Test" from down :depth 1 where not exists(gender)`,
 				graph,
 				"root.md"
 			);
@@ -140,7 +140,7 @@ describe("TQL Executor", () => {
 		it("should filter with != null", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender != null`,
+				`group "Test" from down :depth 1 where gender != null`,
 				graph,
 				"root.md"
 			);
@@ -155,7 +155,7 @@ describe("TQL Executor", () => {
 		it("should filter with = null", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender = null`,
+				`group "Test" from down :depth 1 where gender = null`,
 				graph,
 				"root.md"
 			);
@@ -172,7 +172,7 @@ describe("TQL Executor", () => {
 		it("should show group when condition is true", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 when exists(name)`,
+				`group "Test" from down :depth 1 when exists(name)`,
 				graph,
 				"person1.md"
 			);
@@ -183,7 +183,7 @@ describe("TQL Executor", () => {
 		it("should hide group when condition is false", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 when gender = "nonexistent"`,
+				`group "Test" from down :depth 1 when gender = "nonexistent"`,
 				graph,
 				"person1.md"
 			);
@@ -218,7 +218,7 @@ describe("TQL Executor", () => {
 		it("should sort by property ascending", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 sort age asc`,
+				`group "Test" from down :depth 1 sort age :asc`,
 				graph,
 				"root.md"
 			);
@@ -234,7 +234,7 @@ describe("TQL Executor", () => {
 		it("should sort by property descending", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 sort age desc`,
+				`group "Test" from down :depth 1 sort age :desc`,
 				graph,
 				"root.md"
 			);
@@ -252,7 +252,7 @@ describe("TQL Executor", () => {
 		it("should handle AND correctly", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender = "female" and age > 25`,
+				`group "Test" from down :depth 1 where gender = "female" and age > 25`,
 				graph,
 				"root.md"
 			);
@@ -265,7 +265,7 @@ describe("TQL Executor", () => {
 		it("should handle OR correctly", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender = "female" or age < 30`,
+				`group "Test" from down :depth 1 where gender = "female" or age < 30`,
 				graph,
 				"root.md"
 			);
@@ -279,7 +279,7 @@ describe("TQL Executor", () => {
 		it("should handle NOT correctly", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where not gender = "male"`,
+				`group "Test" from down :depth 1 where not gender = "male"`,
 				graph,
 				"root.md"
 			);
@@ -294,7 +294,7 @@ describe("TQL Executor", () => {
 		it("should traverse multiple relations", () => {
 			const graph = TestGraphs.sequentialChain();
 			const result = runQuery(
-				`group "Test" from next, prev depth 1`,
+				`group "Test" from next :depth 1, prev :depth 1`,
 				graph,
 				"chapter2.md"
 			);
@@ -309,7 +309,7 @@ describe("TQL Executor", () => {
 		it("should include specified display properties", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 display name, age`,
+				`group "Test" from down :depth 1 display name, age`,
 				graph,
 				"root.md"
 			);
@@ -340,7 +340,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort номер asc`,
+				`group "Test" from down :depth 1 sort номер :asc`,
 				graph,
 				"root.md"
 			);
@@ -368,7 +368,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where № > 75 sort № desc`,
+				`group "Test" from down :depth 1 where № > 75 sort № :desc`,
 				graph,
 				"root.md"
 			);
@@ -400,7 +400,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where 優先度 = "high"`,
+				`group "Test" from down :depth 1 where 優先度 = "high"`,
 				graph,
 				"root.md"
 			);
@@ -433,14 +433,14 @@ describe("TQL Executor", () => {
 			// Create a Children group
 			const childrenGroup = createMockGroup(
 				"Children",
-				`group "Children" from down depth 1`,
+				`group "Children" from down :depth 1`,
 				["down"],
 				["Children"]
 			);
 			graph.groups = [childrenGroup];
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where count(group(Children)) > 0`,
+				`group "Test" from down :depth 1 where count(@"Children") > 0`,
 				graph,
 				"root.md"
 			);
@@ -468,7 +468,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where count(@(from down depth 1)) > 0`,
+				`group "Test" from down :depth 1 where count(@(from down :depth 1)) > 0`,
 				graph,
 				"root.md"
 			);
@@ -498,14 +498,14 @@ describe("TQL Executor", () => {
 
 			const childrenGroup = createMockGroup(
 				"Children",
-				`group "Children" from down depth 1`,
+				`group "Children" from down :depth 1`,
 				["down"],
 				["Children"]
 			);
 			graph.groups = [childrenGroup];
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where count(Children) > 0`,
+				`group "Test" from down :depth 1 where count(Children) > 0`,
 				graph,
 				"root.md"
 			);
@@ -534,7 +534,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where count(down) > 0`,
+				`group "Test" from down :depth 1 where count(down) > 0`,
 				graph,
 				"root.md"
 			);
@@ -563,7 +563,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where sum(@(from down depth 1), value) = 0`,
+				`group "Test" from down :depth 1 where sum(@(from down :depth 1), value) = 0`,
 				graph,
 				"root.md"
 			);
@@ -590,7 +590,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where avg(@(from down depth 1), score) >= 90`,
+				`group "Test" from down :depth 1 where avg(@(from down :depth 1), score) >= 90`,
 				graph,
 				"root.md"
 			);
@@ -620,7 +620,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where min(@(from down depth 1), priority) = 1`,
+				`group "Test" from down :depth 1 where min(@(from down :depth 1), priority) = 1`,
 				graph,
 				"root.md"
 			);
@@ -648,7 +648,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where max(@(from down depth 1), priority) = 3`,
+				`group "Test" from down :depth 1 where max(@(from down :depth 1), priority) = 3`,
 				graph,
 				"root.md"
 			);
@@ -675,7 +675,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where any(@(from down depth 1), status = "done")`,
+				`group "Test" from down :depth 1 where any(@(from down :depth 1), status = "done")`,
 				graph,
 				"root.md"
 			);
@@ -709,7 +709,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where all(@(from down depth 1), status = "done")`,
+				`group "Test" from down :depth 1 where all(@(from down :depth 1), status = "done")`,
 				graph,
 				"root.md"
 			);
@@ -740,7 +740,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where sum(@(from down depth 1), value) = 10`,
+				`group "Test" from down :depth 1 where sum(@(from down :depth 1), value) = 10`,
 				graph,
 				"root.md"
 			);
@@ -764,7 +764,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where count(@(from down depth 1)) = 0`,
+				`group "Test" from down :depth 1 where count(@(from down :depth 1)) = 0`,
 				graph,
 				"root.md"
 			);
@@ -792,7 +792,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where count(@(from down)) = 2`,
+				`group "Test" from down :depth 1 where count(@(from down)) = 2`,
 				graph,
 				"root.md"
 			);
@@ -828,13 +828,13 @@ describe("TQL Executor", () => {
 			// Create circular group references: GroupA extends GroupB, GroupB extends GroupA
 			const groupA = createMockGroup(
 				"GroupA",
-				`group "GroupA" from down depth 1 extend GroupB`,
+				`group "GroupA" from down :depth 1 >> @"GroupB"`,
 				["up", "down"],
 				["GroupA", "GroupB"]
 			);
 			const groupB = createMockGroup(
 				"GroupB",
-				`group "GroupB" from down depth 1 extend GroupA`,
+				`group "GroupB" from down :depth 1 >> @"GroupA"`,
 				["up", "down"],
 				["GroupA", "GroupB"]
 			);
@@ -843,7 +843,7 @@ describe("TQL Executor", () => {
 			// This should complete without infinite loop
 			// The cycle detection via ancestorPaths should prevent revisiting nodes
 			const result = runQuery(
-				`group "Test" from down depth 1 extend GroupA`,
+				`group "Test" from down :depth 1 >> @"GroupA"`,
 				graph,
 				"root.md"
 			);
@@ -918,7 +918,7 @@ describe("TQL Executor", () => {
 			// Group that extends itself
 			const selfRefGroup = createMockGroup(
 				"SelfRef",
-				`group "SelfRef" from down depth 1 extend SelfRef`,
+				`group "SelfRef" from down :depth 1 >> @"SelfRef"`,
 				["down"],
 				["SelfRef"]
 			);
@@ -926,7 +926,7 @@ describe("TQL Executor", () => {
 
 			// Should complete without infinite loop
 			const result = runQuery(
-				`group "Test" from down depth 1 extend SelfRef`,
+				`group "Test" from down :depth 1 >> @"SelfRef"`,
 				graph,
 				"root.md"
 			);

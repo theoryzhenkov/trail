@@ -11,7 +11,7 @@ describe("TQL Executor - Filtering", () => {
 		it("should filter by property equality", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender = "female"`,
+				`group "Test" from down :depth 1 where gender = "female"`,
 				graph,
 				"root.md"
 			);
@@ -24,7 +24,7 @@ describe("TQL Executor - Filtering", () => {
 		it("should filter by property inequality", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender != "male"`,
+				`group "Test" from down :depth 1 where gender != "male"`,
 				graph,
 				"root.md"
 			);
@@ -38,7 +38,7 @@ describe("TQL Executor - Filtering", () => {
 		it("should filter with numeric comparison", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where age > 27`,
+				`group "Test" from down :depth 1 where age > 27`,
 				graph,
 				"root.md"
 			);
@@ -55,7 +55,7 @@ describe("TQL Executor - Filtering", () => {
 		it("should filter with exists() function", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where exists(gender)`,
+				`group "Test" from down :depth 1 where exists(gender)`,
 				graph,
 				"root.md"
 			);
@@ -72,7 +72,7 @@ describe("TQL Executor - Filtering", () => {
 		it("should filter with not exists() function", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where not exists(gender)`,
+				`group "Test" from down :depth 1 where not exists(gender)`,
 				graph,
 				"root.md"
 			);
@@ -87,7 +87,7 @@ describe("TQL Executor - Filtering", () => {
 		it("should filter with != null", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender != null`,
+				`group "Test" from down :depth 1 where gender != null`,
 				graph,
 				"root.md"
 			);
@@ -102,7 +102,7 @@ describe("TQL Executor - Filtering", () => {
 		it("should filter with = null", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender = null`,
+				`group "Test" from down :depth 1 where gender = null`,
 				graph,
 				"root.md"
 			);
@@ -119,7 +119,7 @@ describe("TQL Executor - Filtering", () => {
 		it("should handle AND correctly", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender = "female" and age > 25`,
+				`group "Test" from down :depth 1 where gender = "female" and age > 25`,
 				graph,
 				"root.md"
 			);
@@ -132,7 +132,7 @@ describe("TQL Executor - Filtering", () => {
 		it("should handle OR correctly", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where gender = "female" or age < 30`,
+				`group "Test" from down :depth 1 where gender = "female" or age < 30`,
 				graph,
 				"root.md"
 			);
@@ -146,7 +146,7 @@ describe("TQL Executor - Filtering", () => {
 		it("should handle NOT correctly", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 where not gender = "male"`,
+				`group "Test" from down :depth 1 where not gender = "male"`,
 				graph,
 				"root.md"
 			);

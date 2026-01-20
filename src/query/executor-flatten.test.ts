@@ -25,7 +25,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from down  flatten',
+				'group "Test" from down :flatten',
 				graph,
 				"root.md"
 			);
@@ -92,7 +92,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from down  flatten',
+				'group "Test" from down :flatten',
 				graph,
 				"root.md"
 			);
@@ -124,7 +124,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from same  flatten',
+				'group "Test" from same :flatten',
 				graph,
 				"a.md"
 			);
@@ -157,7 +157,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from down depth 2 flatten',
+				'group "Test" from down :depth 2 :flatten',
 				graph,
 				"root.md"
 			);
@@ -188,7 +188,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from down depth 1 flatten',
+				'group "Test" from down :depth 1 :flatten',
 				graph,
 				"root.md"
 			);
@@ -220,7 +220,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from down  flatten where status = "active"',
+				'group "Test" from down :flatten where status = "active"',
 				graph,
 				"root.md"
 			);
@@ -253,7 +253,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from down  flatten prune blocked = true',
+				'group "Test" from down :flatten prune blocked = true',
 				graph,
 				"root.md"
 			);
@@ -289,7 +289,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from down  flatten, same',
+				'group "Test" from down :flatten, same',
 				graph,
 				"root.md"
 			);
@@ -330,7 +330,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from down  flatten',
+				'group "Test" from down :flatten',
 				graph,
 				"a.md"
 			);
@@ -365,7 +365,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from down  flatten',
+				'group "Test" from down :flatten',
 				graph,
 				"root.md"
 			);
@@ -386,7 +386,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from down  flatten',
+				'group "Test" from down :flatten',
 				graph,
 				"lonely.md"
 			);
@@ -406,7 +406,7 @@ describe("TQL Executor - Flatten", () => {
 			};
 
 			const result = runQuery(
-				'group "Test" from down  flatten',
+				'group "Test" from down :flatten',
 				graph,
 				"root.md"
 			);

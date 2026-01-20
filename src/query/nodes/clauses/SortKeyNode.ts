@@ -16,9 +16,9 @@ export class SortKeyNode extends ClauseNode {
 
 	static documentation: NodeDoc = {
 		title: "Sort Key",
-		description: "Specifies a property or $chain to sort by, with optional direction. Use $chain to maintain graph traversal order.",
-		syntax: "property [asc|desc] | $chain [asc|desc]",
-		examples: ["date desc", "$chain", "priority asc", "$file.modified desc"],
+		description: "Specifies a property or :chain to sort by, with optional direction. Use :chain to maintain graph traversal order.",
+		syntax: "property [:asc|:desc] | :chain [:asc|:desc]",
+		examples: ["date :desc", ":chain", "priority :asc", "$file.modified :desc"],
 	};
 
 	constructor(key: "chain" | PropertyNode, direction: "asc" | "desc", span: Span) {

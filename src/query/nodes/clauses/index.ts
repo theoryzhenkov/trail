@@ -3,7 +3,7 @@
  */
 
 export {QueryNode} from "./QueryNode";
-export {FromNode} from "./FromNode";
+export {FromNode, type RelationChain, type ChainTarget} from "./FromNode";
 export {RelationSpecNode} from "./RelationSpecNode";
 export {PruneNode} from "./PruneNode";
 export {WhereNode} from "./WhereNode";

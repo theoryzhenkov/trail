@@ -18,7 +18,7 @@ import "./functions";
 import "./builtins";
 
 // Node classes
-import {QueryNode, FromNode, RelationSpecNode, SortNode, SortKeyNode, DisplayNode, PruneNode, WhereNode, WhenNode} from "./clauses";
+import {QueryNode, FromNode, RelationSpecNode, SortNode, SortKeyNode, DisplayNode, PruneNode, WhereNode, WhenNode, type RelationChain, type ChainTarget} from "./clauses";
 import {ParseError} from "../errors";
 import {
 	OrExprNode,
@@ -141,9 +141,48 @@ function convertGroupClause(node: SyntaxNode, source: string): string {
 }
 
 function convertFromClause(node: SyntaxNode, source: string): FromNode {
-	const relationSpecs = children(node, Terms.RelationSpec);
-	const relations = relationSpecs.map((r) => convertRelationSpec(r, source));
-	return new FromNode(relations, span(node));
+	const relationChains = children(node, Terms.RelationChain);
+	const chains: RelationChain[] = [];
+	
+	for (const chainNode of relationChains) {
+		// First element is always a RelationSpec
+		const firstSpec = child(chainNode, Terms.RelationSpec);
+		if (!firstSpec) throw new Error("Missing relation spec in chain");
+		
+		// Convert the first relation spec
+		const firstRel = convertRelationSpec(firstSpec, source);
+		
+		// Process any chained targets
+		const chainTargets = children(chainNode, Terms.ChainTarget);
+		const chain: ChainTarget[] = [];
+		
+		for (const target of chainTargets) {
+			// ChainTarget can be RelationSpec, GroupReference, or InlineQuery
+			const relSpec = child(target, Terms.RelationSpec);
+			const groupRef = child(target, Terms.GroupReference);
+			const inlineQuery = child(target, Terms.InlineQuery);
+			
+			if (relSpec) {
+				// Chained relation: up >> next
+				const chainedRel = convertRelationSpec(relSpec, source);
+				chain.push({type: "relation", spec: chainedRel});
+			} else if (groupRef) {
+				// Chained group: up >> @"Children"
+				const stringNode = child(groupRef, Terms.String);
+				if (!stringNode) throw new Error("Missing string in group reference");
+				const groupName = parseStringLiteral(text(stringNode, source));
+				chain.push({type: "group", name: groupName, span: span(target)});
+			} else if (inlineQuery) {
+				// Chained inline query: up >> @(from next)
+				const inlineQueryNode = convertInlineQuery(inlineQuery, source);
+				chain.push({type: "inline", query: inlineQueryNode});
+			}
+		}
+		
+		chains.push({first: firstRel, chain});
+	}
+	
+	return new FromNode(chains, span(node));
 }
 
 function convertRelationSpec(node: SyntaxNode, source: string): RelationSpecNode {
@@ -152,30 +191,20 @@ function convertRelationSpec(node: SyntaxNode, source: string): RelationSpecNode
 	const name = text(identNode, source);
 
 	let depth: number | "unlimited" = "unlimited";
-	let extend: string | undefined;
 	let flatten: number | true | undefined;
 
-	const modifiers = children(node, Terms.RelationModifier);
-	for (const mod of modifiers) {
-		const depthNode = child(mod, Terms.Depth);
-		const extendNode = child(mod, Terms.Extend);
-		const flattenNode = child(mod, Terms.Flatten);
-
-		if (depthNode) {
-			const numNode = child(depthNode, Terms.Number);
+	const options = children(node, Terms.RelationOption);
+	for (const opt of options) {
+		// Check the full text of the option to determine its type
+		// Anonymous literal tokens don't have names, so we check text content
+		const optText = text(opt, source).trim();
+		if (optText.startsWith(":depth")) {
+			const numNode = child(opt, Terms.Number);
 			if (numNode) {
 				depth = parseInt(text(numNode, source), 10);
 			}
-		} else if (extendNode) {
-			const strNode = child(extendNode, Terms.String);
-			const idNode = child(extendNode, Terms.Identifier);
-			if (strNode) {
-				extend = parseStringLiteral(text(strNode, source));
-			} else if (idNode) {
-				extend = text(idNode, source);
-			}
-		} else if (flattenNode) {
-			const numNode = child(flattenNode, Terms.Number);
+		} else if (optText.startsWith(":flatten")) {
+			const numNode = child(opt, Terms.Number);
 			if (numNode) {
 				flatten = parseInt(text(numNode, source), 10);
 			} else {
@@ -184,7 +213,7 @@ function convertRelationSpec(node: SyntaxNode, source: string): RelationSpecNode
 		}
 	}
 
-	return new RelationSpecNode(name, depth, span(node), extend, flatten);
+	return new RelationSpecNode(name, depth, span(node), flatten);
 }
 
 function convertPruneClause(node: SyntaxNode, source: string): PruneNode {
@@ -224,28 +253,41 @@ function convertSortClause(node: SyntaxNode, source: string): SortNode {
 }
 
 function convertSortKey(node: SyntaxNode, source: string): SortKeyNode {
-	const kids = allChildren(node);
+	const keyExprNode = child(node, Terms.SortKeyExpr);
+	if (!keyExprNode) throw new Error("Missing sort key expression");
+	
 	let key: "chain" | PropertyNode;
+	
+	// Check text content for :chain since it's an anonymous literal token
+	const keyText = text(keyExprNode, source).trim();
+	if (keyText === ":chain") {
+		key = "chain";
+	} else {
+		// Look inside SortKeyExpr for the property access nodes
+		const builtinProp = child(keyExprNode, Terms.BuiltinPropertyAccess);
+		const propAccess = child(keyExprNode, Terms.PropertyAccess);
+		
+		if (builtinProp) {
+			key = convertBuiltinPropertyAccess(builtinProp, source);
+		} else if (propAccess) {
+			key = convertPropertyAccess(propAccess, source);
+		} else {
+			throw new Error(`Invalid sort key expression: ${keyText}`);
+		}
+	}
+	
 	let direction: "asc" | "desc" = "asc";
-
-	for (const kid of kids) {
-		if (kid.type.id === Terms.BuiltinIdentifier) {
-			const builtinText = text(kid, source);
-			if (builtinText === "$chain") {
-				key = "chain";
-			} else {
-				key = convertBuiltinPropertyAccess(kid, source);
-			}
-		} else if (kid.type.id === Terms.PropertyAccess) {
-			key = convertPropertyAccess(kid, source);
-		} else if (kid.type.id === Terms.asc) {
+	const directionNode = child(node, Terms.SortDirection);
+	if (directionNode) {
+		// Check text content for direction since they're anonymous literals
+		const dirText = text(directionNode, source).trim();
+		if (dirText === ":asc") {
 			direction = "asc";
-		} else if (kid.type.id === Terms.desc) {
+		} else if (dirText === ":desc") {
 			direction = "desc";
 		}
 	}
-
-	if (key! === undefined) throw new Error("Missing sort key");
+	
 	return new SortKeyNode(key, direction, span(node));
 }
 
@@ -260,8 +302,15 @@ function convertDisplayClause(node: SyntaxNode, source: string): DisplayNode {
 	for (const kid of kids) {
 		if (kid.type.id === Terms.all) {
 			all = true;
-		} else if (kid.type.id === Terms.PropertyAccess) {
-			properties.push(convertPropertyAccess(kid, source));
+		} else if (kid.type.id === Terms.DisplayItem) {
+			const builtinProp = child(kid, Terms.BuiltinPropertyAccess);
+			const propAccess = child(kid, Terms.PropertyAccess);
+			
+			if (builtinProp) {
+				properties.push(convertBuiltinPropertyAccess(builtinProp, source));
+			} else if (propAccess) {
+				properties.push(convertPropertyAccess(propAccess, source));
+			}
 		}
 	}
 
@@ -285,7 +334,9 @@ function isExpressionNode(node: SyntaxNode): boolean {
 		Terms.ParenExpr,
 		Terms.FunctionCall,
 		Terms.InlineQuery,
+		Terms.GroupReference,
 		Terms.PropertyAccess,
+		Terms.BuiltinPropertyAccess,
 		Terms.BuiltinIdentifier,
 		Terms.SimpleLiteral,
 		Terms.DateExpr,
@@ -317,8 +368,12 @@ function convertExpression(node: SyntaxNode, source: string): ExprNode {
 			return convertFunctionCall(node, source);
 		case Terms.InlineQuery:
 			return convertInlineQuery(node, source);
+		case Terms.GroupReference:
+			return convertGroupReference(node, source);
 		case Terms.PropertyAccess:
 			return convertPropertyAccess(node, source);
+		case Terms.BuiltinPropertyAccess:
+			return convertBuiltinPropertyAccess(node, source);
 		case Terms.BuiltinIdentifier:
 			return convertBuiltinPropertyAccess(node, source);
 		case Terms.SimpleLiteral:
@@ -702,44 +757,17 @@ function convertAggregateCall(node: SyntaxNode, func: AggregateFunc, source: str
 			node: inlineQuery,
 		} as InlineQuerySource;
 		remainingArgsStart = findNextExpression(argList, firstArgExpr);
-	} else if (firstArgNode.type.id === Terms.FunctionCall) {
-		// Get function name from FunctionName node
-		const funcNameNode = child(firstArgNode, Terms.FunctionName);
-		if (funcNameNode && text(funcNameNode, source).toLowerCase() === "group") {
-			// group(Name) - group reference
-			const groupArgList = child(firstArgNode, Terms.ArgList);
-			if (!groupArgList) {
-				throw new Error("group() requires an argument");
-			}
-			const groupArgExpr = findFirstExpressionInArgList(groupArgList);
-			if (!groupArgExpr) {
-				throw new Error("group() requires an argument");
-			}
-			const groupArg = unwrapExpression(groupArgExpr);
-			let name: string;
-			if (groupArg.type.id === Terms.Identifier) {
-				name = text(groupArg, source);
-			} else if (groupArg.type.id === Terms.PropertyAccess) {
-				// PropertyAccess contains identifiers
-				const identNode = child(groupArg, Terms.Identifier);
-				if (identNode) {
-					name = text(identNode, source);
-				} else {
-					throw new Error("group() requires an identifier argument");
-				}
-			} else {
-				throw new Error("group() requires an identifier argument, not a string");
-			}
-			source_ = {
-				type: "groupRef",
-				name,
-				span: span(firstArgNode),
-			} as GroupRefSource;
-			remainingArgsStart = findNextExpression(argList, firstArgExpr);
-		} else {
-			// Other function call - not supported as source
-			throw new Error(`Invalid source in ${func}(): expected @(...), group(...), or identifier`);
-		}
+	} else if (firstArgNode.type.id === Terms.GroupReference) {
+		// @"Name" - group reference
+		const stringNode = child(firstArgNode, Terms.String);
+		if (!stringNode) throw new Error("Missing string in group reference");
+		const groupName = parseStringLiteral(text(stringNode, source));
+		source_ = {
+			type: "groupRef",
+			name: groupName,
+			span: span(firstArgNode),
+		} as GroupRefSource;
+		remainingArgsStart = findNextExpression(argList, firstArgExpr);
 	} else if (firstArgNode.type.id === Terms.PropertyAccess || firstArgNode.type.id === Terms.Identifier) {
 		// Bare identifier - could be group name or relation name
 		let name: string;
@@ -755,9 +783,9 @@ function convertAggregateCall(node: SyntaxNode, func: AggregateFunc, source: str
 			span: span(firstArgNode),
 		} as BareIdentifierSource;
 		remainingArgsStart = findNextExpression(argList, firstArgExpr);
-	} else {
-		throw new Error(`Invalid source in ${func}(): expected @(...), group(...), or identifier`);
-	}
+		} else {
+			throw new Error(`Invalid source in ${func}(): expected @(...), @"Name", or identifier`);
+		}
 
 	// Parse remaining arguments (property or condition)
 	const needsProperty = ["sum", "avg", "min", "max"].includes(func);
@@ -842,10 +870,32 @@ function convertPropertyAccess(node: SyntaxNode, source: string): PropertyNode {
 }
 
 function convertBuiltinPropertyAccess(node: SyntaxNode, source: string): PropertyNode {
-	const fullText = text(node, source);
-	// Remove $ prefix and split by dot
-	const path = fullText.slice(1).split(".");
+	// BuiltinPropertyAccess has BuiltinIdentifier as first child, then Identifier children for properties
+	const builtinIdent = child(node, Terms.BuiltinIdentifier);
+	if (!builtinIdent) {
+		// Fallback: if it's just a BuiltinIdentifier node, parse it directly
+		const fullText = text(node, source);
+		const path = fullText.slice(1).split(".");
+		return new PropertyNode(path, span(node), true);
+	}
+	
+	const baseName = text(builtinIdent, source).slice(1); // Remove $ prefix
+	const propIdentifiers = children(node, Terms.Identifier);
+	const path = [baseName, ...propIdentifiers.map(id => text(id, source))];
 	return new PropertyNode(path, span(node), true);
+}
+
+function convertGroupReference(node: SyntaxNode, source: string): ExprNode {
+	// GroupReference is @"Name" - extract the string
+	const stringNode = child(node, Terms.String);
+	if (!stringNode) throw new Error("Missing string in group reference");
+	const groupName = parseStringLiteral(text(stringNode, source));
+	
+	// GroupReference should only appear in specific contexts (chains, aggregates)
+	// In general expressions, it doesn't make sense, but we'll create a PropertyNode
+	// that will be handled specially by aggregate functions
+	// This is a bit of a hack, but it works for now
+	return new PropertyNode(["@group", groupName], span(node), false);
 }
 
 // ============================================================================

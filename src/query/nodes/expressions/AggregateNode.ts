@@ -58,7 +58,7 @@ export class AggregateNode extends ExprNode {
 			"count(children)",
 			"sum(@(from tasks), points)",
 			'any(@(from subtasks), status = "done")',
-			"all(group(Tasks), priority > 0)",
+			'all(@"Tasks", priority > 0)',
 		],
 	};
 
@@ -301,7 +301,7 @@ export class AggregateNode extends ExprNode {
 
 			if (isGroup && isRelation) {
 				ctx.addError(
-					`"${name}" is both a group and a relation. Use group("${name}") or @(from ${name}) to disambiguate.`,
+					`"${name}" is both a group and a relation. Use @"${name}" or @(from ${name}) to disambiguate.`,
 					this.source.span,
 					"AMBIGUOUS_IDENTIFIER"
 				);

@@ -29,7 +29,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort $chain`,
+				`group "Test" from down :depth 1 sort :chain`,
 				graph,
 				"root.md"
 			);
@@ -66,7 +66,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort $chain`,
+				`group "Test" from down :depth 1 sort :chain`,
 				graph,
 				"root.md"
 			);
@@ -100,7 +100,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort $chain`,
+				`group "Test" from down :depth 1 sort :chain`,
 				graph,
 				"root.md"
 			);
@@ -137,7 +137,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort $chain, order asc`,
+				`group "Test" from down :depth 1 sort :chain, order :asc`,
 				graph,
 				"root.md"
 			);
@@ -175,7 +175,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort $chain`,
+				`group "Test" from down :depth 1 sort :chain`,
 				graph,
 				"root.md"
 			);
@@ -212,7 +212,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort priority asc, $chain`,
+				`group "Test" from down :depth 1 sort priority :asc, :chain`,
 				graph,
 				"root.md"
 			);
@@ -243,7 +243,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort $chain`,
+				`group "Test" from down :depth 1 sort :chain`,
 				graph,
 				"root.md"
 			);
@@ -265,7 +265,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort $chain`,
+				`group "Test" from down :depth 1 sort :chain`,
 				graph,
 				"root.md"
 			);
@@ -294,7 +294,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort $chain`,
+				`group "Test" from down :depth 1 sort :chain`,
 				graph,
 				"root.md"
 			);
@@ -327,7 +327,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down  sort $chain`,
+				`group "Test" from down  sort :chain`,
 				graph,
 				"root.md"
 			);
@@ -363,7 +363,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Days" from down depth 1 sort $chain, date asc`,
+				`group "Days" from down :depth 1 sort :chain, date :asc`,
 				graph,
 				"root.md"
 			);
@@ -393,7 +393,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort $chain`,
+				`group "Test" from down :depth 1 sort :chain`,
 				graph,
 				"root.md"
 			);

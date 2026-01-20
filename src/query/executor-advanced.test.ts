@@ -11,7 +11,7 @@ describe("TQL Executor - Advanced Features", () => {
 		it("should traverse multiple relations", () => {
 			const graph = TestGraphs.sequentialChain();
 			const result = runQuery(
-				`group "Test" from next, prev depth 1`,
+				`group "Test" from next, prev :depth 1`,
 				graph,
 				"chapter2.md"
 			);
@@ -41,7 +41,7 @@ describe("TQL Executor - Advanced Features", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort номер asc`,
+				`group "Test" from down :depth 1 sort номер :asc`,
 				graph,
 				"root.md"
 			);
@@ -69,7 +69,7 @@ describe("TQL Executor - Advanced Features", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where № > 75 sort № desc`,
+				`group "Test" from down :depth 1 where № > 75 sort № :desc`,
 				graph,
 				"root.md"
 			);
@@ -101,7 +101,7 @@ describe("TQL Executor - Advanced Features", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where 優先度 = "high"`,
+				`group "Test" from down :depth 1 where 優先度 = "high"`,
 				graph,
 				"root.md"
 			);
@@ -138,13 +138,13 @@ describe("TQL Executor - Advanced Features", () => {
 			// Create circular group references: GroupA extends GroupB, GroupB extends GroupA
 			const groupA = createMockGroup(
 				"GroupA",
-				`group "GroupA" from down depth 1 extend GroupB`,
+				`group "GroupA" from down :depth 1 >> @"GroupB"`,
 				["up", "down"],
 				["GroupA", "GroupB"]
 			);
 			const groupB = createMockGroup(
 				"GroupB",
-				`group "GroupB" from down depth 1 extend GroupA`,
+				`group "GroupB" from down :depth 1 >> @"GroupA"`,
 				["up", "down"],
 				["GroupA", "GroupB"]
 			);
@@ -153,7 +153,7 @@ describe("TQL Executor - Advanced Features", () => {
 			// This should complete without infinite loop
 			// The cycle detection via ancestorPaths should prevent revisiting nodes
 			const result = runQuery(
-				`group "Test" from down depth 1 extend GroupA`,
+				`group "Test" from down :depth 1 >> @"GroupA"`,
 				graph,
 				"root.md"
 			);
@@ -228,7 +228,7 @@ describe("TQL Executor - Advanced Features", () => {
 			// Group that extends itself
 			const selfRefGroup = createMockGroup(
 				"SelfRef",
-				`group "SelfRef" from down depth 1 extend SelfRef`,
+				`group "SelfRef" from down :depth 1 >> @"SelfRef"`,
 				["down"],
 				["SelfRef"]
 			);
@@ -236,7 +236,7 @@ describe("TQL Executor - Advanced Features", () => {
 
 			// Should complete without infinite loop
 			const result = runQuery(
-				`group "Test" from down depth 1 extend SelfRef`,
+				`group "Test" from down :depth 1 >> @"SelfRef"`,
 				graph,
 				"root.md"
 			);

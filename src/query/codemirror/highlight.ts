@@ -27,8 +27,12 @@ export const highlighting = styleTags({
 	// Keywords - clause starters (structural)
 	"group from prune where when sort display": t.keyword,
 	
-	// Keywords - modifiers (secondary keywords)
-	"depth extend flatten asc desc all": t.typeName,
+	// Keywords - modifiers (secondary keywords, deprecated)
+	"extend all": t.typeName,
+	
+	// Option identifiers (clause-specific options)
+	OptionIdentifier: t.typeName,
+	":depth :flatten :asc :desc :chain": t.typeName,
 	
 	// Logical operators (keywords)
 	"and or not in": t.operatorKeyword,
@@ -45,14 +49,21 @@ export const highlighting = styleTags({
 	// Identifiers
 	Identifier: t.variableName,
 	BuiltinIdentifier: t.special(t.variableName),
+	BuiltinPropertyAccess: t.special(t.variableName),
 	PropertyAccess: t.propertyName,
 	RelationSpec: t.variableName,
+	
+	// Group references
+	GroupReference: t.string,
 	
 	// Functions
 	"FunctionCall/Identifier": t.function(t.variableName),
 	
-	// Inline query
+	// Inline query and group references
 	"@": t.keyword,
+	
+	// Chaining operator
+	">>": t.operator,
 	
 	// Comments
 	LineComment: t.lineComment,

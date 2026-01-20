@@ -17,25 +17,25 @@ describe("TQL Parser", () => {
 			expect(query).toBeInstanceOf(QueryNode);
 			expect(query.group).toBe("Test");
 			expect(query.from).toBeInstanceOf(FromNode);
-			expect(query.from.relations.length).toBe(1);
-			expect(query.from.relations[0]?.name).toBe("up");
+			expect(query.from.chains.length).toBe(1);
+			expect(query.from.chains[0]?.first.name).toBe("up");
 		});
 
 		it("should parse query with depth", () => {
-			const query = parse('group "Test" from down depth 3');
-			expect(query.from.relations[0]?.depth).toBe(3);
+			const query = parse('group "Test" from down :depth 3');
+			expect(query.from.chains[0]?.first.depth).toBe(3);
 		});
 
 		it("should parse query with default unlimited depth", () => {
 			const query = parse('group "Test" from up');
-			expect(query.from.relations[0]?.depth).toBe("unlimited");
+			expect(query.from.chains[0]?.first.depth).toBe("unlimited");
 		});
 
 		it("should parse multiple relations", () => {
 			const query = parse('group "Test" from up, down');
-			expect(query.from.relations.length).toBe(2);
-			expect(query.from.relations[0]?.name).toBe("up");
-			expect(query.from.relations[1]?.name).toBe("down");
+			expect(query.from.chains.length).toBe(2);
+			expect(query.from.chains[0]?.first.name).toBe("up");
+			expect(query.from.chains[1]?.first.name).toBe("down");
 		});
 	});
 
@@ -122,15 +122,23 @@ describe("TQL Parser", () => {
 
 	describe("Sort and display clauses", () => {
 		it("should parse sort property", () => {
-			const query = parse('group "Test" from up sort date desc');
+			const query = parse('group "Test" from up sort date :desc');
 			expect(query.sort).toBeDefined();
 			expect(query.sort?.keys.length).toBe(1);
 			expect(query.sort?.keys[0]?.direction).toBe("desc");
 		});
 
-		it("should parse sort $chain", () => {
-			const query = parse('group "Test" from up sort $chain');
+		it("should parse sort :chain", () => {
+			const query = parse('group "Test" from up sort :chain');
 			expect(query.sort?.keys[0]?.key).toBe("chain");
+		});
+		
+		it("should parse sort with builtin property", () => {
+			const query = parse('group "Test" from up sort $file.name :desc');
+			expect(query.sort?.keys[0]?.key).toBeInstanceOf(PropertyNode);
+			const prop = query.sort?.keys[0]?.key as PropertyNode;
+			expect(prop.isBuiltin).toBe(true);
+			expect(prop.path).toEqual(["file", "name"]);
 		});
 
 		it("should parse display all", () => {
@@ -143,8 +151,36 @@ describe("TQL Parser", () => {
 			expect(query.display?.all).toBe(false);
 			expect(query.display?.properties.length).toBe(2);
 		});
+		
+		it("should parse display with builtin properties", () => {
+			const query = parse('group "Test" from up display $file.name, $file.path');
+			expect(query.display?.properties.length).toBe(2);
+			expect(query.display?.properties[0]?.isBuiltin).toBe(true);
+			expect(query.display?.properties[0]?.path).toEqual(["file", "name"]);
+		});
 	});
 
+	describe("Chaining", () => {
+		it("should parse relation chain", () => {
+			const query = parse('group "Test" from up >> next');
+			expect(query.from.chains.length).toBe(1);
+			expect(query.from.chains[0]?.chain.length).toBe(1);
+			expect(query.from.chains[0]?.chain[0]?.type).toBe("relation");
+			if (query.from.chains[0]?.chain[0]?.type === "relation") {
+				expect(query.from.chains[0].chain[0].spec.name).toBe("next");
+			}
+		});
+		
+		it("should parse group reference chain", () => {
+			const query = parse('group "Test" from up >> @"Children"');
+			expect(query.from.chains[0]?.chain.length).toBe(1);
+			expect(query.from.chains[0]?.chain[0]?.type).toBe("group");
+			if (query.from.chains[0]?.chain[0]?.type === "group") {
+				expect(query.from.chains[0].chain[0].name).toBe("Children");
+			}
+		});
+	});
+	
 	describe("Error handling", () => {
 		it("should throw ParseError for missing group", () => {
 			expect(() => parse('from up')).toThrow(ParseError);
