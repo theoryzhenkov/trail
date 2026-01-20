@@ -99,6 +99,9 @@ function formatPropertyValue(key: string, value: FileProperties[string]): string
 	if (value === null) {
 		return `${key}: null`;
 	}
+	if (typeof value === "object") {
+		return `${key}: ${JSON.stringify(value)}`;
+	}
 	return `${key}: ${String(value)}`;
 }
 

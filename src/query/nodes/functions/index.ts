@@ -19,6 +19,3 @@ export * from "./existence";
 
 // Date functions
 export * from "./date";
-
-// Property access
-export {PropFunction} from "./PropFunction";

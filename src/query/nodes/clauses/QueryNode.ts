@@ -148,10 +148,16 @@ export class QueryNode extends ClauseNode {
 			const allProps = Object.keys(node.properties).filter(
 				(k) => !k.startsWith("file.") && !k.startsWith("traversal.")
 			);
-			const explicit = this.display.properties.map((p) => p.path.join("."));
+			// Use getFrontmatterPath for proper handling of $file.properties.* syntax
+			const explicit = this.display.properties
+				.map((p) => p.getFrontmatterPath())
+				.filter((p): p is string => p !== null);
 			return [...new Set([...allProps, ...explicit])];
 		}
 
-		return this.display.properties.map((p) => p.path.join("."));
+		// Use getFrontmatterPath for proper handling of $file.properties.* syntax
+		return this.display.properties
+			.map((p) => p.getFrontmatterPath())
+			.filter((p): p is string => p !== null);
 	}
 }

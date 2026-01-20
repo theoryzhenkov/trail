@@ -14,9 +14,9 @@ export class PropertyNode extends ExprNode {
 
 	static documentation: NodeDoc = {
 		title: "Property Access",
-		description: "Access properties from the current file. Supports nested paths with dot notation. Use $ prefix for built-in properties like $file.name and $traversal.depth.",
-		syntax: "property | property.nested.path | $file.name | $traversal.depth",
-		examples: ["status", "$file.name", "$traversal.depth", "metadata.author"],
+		description: "Access frontmatter properties directly by name, with dot notation for nested YAML. Use $file.* for file metadata (name, path, created). Use $traversal.* for traversal context.",
+		syntax: "property | nested.path | $file.name | $traversal.depth",
+		examples: ["status", "obsidian.icon", "$file.name", "$traversal.depth"],
 	};
 
 	static highlighting = "variable" as const;
@@ -27,6 +27,33 @@ export class PropertyNode extends ExprNode {
 		this.isBuiltin = isBuiltin;
 	}
 
+	/**
+	 * Get the frontmatter property path for sorting/display.
+	 * For $file.properties.x.y, returns "x.y"
+	 * For $file.* (metadata), returns null (use isFileMetadata to check)
+	 * For regular properties like status.x, returns "status.x"
+	 */
+	getFrontmatterPath(): string | null {
+		if (this.isBuiltin) {
+			// $file.properties.* -> extract property path
+			if (this.path[0] === "file" && this.path[1] === "properties") {
+				const propertyPath = this.path.slice(2);
+				return propertyPath.length > 0 ? propertyPath.join(".") : null;
+			}
+			// $file.* (metadata) or $traversal.* - not frontmatter
+			return null;
+		}
+		// Regular property access
+		return this.path.join(".");
+	}
+
+	/**
+	 * Check if this is a $file.* metadata access (not $file.properties.*)
+	 */
+	isFileMetadata(): boolean {
+		return this.isBuiltin && this.path[0] === "file" && this.path[1] !== "properties";
+	}
+
 	evaluate(ctx: ExecutorContext): Value {
 		if (this.isBuiltin) {
 			// Handle $traversal.* properties
@@ -35,15 +62,28 @@ export class PropertyNode extends ExprNode {
 			}
 
 			// Handle $file.* properties
-			if (this.path[0] === "file" && this.path[1]) {
-				return ctx.getFileProperty(this.path[1]);
+			if (this.path[0] === "file") {
+				// Handle $file.properties.* - access frontmatter with nested YAML support
+				if (this.path[1] === "properties") {
+					const propertyPath = this.path.slice(2);
+					if (propertyPath.length === 0) {
+						// $file.properties alone - return all properties
+						return ctx.properties as unknown as Value;
+					}
+					return ctx.getPropertyValue(propertyPath.join("."));
+				}
+				
+				// Handle other $file.* properties (name, path, created, etc.)
+				if (this.path[1]) {
+					return ctx.getFileProperty(this.path[1]);
+				}
 			}
 
 			// Unknown built-in
 			return null;
 		}
 
-		// Regular frontmatter property access
+		// Regular frontmatter property access (legacy support)
 		return ctx.getPropertyValue(this.path.join("."));
 	}
 

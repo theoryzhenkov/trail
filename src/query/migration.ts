@@ -110,7 +110,7 @@ function filtersToExpr(filters: PropertyFilter[], matchMode: "all" | "any"): str
  * Convert single property filter to TQL expression
  */
 function filterToExpr(filter: PropertyFilter): string | null {
-	const key = needsQuotes(filter.key) ? `prop("${escapeString(filter.key)}")` : filter.key;
+	const key = propertyKeyToTql(filter.key);
 
 	switch (filter.operator) {
 		case "equals":
@@ -153,7 +153,7 @@ function sortToExpr(sortBy: PropertySortKey[], chainSort: ChainSortMode): string
 	}
 
 	for (const sort of sortBy) {
-		const key = needsQuotes(sort.property) ? `prop("${escapeString(sort.property)}")` : sort.property;
+		const key = propertyKeyToTql(sort.property);
 		if (sort.direction === "desc") {
 			parts.push(`${key} desc`);
 		} else {
@@ -169,9 +169,24 @@ function sortToExpr(sortBy: PropertySortKey[], chainSort: ChainSortMode): string
 }
 
 /**
- * Check if a property key needs to use prop() syntax
+ * Convert a property key to TQL syntax.
+ * Uses $file.properties.* for all property access.
+ * Uses quoted segments for keys with characters invalid in identifiers.
  */
-function needsQuotes(key: string): boolean {
+function propertyKeyToTql(key: string): string {
+	// Each part of a dot-separated path is either a valid identifier or needs quoting
+	const parts = key.split(".");
+	const segments = parts.map(part => 
+		isValidIdentifier(part) ? part : `"${escapeString(part)}"`
+	);
+	
+	return `$file.properties.${segments.join(".")}`;
+}
+
+/**
+ * Check if a string is a valid TQL identifier
+ */
+function isValidIdentifier(key: string): boolean {
 	// Reserved keywords
 	const reserved = new Set([
 		"group", "from", "depth", "unlimited", "extend", "prune", "where", "when",
@@ -181,16 +196,16 @@ function needsQuotes(key: string): boolean {
 	]);
 
 	if (reserved.has(key)) {
-		return true;
+		return false;
 	}
 
-	// Contains special characters (allow Unicode letters, numbers, and symbols)
+	// Must match identifier pattern (allow Unicode letters, numbers, and symbols)
 	// \p{L} = Letters, \p{N} = Numbers, \p{So} = Other Symbols, \p{Sc} = Currency Symbols
 	if (!/^[\p{L}\p{So}\p{Sc}_][\p{L}\p{N}\p{So}\p{Sc}_-]*$/u.test(key)) {
-		return true;
+		return false;
 	}
 
-	return false;
+	return true;
 }
 
 /**

@@ -864,13 +864,13 @@ function findNextExpression(argList: SyntaxNode, after: SyntaxNode): SyntaxNode 
 }
 
 function convertPropertyAccess(node: SyntaxNode, source: string): PropertyNode {
-	const identifiers = children(node, Terms.Identifier);
-	const path = identifiers.map((id) => text(id, source));
+	// First child is always an Identifier, subsequent are PropertySegment (Identifier or String)
+	const path = extractPropertyPath(node, source);
 	return new PropertyNode(path, span(node), false);
 }
 
 function convertBuiltinPropertyAccess(node: SyntaxNode, source: string): PropertyNode {
-	// BuiltinPropertyAccess has BuiltinIdentifier as first child, then Identifier children for properties
+	// BuiltinPropertyAccess has BuiltinIdentifier as first child, then PropertySegment children
 	const builtinIdent = child(node, Terms.BuiltinIdentifier);
 	if (!builtinIdent) {
 		// Fallback: if it's just a BuiltinIdentifier node, parse it directly
@@ -880,9 +880,52 @@ function convertBuiltinPropertyAccess(node: SyntaxNode, source: string): Propert
 	}
 	
 	const baseName = text(builtinIdent, source).slice(1); // Remove $ prefix
-	const propIdentifiers = children(node, Terms.Identifier);
-	const path = [baseName, ...propIdentifiers.map(id => text(id, source))];
+	const segments = extractPropertySegments(node, source);
+	const path = [baseName, ...segments];
 	return new PropertyNode(path, span(node), true);
+}
+
+/**
+ * Extract property path from PropertyAccess node
+ * Handles both Identifier and String (quoted) segments
+ */
+function extractPropertyPath(node: SyntaxNode, source: string): string[] {
+	const path: string[] = [];
+	
+	// First segment is always an Identifier
+	const firstIdent = child(node, Terms.Identifier);
+	if (firstIdent) {
+		path.push(text(firstIdent, source));
+	}
+	
+	// Remaining segments via PropertySegment
+	path.push(...extractPropertySegments(node, source));
+	
+	return path;
+}
+
+/**
+ * Extract property segments (after first identifier) from a property access node
+ * PropertySegment can be Identifier or String
+ */
+function extractPropertySegments(node: SyntaxNode, source: string): string[] {
+	const segments: string[] = [];
+	const segmentNodes = children(node, Terms.PropertySegment);
+	
+	for (const seg of segmentNodes) {
+		const ident = child(seg, Terms.Identifier);
+		if (ident) {
+			segments.push(text(ident, source));
+			continue;
+		}
+		
+		const str = child(seg, Terms.String);
+		if (str) {
+			segments.push(parseStringLiteral(text(str, source)));
+		}
+	}
+	
+	return segments;
 }
 
 function convertGroupReference(node: SyntaxNode, source: string): ExprNode {

@@ -116,10 +116,14 @@ FunctionCall { FunctionName "(" ArgList? ")" }
 
 ArgList { expression ("," expression)* }
 
-PropertyAccess { Identifier ("." Identifier)* }
+// Property segment after dot can be identifier or quoted string for special characters
+PropertySegment { Identifier | String }
 
-// Builtin property access: $file.name, $traversal.depth
-BuiltinPropertyAccess { BuiltinIdentifier ("." Identifier)* }
+// First segment must be identifier, subsequent can be identifier or string
+PropertyAccess { Identifier ("." PropertySegment)* }
+
+// Builtin property access: $file.name, $traversal.depth, $file.properties."special key"
+BuiltinPropertyAccess { BuiltinIdentifier ("." PropertySegment)* }
 
 // ============================================================================
 // Literals

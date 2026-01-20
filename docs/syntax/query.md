@@ -267,52 +267,66 @@ file.size / 1000 < 100
 
 ## Property Access
 
-### Simple Properties
+### Frontmatter Properties
 
-Access frontmatter properties directly:
-
-```
-status
-priority
-type
-```
-
-### Nested Properties
-
-Use dot notation for nested or prefixed properties:
+Access frontmatter properties directly by name:
 
 ```
-file.name                         -- filename without extension
-$file.created                     -- creation date
-$file.modified                    -- modification date
-$traversal.depth                  -- depth from active file
+status                            -- simple property
+priority                          -- another property
+obsidian.icon                     -- nested property
 ```
 
-### Reserved Word Properties
+### Nested YAML Properties
 
-Use `prop()` to access properties with reserved names:
+Use dot notation for nested YAML structures:
+
+```yaml
+# Frontmatter:
+# obsidian:
+#   icon: star
+#   color: blue
+
+obsidian.icon                     -- returns "star"
+obsidian.color                    -- returns "blue"
+```
+
+When both nested and flat keys exist (e.g., `obsidian.icon:` and `obsidian: icon:`), the nested structure takes priority.
+
+### Explicit Form (`$file.properties.*`)
+
+For clarity or when needed, you can use the explicit form:
 
 ```
-prop("from")                      -- property named "from"
-prop("chain")                     -- property named "chain"
-prop("due-date")                  -- property with special characters
+$file.properties.status           -- same as status
+$file.properties.obsidian.icon    -- same as obsidian.icon
+```
+
+### Quoted Property Names
+
+Use quoted strings for property names with special characters, spaces, or reserved names:
+
+```
+$file.properties."property with spaces"
+$file.properties."special!chars"
+metadata."due-date"               -- hyphens work as identifiers, but quotes also valid
 ```
 
 ---
 
 ## Built-in Properties
 
-### File Metadata (`file.*`)
+### File Metadata (`$file.*`)
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `file.name` | string | Filename without extension |
-| `file.path` | string | Full vault path |
-| `file.folder` | string | Parent folder path |
-| `file.created` | Date | Creation date |
-| `file.modified` | Date | Modification date |
-| `file.size` | number | File size in bytes |
-| `file.tags` | string[] | Array of tags |
+| `$file.name` | string | Filename without extension |
+| `$file.path` | string | Full vault path |
+| `$file.folder` | string | Parent folder path |
+| `$file.created` | Date | Creation date |
+| `$file.modified` | Date | Modification date |
+| `$file.size` | number | File size in bytes |
+| `$file.tags` | string[] | Array of tags |
 
 ### Traversal Context (`$traversal.*`)
 
@@ -539,7 +553,8 @@ true, false, null, today, yesterday, tomorrow, startOfWeek, endOfWeek
 ```
 
 !!! tip "Using Reserved Words as Property Names"
-    Use `prop("keyword")` to access properties that share names with keywords.
+    For properties with reserved names or special characters, use quoted strings:
+    `$file.properties."from"` or `metadata."property with spaces"`.
 
 ### String Escapes
 

@@ -238,24 +238,43 @@ export class ExecutorContext {
 	}
 
 	/**
-	 * Get a property value from the current file
+	 * Get a property value from the current file.
+	 * Supports nested YAML properties via dot notation.
+	 * If nested traversal fails, tries the flat key as fallback.
+	 * 
+	 * Example: "obsidian.icon" will first try properties.obsidian.icon (nested),
+	 * then fall back to properties["obsidian.icon"] (flat key).
 	 */
 	getPropertyValue(path: string): Value {
 		const parts = path.split(".");
+		
+		// First try nested traversal (prioritized for nested YAML)
 		let current: unknown = this._properties;
-
 		for (const part of parts) {
 			if (current === null || current === undefined) {
-				return null;
+				break;
 			}
 			if (typeof current === "object" && current !== null) {
 				current = (current as Record<string, unknown>)[part];
 			} else {
-				return null;
+				current = undefined;
+				break;
 			}
 		}
 
-		return (current === undefined ? null : current) as Value;
+		if (current !== undefined) {
+			return (current === undefined ? null : current) as Value;
+		}
+
+		// Fallback: try flat key if nested traversal failed
+		if (parts.length > 1) {
+			const flatValue = this._properties[path];
+			if (flatValue !== undefined) {
+				return flatValue as Value;
+			}
+		}
+
+		return null;
 	}
 
 	/**

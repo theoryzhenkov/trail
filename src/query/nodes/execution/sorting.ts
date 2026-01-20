@@ -235,8 +235,14 @@ function groupByPropertyValue(nodes: QueryResultNode[], key: SortKeyNode): Query
 	const groups = new Map<string, QueryResultNode[]>();
 	const order: string[] = [];
 
+	// Use getFrontmatterPath for proper handling of $file.properties.* syntax
+	const propPath = key.key.getFrontmatterPath();
+	if (!propPath) {
+		// Can't group by file metadata - return all nodes as one group
+		return [nodes];
+	}
+
 	for (const node of nodes) {
-		const propPath = key.key.path.join(".");
 		const value = getPropertyValue(node.properties, propPath);
 		const valueStr = value === null ? "" : String(value);
 
@@ -259,7 +265,13 @@ function compareNodes(a: QueryResultNode, b: QueryResultNode, keys: SortKeyNode[
 			continue;
 		}
 
-		const propPath = key.key.path.join(".");
+		// Use getFrontmatterPath for proper handling of $file.properties.* syntax
+		const propPath = key.key.getFrontmatterPath();
+		if (!propPath) {
+			// Skip file metadata properties - they can't be accessed from node.properties
+			continue;
+		}
+		
 		const aVal = getPropertyValue(a.properties, propPath);
 		const bVal = getPropertyValue(b.properties, propPath);
 		let cmp = compareValues(aVal, bVal);
@@ -299,22 +311,38 @@ function compareValues(a: Value, b: Value): number {
 }
 
 /**
- * Get property value from file properties
+ * Get property value from file properties.
+ * Supports nested YAML properties via dot notation.
+ * If nested traversal fails, tries the flat key as fallback.
  */
 function getPropertyValue(props: Record<string, unknown>, path: string): Value {
 	const parts = path.split(".");
+	
+	// First try nested traversal (prioritized for nested YAML)
 	let current: unknown = props;
-
 	for (const part of parts) {
 		if (current === null || current === undefined) {
-			return null;
+			break;
 		}
 		if (typeof current === "object" && current !== null) {
 			current = (current as Record<string, unknown>)[part];
 		} else {
-			return null;
+			current = undefined;
+			break;
 		}
 	}
 
-	return (current === undefined ? null : current) as Value;
+	if (current !== undefined) {
+		return current as Value;
+	}
+
+	// Fallback: try flat key if nested traversal failed
+	if (parts.length > 1) {
+		const flatValue = props[path];
+		if (flatValue !== undefined) {
+			return flatValue as Value;
+		}
+	}
+
+	return null;
 }

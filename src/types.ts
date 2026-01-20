@@ -22,7 +22,12 @@ export interface RelationGroupMember {
 	extend?: string;
 }
 
-export type PropertyValue = string | number | boolean | string[] | null;
+// PropertyValue is recursive to support nested YAML structures
+export type PropertyValue = string | number | boolean | string[] | null | PropertyObject;
+
+export interface PropertyObject {
+	[key: string]: PropertyValue;
+}
 
 export interface FileProperties {
 	[key: string]: PropertyValue;
