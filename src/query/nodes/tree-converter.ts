@@ -19,6 +19,7 @@ import "./builtins";
 
 // Node classes
 import {QueryNode, FromNode, RelationSpecNode, SortNode, SortKeyNode, DisplayNode, PruneNode, WhereNode, WhenNode} from "./clauses";
+import {ParseError} from "../errors";
 import {
 	LogicalNode,
 	CompareNode,
@@ -113,16 +114,13 @@ function allChildren(node: SyntaxNode): SyntaxNode[] {
 // ============================================================================
 
 function convertQuery(node: SyntaxNode, source: string): QueryNode {
-	const groupNode = child(node, Terms.Group);
-	const fromNode = child(node, Terms.From);
-	const pruneNode = child(node, Terms.Prune);
-	const whereNode = child(node, Terms.Where);
-	const whenNode = child(node, Terms.When);
-	const sortNode = child(node, Terms.Sort);
-	const displayNode = child(node, Terms.Display);
-
-	if (!groupNode) throw new Error("Missing group clause");
-	if (!fromNode) throw new Error("Missing from clause");
+	const groupNode = getSingleClause(node, Terms.QueryClause, Terms.Group, "group", true)!;
+	const fromNode = getSingleClause(node, Terms.QueryClause, Terms.From, "from", true)!;
+	const pruneNode = getSingleClause(node, Terms.QueryClause, Terms.Prune, "prune", false);
+	const whereNode = getSingleClause(node, Terms.QueryClause, Terms.Where, "where", false);
+	const whenNode = getSingleClause(node, Terms.QueryClause, Terms.When, "when", false);
+	const sortNode = getSingleClause(node, Terms.QueryClause, Terms.Sort, "sort", false);
+	const displayNode = getSingleClause(node, Terms.QueryClause, Terms.Display, "display", false);
 
 	const group = convertGroupClause(groupNode, source);
 	const from = convertFromClause(fromNode, source);
@@ -632,16 +630,14 @@ function convertFunctionCall(node: SyntaxNode, source: string): ExprNode {
  * Convert InlineQuery node: @(from ... [prune ...] [where ...] [sort ...])
  */
 function convertInlineQuery(node: SyntaxNode, source: string): InlineQueryNode {
-	// InlineQuery contains InlineQueryBody which has From, optional Prune, Where, Sort
+	// InlineQuery contains InlineQueryBody which has InlineClause nodes
 	const bodyNode = child(node, Terms.InlineQueryBody);
 	if (!bodyNode) throw new Error("Missing inline query body");
 
-	const fromNode = child(bodyNode, Terms.From);
-	const pruneNode = child(bodyNode, Terms.Prune);
-	const whereNode = child(bodyNode, Terms.Where);
-	const sortNode = child(bodyNode, Terms.Sort);
-
-	if (!fromNode) throw new Error("Inline query requires FROM clause");
+	const fromNode = getSingleClause(bodyNode, Terms.InlineClause, Terms.From, "from", true)!;
+	const pruneNode = getSingleClause(bodyNode, Terms.InlineClause, Terms.Prune, "prune", false);
+	const whereNode = getSingleClause(bodyNode, Terms.InlineClause, Terms.Where, "where", false);
+	const sortNode = getSingleClause(bodyNode, Terms.InlineClause, Terms.Sort, "sort", false);
 
 	const from = convertFromClause(fromNode, source);
 	const prune = pruneNode ? convertPruneClause(pruneNode, source) : undefined;
@@ -649,6 +645,29 @@ function convertInlineQuery(node: SyntaxNode, source: string): InlineQueryNode {
 	const sort = sortNode ? convertSortClause(sortNode, source) : undefined;
 
 	return new InlineQueryNode(from, span(node), prune, where, sort);
+}
+
+function getSingleClause(
+	node: SyntaxNode,
+	wrapperTerm: number,
+	term: number,
+	name: string,
+	required: boolean
+): SyntaxNode | null {
+	const wrapperNodes = children(node, wrapperTerm);
+	const matches = wrapperNodes
+		.map((wrapper) => child(wrapper, term))
+		.filter((match): match is SyntaxNode => Boolean(match));
+	if (matches.length > 1) {
+		throw new ParseError(`Duplicate ${name} clause`, span(node));
+	}
+	if (matches.length === 0) {
+		if (required) {
+			throw new ParseError(`Missing ${name} clause`, span(node));
+		}
+		return null;
+	}
+	return matches[0] ?? null;
 }
 
 function isAggregateFunction(name: string): boolean {

@@ -2,7 +2,17 @@
 // 
 // This grammar defines the syntax for TQL queries used in the Trail Obsidian plugin.
 
-@top Query { Group From Prune? Where? When? Sort? Display? }
+@top Query { QueryClause+ }
+
+QueryClause {
+  Group |
+  From |
+  Prune |
+  Where |
+  When |
+  Sort |
+  Display
+}
 
 // ============================================================================
 // Clauses
@@ -82,7 +92,14 @@ arithTerm {
 // Executes a full query recursively and returns the result set
 InlineQuery { "@" "(" InlineQueryBody ")" }
 
-InlineQueryBody { From Prune? Where? Sort? }
+InlineQueryBody { InlineClause+ }
+
+InlineClause {
+  From |
+  Prune |
+  Where |
+  Sort
+}
 
 ParenExpr { "(" expression ")" }
 
@@ -151,9 +168,9 @@ Null { @specialize[@name=Null]<Identifier, "null"> }
     ("T" @digit @digit ":" @digit @digit ":" @digit @digit)?
   }
   
-  BuiltinIdentifier { "$" $[a-zA-Z_À-ÿА-я一-龯] $[a-zA-Z0-9_À-ÿА-я一-龯-]* }
+  BuiltinIdentifier { "$" $[a-zA-Z_À-ÿА-я一-龯№] $[a-zA-Z0-9_À-ÿА-я一-龯-№]* }
   
-  Identifier { $[a-zA-Z_À-ÿА-я一-龯] $[a-zA-Z0-9_À-ÿА-я一-龯-]* }
+  Identifier { $[a-zA-Z_À-ÿА-я一-龯№] $[a-zA-Z0-9_À-ÿА-я一-龯-№]* }
   
   LineComment { "//" ![\n]* }
   
