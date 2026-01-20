@@ -8,11 +8,17 @@
 
 import type {QueryResultNode} from "../types";
 import type {ExecutorContext} from "../context";
-import type {FromNode, ChainTarget} from "../clauses/FromNode";
+import type {FromNode} from "../clauses/FromNode";
 import type {SortNode} from "../clauses/SortNode";
 import type {PruneNode} from "../clauses/PruneNode";
 import type {WhereNode} from "../clauses/WhereNode";
-import {traverse, type TraversalOptions} from "./traversal";
+import {
+	traverse,
+	buildFilter,
+	createChainHandler,
+	createGroupResolver,
+	type TraversalConfig,
+} from "./traversal";
 import {sortNodes} from "./sorting";
 
 /**
@@ -47,7 +53,7 @@ export function executeQueryClauses(
 	// Traverse FROM clause
 	const results = traverseFrom(ctx, from, prune, startPath ?? ctx.filePath);
 
-	// Apply WHERE filter
+	// Apply WHERE filter (post-traversal to maintain ancestor paths)
 	const filtered = where ? applyWhereFilter(results, where, ctx) : results;
 
 	// Sort results
@@ -67,45 +73,36 @@ function traverseFrom(
 ): QueryResultNode[] {
 	const results: QueryResultNode[] = [];
 
-	// Extract prune expression for traversal
-	const pruneExpr = prune?.expression;
+	// Build filter from PRUNE clause
+	const filter = buildFilter(ctx, {
+		pruneExpr: prune?.expression,
+	});
 
-	// Build group resolver for backwards compatibility with extendGroup
-	const resolveGroup = (name: string): TraversalOptions[] | undefined => {
-		const groupQuery = ctx.resolveGroupQuery(name) as
-			| {from: FromNode}
-			| undefined;
-		if (!groupQuery) return undefined;
-
-		// Convert the group's chains to TraversalOptions[]
-		const options: TraversalOptions[] = [];
-		for (const chain of groupQuery.from.chains) {
-			options.push({
-				startPath: "",
-				relation: chain.first.name,
-				maxDepth: chain.first.depth === "unlimited" ? Infinity : chain.first.depth,
-				flatten: chain.first.flatten,
-				pruneExpr,
-				chain: chain.chain.length > 0 ? chain.chain : undefined,
-				resolveGroup,
-			});
-		}
-		return options.length > 0 ? options : undefined;
-	};
+	// Build group resolver
+	const resolveGroup = createGroupResolver(ctx, filter);
 
 	// Traverse each chain in the FROM clause
 	for (const relationChain of from.chains) {
-		const traversalOptions: TraversalOptions = {
+		const hasChain = relationChain.chain.length > 0;
+
+		const config: TraversalConfig = {
 			startPath,
 			relation: relationChain.first.name,
 			maxDepth: relationChain.first.depth === "unlimited" ? Infinity : relationChain.first.depth,
-			flatten: relationChain.first.flatten,
-			pruneExpr,
-			chain: relationChain.chain.length > 0 ? relationChain.chain : undefined,
-			resolveGroup,
+			filter,
+			output: {
+				flattenFrom: relationChain.first.flatten,
+			},
+			onLeaf: hasChain
+				? createChainHandler(ctx, {
+						chain: relationChain.chain,
+						filter,
+						resolveGroup,
+				  })
+				: undefined,
 		};
 
-		const result = traverse(ctx, traversalOptions);
+		const result = traverse(ctx, config);
 		results.push(...result.nodes);
 
 		// Add warnings from traversal
@@ -119,6 +116,10 @@ function traverseFrom(
 
 /**
  * Apply WHERE filter to result nodes recursively
+ *
+ * WHERE is applied post-traversal to maintain ancestor paths.
+ * Nodes that don't match are removed, but their children are
+ * promoted to maintain graph connectivity.
  */
 function applyWhereFilter(
 	nodes: QueryResultNode[],

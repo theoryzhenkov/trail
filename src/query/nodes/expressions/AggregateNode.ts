@@ -7,7 +7,7 @@ import {PropertyNode} from "./PropertyNode";
 import {InlineQueryNode} from "./InlineQueryNode";
 import type {Span, Value, NodeDoc, ValidationContext, QueryResultNode} from "../types";
 import type {ExecutorContext} from "../context";
-import {traverse, type TraversalOptions} from "../execution/traversal";
+import {traverse, INCLUDE_ALL, type TraversalConfig} from "../execution/traversal";
 import {register} from "../registry";
 
 export type AggregateFunc = "count" | "sum" | "avg" | "min" | "max" | "any" | "all";
@@ -121,15 +121,17 @@ export class AggregateNode extends ExprNode {
 		const results: QueryResultNode[] = [];
 
 		for (const rel of relations) {
-			const options: TraversalOptions = {
+			const config: TraversalConfig = {
 				startPath: fromPath,
 				relation: rel.name,
 				maxDepth: rel.depth === "unlimited" ? Infinity : rel.depth,
-				extendGroup: rel.extend,
-				flatten: rel.flatten,
+				filter: INCLUDE_ALL,
+				output: {
+					flattenFrom: rel.flatten,
+				},
 			};
 
-			const result = traverse(ctx, options);
+			const result = traverse(ctx, config);
 			results.push(...result.nodes);
 		}
 

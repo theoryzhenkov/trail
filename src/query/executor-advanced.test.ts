@@ -374,5 +374,52 @@ describe("TQL Executor - Advanced Features", () => {
 			expect(paths).not.toContain("sibling.md");
 			expect(paths).toHaveLength(0);
 		});
+
+		it("should process chains with flatten modifier", () => {
+			// Test: from up :flatten >> @"Siblings" should find siblings of all ancestors
+			const graph: MockGraph = {
+				files: [
+					{ path: "son.md", properties: {} },
+					{ path: "dad.md", properties: {} },
+					{ path: "grandfather.md", properties: {} },
+					{ path: "dad-sibling.md", properties: {} },
+					{ path: "grandfather-sibling.md", properties: {} },
+				],
+				edges: [
+					{ from: "dad.md", to: "son.md", relation: "down" },
+					{ from: "grandfather.md", to: "dad.md", relation: "down" },
+					{ from: "son.md", to: "dad.md", relation: "up" },
+					{ from: "dad.md", to: "grandfather.md", relation: "up" },
+					// Siblings
+					{ from: "dad.md", to: "dad-sibling.md", relation: "sibling" },
+					{ from: "grandfather.md", to: "grandfather-sibling.md", relation: "sibling" },
+				],
+				relations: ["up", "down", "sibling"],
+				groups: [],
+			};
+
+			const siblingsGroup = createMockGroup(
+				"Siblings",
+				`group "Siblings" from sibling`,
+				["sibling"],
+				["Siblings"]
+			);
+			graph.groups = [siblingsGroup];
+
+			// Query: from son, go up with flatten, then find siblings at leaf nodes
+			const result = runQuery(
+				`group "Test" from up :flatten >> @"Siblings"`,
+				graph,
+				"son.md"
+			);
+
+			expect(result.visible).toBe(true);
+			const paths = collectPaths(result.results);
+			// Should find dad and grandfather (flattened)
+			expect(paths).toContain("dad.md");
+			expect(paths).toContain("grandfather.md");
+			// Should find grandfather-sibling via chain at the leaf node (grandfather)
+			expect(paths).toContain("grandfather-sibling.md");
+		});
 	});
 });
