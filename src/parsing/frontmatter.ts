@@ -1,3 +1,9 @@
+/**
+ * Frontmatter parsing for relations and file properties.
+ *
+ * @see docs/syntax/frontmatter.md
+ */
+
 import {FileProperties, ParsedRelation, RelationDefinition} from "../types";
 import {dedupeRelations, extractWikiLinkTarget, isValidRelationName, normalizeRelationName} from "./index";
 

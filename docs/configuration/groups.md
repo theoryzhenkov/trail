@@ -64,6 +64,9 @@ Optionally continue traversal using another group's configuration.
 
 This lets you see siblings' context without redefining the traversal rules.
 
+!!! tip "TQL Equivalent"
+    In [TQL queries](../syntax/query.md), use the chaining operator (`>>`) with a group reference: `from next >> @"Ancestors"`
+
 ---
 
 ## Default Groups

@@ -8,7 +8,7 @@ TQL is a powerful query language for defining Trail groups. Instead of configuri
 
 ```
 group "Project Ancestors"
-from up :depth unlimited
+from up :depth 5
 prune status = "archived"
 where priority >= 3
 when type = "project"
@@ -38,12 +38,9 @@ from <relations>          -- Required: what to traverse
 prune <expression>        -- Optional: skip subtrees during traversal
 where <expression>        -- Optional: filter results after traversal
 when <expression>         -- Optional: show group only for matching notes
-sort by <keys>            -- Optional: custom sort order
+sort <keys>               -- Optional: custom sort order
 display <properties>      -- Optional: show property badges
 ```
-
-!!! tip "Clause Order"
-    Clauses must appear in this order: `group`, `from`, `prune`, `where`, `when`, `sort`, `display`.
 
 ---
 
@@ -79,15 +76,35 @@ Controls how many levels to traverse:
 
 | Syntax | Behavior |
 |--------|----------|
-| `:depth unlimited` | Follow the chain as far as it goes (default) |
+| *(omitted)* | Follow the chain as far as it goes (default, unlimited depth) |
 | `:depth 1` | Direct connections only |
 | `:depth 2` | Direct connections + one level deeper |
 | `:depth N` | Up to N levels |
 
 ```
-from up :depth unlimited          -- explicit unlimited
-from down :depth 3                -- max 3 levels deep
+from up                             -- unlimited depth (default)
+from down :depth 3                  -- max 3 levels deep
 ```
+
+#### Flatten Modifier
+
+Flattens the tree structure into a flat list. Useful for sequential relations or when you want all results at the same level.
+
+| Syntax | Behavior |
+|--------|----------|
+| `:flatten` | Flatten all results into a single list |
+| `:flatten N` | Keep tree structure until depth N, then flatten |
+
+```
+from down :flatten                -- all descendants as flat list
+from down :depth 5 :flatten 2     -- tree until depth 2, then flatten
+```
+
+**Use cases:**
+
+- Sequential relations (`next`/`prev`) where hierarchy doesn't matter
+- Collecting all descendants without nested structure
+- Combining with depth limits for partial flattening
 
 #### Chaining Operator (`>>`)
 
@@ -105,7 +122,7 @@ from up :depth 2 >> @"Siblings"  -- traverse up (depth 2), then Siblings group
 - `>>` = sequential: `from up >> down` traverses up first, then down from each result
 
 !!! note "Modifier Order"
-    `depth` and `extend` can appear in any order: `depth 5 extend Children` equals `extend Children depth 5`.
+    `:depth` and `:flatten` can appear in any order: `:depth 5 :flatten` equals `:flatten :depth 5`.
 
 ---
 
@@ -160,9 +177,9 @@ If the WHEN condition fails, the group doesn't appear in the Trail pane.
 Specifies sort order for siblings at each tree level.
 
 ```
-sort by date desc                 -- sort by date, newest first
-sort by chain, date desc          -- chain order primary, date secondary
-sort by priority asc, file.name   -- priority first, then name
+sort date :desc                   -- sort by date, newest first
+sort :chain, date :desc           -- chain order primary, date secondary
+sort priority :asc, file.name     -- priority first, then name
 ```
 
 #### The `chain` Keyword
@@ -170,16 +187,16 @@ sort by priority asc, file.name   -- priority first, then name
 For sequential relations (`next`/`prev`), `chain` preserves the sequence order:
 
 ```
-sort by chain                     -- keep sequence order
-sort :chain, priority :desc      -- sequence first, then priority
+sort :chain                       -- keep sequence order
+sort :chain, priority :desc       -- sequence first, then priority
 ```
 
 #### Sort Direction
 
 | Direction | Behavior |
 |-----------|----------|
-| `asc` | Ascending (default) |
-| `desc` | Descending |
+| `:asc` | Ascending (default) |
+| `:desc` | Descending |
 
 ---
 
@@ -319,6 +336,7 @@ prop("due-date")                  -- property with special characters
 | `lower(str)` | Lowercase |
 | `upper(str)` | Uppercase |
 | `trim(str)` | Remove whitespace |
+| `split(str, delimiter)` | Split string into array |
 | `matches(str, pattern)` | Regex match |
 | `matches(str, pattern, flags)` | Regex with flags (`"i"`, `"m"`, `"s"`) |
 
@@ -380,8 +398,24 @@ display coalesce(status, "none")
 | `now()` | Current timestamp |
 | `date(str)` | Parse date from string |
 | `year(date)` | Extract year |
-| `month(date)` | Extract month |
-| `day(date)` | Extract day |
+| `month(date)` | Extract month (1-12) |
+| `day(date)` | Extract day of month |
+| `weekday(date)` | Day of week (0=Sunday, 6=Saturday) |
+| `hours(date)` | Extract hours (0-23) |
+| `minutes(date)` | Extract minutes (0-59) |
+| `dateDiff(d1, d2, unit)` | Difference between dates |
+| `format(date, pattern)` | Format date as string |
+
+```
+where weekday(due) = 1            -- due on Monday
+where hours(file.modified) < 12   -- modified in morning
+where dateDiff(due, today, "d") < 7  -- due within a week
+where format(date, "YYYY-MM") = "2024-01"
+```
+
+**`dateDiff` units:** `"d"` (days), `"w"` (weeks), `"m"` (months), `"y"` (years), `"h"` (hours), `"min"` (minutes)
+
+**`format` patterns:** `YYYY`, `MM`, `DD`, `HH`, `mm`, `ss`
 
 ---
 
@@ -453,7 +487,7 @@ where priority in 1..3
 
 ```
 group "Project Tree"
-from up depth unlimited, down depth 3
+from up, down :depth 3
 prune status = "archived"
 where priority >=? 3 and hasTag("active")
 when type = "project"
@@ -486,9 +520,9 @@ display file.modified, status
 
 ```
 group "Family"
-from parent depth unlimited
+from parent
 when type = "person"
-sort by file.name
+sort file.name
 display birthdate, relation
 ```
 
@@ -521,17 +555,31 @@ where title = "Say \"Hello\""
 where matches(file.name, "^\\d+$")
 ```
 
+### Comments
+
+Use `//` for line comments:
+
+```
+group "Project Tree"
+// This group shows the full project hierarchy
+from up
+where status != "archived"  // exclude archived items
+sort :chain
+```
+
+Comments are ignored by the parser and useful for documenting complex queries.
+
 ### Whitespace
 
 TQL ignores whitespace and allows multiline queries:
 
 ```
 group "Ancestors"
-from up depth unlimited
+from up
 where 
   priority >= 3 
   and status != "archived"
-sort by chain, date desc
+sort :chain, date :desc
 ```
 
 ---

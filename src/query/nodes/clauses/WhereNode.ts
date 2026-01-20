@@ -2,6 +2,8 @@
  * WhereNode - WHERE clause
  *
  * Filters nodes based on a boolean expression.
+ *
+ * @see docs/syntax/query.md#where
  */
 
 import {ClauseNode} from "../base/ClauseNode";

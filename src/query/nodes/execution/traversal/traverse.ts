@@ -6,6 +6,8 @@
  * 1. Walks the graph using DFS (or BFS for full flatten)
  * 2. Uses the filter to decide include/traverse for each node
  * 3. Uses the state to build results in the appropriate structure
+ *
+ * @see docs/concepts/traversal.md
  */
 
 import type {ExecutorContext} from "../../context";

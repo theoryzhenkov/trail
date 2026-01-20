@@ -1,5 +1,7 @@
 /**
  * SortNode - SORT BY clause
+ *
+ * @see docs/syntax/query.md#sort
  */
 
 import {ClauseNode} from "../base/ClauseNode";

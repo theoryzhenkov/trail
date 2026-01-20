@@ -1,5 +1,7 @@
 /**
  * FromNode - FROM clause
+ *
+ * @see docs/syntax/query.md#from
  */
 
 import {ClauseNode} from "../base/ClauseNode";

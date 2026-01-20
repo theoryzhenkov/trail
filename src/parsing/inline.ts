@@ -1,3 +1,9 @@
+/**
+ * Inline relation parsing from note content.
+ *
+ * @see docs/syntax/inline.md
+ */
+
 import {ParsedRelation} from "../types";
 import {dedupeRelations, extractLinkTarget, isValidRelationName, normalizeRelationName} from "./index";
 

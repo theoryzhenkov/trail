@@ -2,6 +2,8 @@
  * WhenNode - WHEN clause
  *
  * Conditionally shows the query based on the active file.
+ *
+ * @see docs/syntax/query.md#when
  */
 
 import {ClauseNode} from "../base/ClauseNode";

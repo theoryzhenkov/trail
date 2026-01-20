@@ -2,6 +2,8 @@
  * PruneNode - PRUNE clause
  *
  * Stops traversal when a condition is met.
+ *
+ * @see docs/syntax/query.md#prune
  */
 
 import {ClauseNode} from "../base/ClauseNode";

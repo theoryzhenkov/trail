@@ -10,6 +10,7 @@
 		"build:grammar": "node scripts/build-grammar.mjs",
 		"bump": "node version-bump.mjs",
 		"lint": "eslint .",
+		"lint:docs": "node scripts/validate-doc-links.mjs",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	},

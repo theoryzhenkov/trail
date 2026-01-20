@@ -1,5 +1,7 @@
 /**
  * DisplayNode - DISPLAY clause
+ *
+ * @see docs/syntax/query.md#display
  */
 
 import {ClauseNode} from "../base/ClauseNode";
