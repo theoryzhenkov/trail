@@ -12,7 +12,7 @@ import {tokenize, LexerError} from "./lexer";
 // Token classes for type checking
 import {
 	GroupToken, FromToken, WhereToken, WhenToken, PruneToken, SortToken, DisplayToken,
-	DepthToken, UnlimitedToken, ExtendToken, FlattenToken, ByToken, ChainToken,
+	DepthToken, UnlimitedToken, ExtendToken, FlattenToken,
 	AscToken, DescToken, AllToken,
 	AndToken, OrToken, NotToken, InToken,
 	TrueToken, FalseToken, NullToken,
@@ -21,7 +21,7 @@ import {
 	EqNullToken, NotEqNullToken, PlusToken, MinusToken, BangToken, DotDotToken,
 	LParenToken, RParenToken, CommaToken, DotToken,
 	EOFToken, StringToken, NumberToken, BooleanToken, DurationToken,
-	DateLiteralToken, IdentifierToken,
+	DateLiteralToken, IdentifierToken, BuiltinIdentifierToken,
 } from "./tokens";
 
 // Node classes
@@ -105,7 +105,7 @@ export class Parser {
 
 		let depth: number | "unlimited" = "unlimited";
 		let extend: string | undefined;
-		let flatten: boolean | undefined;
+		let flatten: number | true | undefined;
 
 		// Parse modifiers in any order
 		while (this.check(DepthToken) || this.check(ExtendToken) || this.check(FlattenToken)) {
@@ -123,7 +123,12 @@ export class Parser {
 					extend = this.expect(IdentifierToken, "group name").value;
 				}
 			} else if (this.match(FlattenToken)) {
-				flatten = true;
+				// Check for optional depth number after flatten
+				if (this.check(NumberToken)) {
+					flatten = parseInt(this.advance().value, 10);
+				} else {
+					flatten = true;
+				}
 			}
 		}
 
@@ -156,7 +161,6 @@ export class Parser {
 			return undefined;
 		}
 		const start = this.previous().span.start;
-		this.expect(ByToken, '"by"');
 
 		const keys: SortKeyNode[] = [];
 		keys.push(this.parseSortKey());
@@ -172,8 +176,13 @@ export class Parser {
 		const start = this.current().span.start;
 		let key: "chain" | PropertyNode;
 
-		if (this.match(ChainToken)) {
+		// Check for $chain (built-in chain sort)
+		if (this.check(BuiltinIdentifierToken) && this.current().value === "$chain") {
+			this.advance();
 			key = "chain";
+		} else if (this.check(BuiltinIdentifierToken)) {
+			// Other built-in properties like $file.modified
+			key = this.parseBuiltinPropertyAccess();
 		} else {
 			key = this.parsePropertyAccess();
 		}
@@ -352,6 +361,11 @@ export class Parser {
 			return this.parsePropertyAccess();
 		}
 
+		// Built-in property access ($file.name, $traversal.depth)
+		if (this.check(BuiltinIdentifierToken)) {
+			return this.parseBuiltinPropertyAccess();
+		}
+
 		// Handle aggregate functions that are keywords
 		if (this.isAggregateKeyword() && this.checkNext(LParenToken)) {
 			return this.parseFunctionCall();
@@ -456,7 +470,23 @@ export class Parser {
 			path.push(part.value);
 		}
 
-		return new PropertyNode(path, {start, end: this.previous().span.end});
+		return new PropertyNode(path, {start, end: this.previous().span.end}, false);
+	}
+
+	private parseBuiltinPropertyAccess(): PropertyNode {
+		const start = this.current().span.start;
+		const path: string[] = [];
+
+		const first = this.expect(BuiltinIdentifierToken, "built-in property name");
+		// Remove the $ prefix from the value
+		path.push(first.value.slice(1));
+
+		while (this.match(DotToken)) {
+			const part = this.expect(IdentifierToken, "property name");
+			path.push(part.value);
+		}
+
+		return new PropertyNode(path, {start, end: this.previous().span.end}, true);
 	}
 
 	private parseFunctionCall(): ExprNode {
@@ -544,12 +574,25 @@ export class Parser {
 		const start = this.current().span.start;
 		this.expect(GroupToken, '"group"');
 		this.expect(LParenToken, '"("');
-		const nameToken = this.expect(StringToken, "group name string");
+
+		let name: string;
+		if (this.check(IdentifierToken)) {
+			name = this.advance().value;
+		} else if (this.check(StringToken)) {
+			name = this.advance().value;
+		} else {
+			throw new ParseError(
+				'Expected group name (identifier or string)',
+				this.current().span,
+				["identifier", "string"]
+			);
+		}
+
 		this.expect(RParenToken, '")"');
 
 		return {
 			type: "groupRef",
-			name: nameToken.value,
+			name,
 			span: {start, end: this.previous().span.end},
 		};
 	}

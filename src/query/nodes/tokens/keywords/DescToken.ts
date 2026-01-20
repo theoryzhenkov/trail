@@ -11,6 +11,6 @@ export class DescToken extends TokenNode {
 	static documentation: NodeDoc = {
 		title: "desc",
 		description: "Descending sort order (Z-A, 9-0, newest first).",
-		examples: ["sort by date desc", "sort by priority desc"],
+		examples: ["sort date desc", "sort priority desc"],
 	};
 }

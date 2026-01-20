@@ -24,7 +24,7 @@ export class QueryNode extends ClauseNode {
 	static documentation: NodeDoc = {
 		title: "TQL Query",
 		description: "A complete TQL query with group name, FROM clause, and optional filtering/sorting.",
-		syntax: 'group "Name" from ... [prune ...] [where ...] [when ...] [sort by ...] [display ...]',
+		syntax: 'group "Name" from ... [prune ...] [where ...] [when ...] [sort ...] [display ...]',
 	};
 
 	constructor(

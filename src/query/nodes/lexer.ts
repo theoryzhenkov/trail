@@ -9,7 +9,7 @@ import {TokenNode} from "./base/TokenNode";
 import {
 	// Keywords
 	GroupToken, FromToken, WhereToken, WhenToken, PruneToken, SortToken, DisplayToken,
-	DepthToken, UnlimitedToken, ExtendToken, FlattenToken, ByToken, ChainToken,
+	DepthToken, UnlimitedToken, ExtendToken, FlattenToken,
 	AscToken, DescToken, AllToken,
 	AndToken, OrToken, NotToken, InToken,
 	TrueToken, FalseToken, NullToken,
@@ -21,7 +21,7 @@ import {
 	LParenToken, RParenToken, CommaToken, DotToken,
 	// Special
 	EOFToken, StringToken, NumberToken, BooleanToken, DurationToken,
-	DateLiteralToken, IdentifierToken,
+	DateLiteralToken, IdentifierToken, BuiltinIdentifierToken,
 } from "./tokens";
 
 export class LexerError extends Error {
@@ -49,8 +49,6 @@ const KEYWORDS: Record<string, new (value: string, span: Span) => TokenNode> = {
 	unlimited: UnlimitedToken,
 	extend: ExtendToken,
 	flatten: FlattenToken,
-	by: ByToken,
-	chain: ChainToken,
 	asc: AscToken,
 	desc: DescToken,
 	all: AllToken,
@@ -106,6 +104,11 @@ export class Lexer {
 		// Numbers, durations, or ISO dates
 		if (this.isDigit(char)) {
 			return this.scanNumberOrDate();
+		}
+
+		// Built-in identifiers ($file, $traversal, $chain)
+		if (char === '$') {
+			return this.scanBuiltinIdentifier();
 		}
 
 		// Identifiers and keywords
@@ -263,6 +266,23 @@ export class Lexer {
 		}
 
 		return new IdentifierToken(value, {start, end: this.pos});
+	}
+
+	private scanBuiltinIdentifier(): TokenNode {
+		const start = this.pos;
+		this.advance(); // consume '$'
+
+		// Read the identifier part after $
+		let value = "$";
+		while (!this.isAtEnd() && this.isIdentifierChar(this.peek())) {
+			value += this.advance();
+		}
+
+		if (value === "$") {
+			throw new LexerError("Expected identifier after '$'", {start, end: this.pos});
+		}
+
+		return new BuiltinIdentifierToken(value, {start, end: this.pos});
 	}
 
 	private scanOperator(start: number): TokenNode {

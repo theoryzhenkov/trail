@@ -10,12 +10,12 @@ export class SortToken extends TokenNode {
 	static highlighting = "keyword" as const;
 	static documentation: NodeDoc = {
 		title: "SORT clause",
-		description: "Orders results by property or chain position. Multiple sort keys are comma-separated.",
-		syntax: "sort by Key [asc|desc], ...",
+		description: "Orders results by property or $chain position. Multiple sort keys are comma-separated.",
+		syntax: "sort Key [asc|desc], ...",
 		examples: [
-			"sort by date desc",
-			"sort by chain, priority desc",
-			"sort by file.modified desc, file.name",
+			"sort date desc",
+			"sort $chain, priority desc",
+			"sort $file.modified desc, $file.name",
 		],
 	};
 	static completable: Completable = {
@@ -23,6 +23,6 @@ export class SortToken extends TokenNode {
 		context: "clause",
 		priority: 60,
 		category: "keyword",
-		snippet: "sort by $1",
+		snippet: "sort $1",
 	};
 }

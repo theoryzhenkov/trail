@@ -160,7 +160,7 @@ export type CompletionContext =
 	| "relation" // After "from" or in relation position
 	| "expression" // Expression position (where, when, prune, etc.)
 	| "after-expression" // After an expression (and, or, operators)
-	| "sort-key" // After "sort by"
+	| "sort-key" // After "sort"
 	| "display" // After "display"
 	| "function-arg" // Inside function arguments
 	| "property"; // Property path position

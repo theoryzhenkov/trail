@@ -36,7 +36,7 @@ export interface RelationSpecData {
 	name: string;
 	depth: number | "unlimited";
 	extend?: string;
-	flatten?: boolean;
+	flatten?: number | true;
 	span: Span;
 }
 
@@ -133,11 +133,11 @@ export class AggregateNode extends ExprNode {
 
 	private resolveSourceRelations(
 		ctx: ExecutorContext
-	): Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: boolean}> {
+	): Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: number | true}> {
 		if (this.source.type === "groupRef") {
 			// Explicit group reference
 			const groupQuery = ctx.resolveGroupQuery(this.source.name) as
-				| {from: {relations: Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: boolean}>}}
+				| {from: {relations: Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: number | true}>}}
 				| undefined;
 			return groupQuery?.from.relations ?? [];
 		} else if (this.source.type === "inlineFrom") {
@@ -146,7 +146,7 @@ export class AggregateNode extends ExprNode {
 		} else {
 			// Bare identifier - resolve to group or relation
 			const groupQuery = ctx.resolveGroupQuery(this.source.name) as
-				| {from: {relations: Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: boolean}>}}
+				| {from: {relations: Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: number | true}>}}
 				| undefined;
 			if (groupQuery) {
 				return groupQuery.from.relations;

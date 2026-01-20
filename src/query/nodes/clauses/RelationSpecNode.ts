@@ -9,13 +9,14 @@ export class RelationSpecNode extends ClauseNode {
 	readonly name: string;
 	readonly depth: number | "unlimited";
 	readonly extend?: string;
-	readonly flatten?: boolean;
+	/** true = flatten all, number = flatten from depth N */
+	readonly flatten?: number | true;
 
 	static documentation: NodeDoc = {
 		title: "Relation Specification",
-		description: "Specifies a relation to traverse with optional depth, extend, and flatten modifiers.",
-		syntax: "relation [depth N|unlimited] [extend Group] [flatten]",
-		examples: ["up depth 3", "down extend Children", "same flatten"],
+		description: "Specifies a relation to traverse with optional depth, extend, and flatten modifiers. Use 'flatten' to flatten all, or 'flatten N' to flatten from depth N.",
+		syntax: "relation [depth N|unlimited] [extend Group] [flatten [N]]",
+		examples: ["up depth 3", "down extend Children", "same flatten", "down depth 5 flatten 2"],
 	};
 
 	constructor(
@@ -23,7 +24,7 @@ export class RelationSpecNode extends ClauseNode {
 		depth: number | "unlimited",
 		span: Span,
 		extend?: string,
-		flatten?: boolean
+		flatten?: number | true
 	) {
 		super(span);
 		this.name = name;

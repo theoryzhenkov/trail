@@ -77,7 +77,7 @@ export function groupToTql(group: RelationGroup): string {
 	if ((group.sortBy && group.sortBy.length > 0) || group.chainSort) {
 		const sortExpr = sortToExpr(group.sortBy ?? [], group.chainSort ?? "disabled");
 		if (sortExpr) {
-			lines.push(`sort by ${sortExpr}`);
+			lines.push(`sort ${sortExpr}`);
 		}
 	}
 
@@ -151,7 +151,7 @@ function sortToExpr(sortBy: PropertySortKey[], chainSort: ChainSortMode): string
 	const parts: string[] = [];
 
 	if (chainSort === "primary") {
-		parts.push("chain");
+		parts.push("$chain");
 	}
 
 	for (const sort of sortBy) {
@@ -164,7 +164,7 @@ function sortToExpr(sortBy: PropertySortKey[], chainSort: ChainSortMode): string
 	}
 
 	if (chainSort === "secondary" && parts.length > 0) {
-		parts.push("chain");
+		parts.push("$chain");
 	}
 
 	return parts.length > 0 ? parts.join(", ") : null;
@@ -177,7 +177,7 @@ function needsQuotes(key: string): boolean {
 	// Reserved keywords
 	const reserved = new Set([
 		"group", "from", "depth", "unlimited", "extend", "prune", "where", "when",
-		"sort", "by", "chain", "asc", "desc", "display", "all", "and", "or", "not",
+		"sort", "asc", "desc", "display", "all", "and", "or", "not",
 		"in", "true", "false", "null", "today", "yesterday", "tomorrow",
 		"startOfWeek", "endOfWeek"
 	]);

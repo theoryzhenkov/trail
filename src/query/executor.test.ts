@@ -218,7 +218,7 @@ describe("TQL Executor", () => {
 		it("should sort by property ascending", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 sort by age asc`,
+				`group "Test" from down depth 1 sort age asc`,
 				graph,
 				"root.md"
 			);
@@ -234,7 +234,7 @@ describe("TQL Executor", () => {
 		it("should sort by property descending", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 sort by age desc`,
+				`group "Test" from down depth 1 sort age desc`,
 				graph,
 				"root.md"
 			);
@@ -340,7 +340,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort by номер asc`,
+				`group "Test" from down depth 1 sort номер asc`,
 				graph,
 				"root.md"
 			);
@@ -368,7 +368,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where № > 75 sort by № desc`,
+				`group "Test" from down depth 1 where № > 75 sort № desc`,
 				graph,
 				"root.md"
 			);

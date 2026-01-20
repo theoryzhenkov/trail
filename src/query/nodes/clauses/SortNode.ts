@@ -11,9 +11,9 @@ export class SortNode extends ClauseNode {
 
 	static documentation: NodeDoc = {
 		title: "SORT clause",
-		description: "Orders results by one or more properties or chain position.",
-		syntax: "sort by key [asc|desc], ...",
-		examples: ["sort by date desc", "sort by chain, priority desc"],
+		description: "Orders results by one or more properties or $chain position.",
+		syntax: "sort key [asc|desc], ...",
+		examples: ["sort date desc", "sort $chain, priority desc", "sort $file.modified desc"],
 	};
 
 	constructor(keys: SortKeyNode[], span: Span) {

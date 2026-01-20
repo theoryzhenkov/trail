@@ -55,3 +55,11 @@ export class DateLiteralToken extends TokenNode {
 export class IdentifierToken extends TokenNode {
 	static highlighting = "variable" as const;
 }
+
+/**
+ * Built-in identifier token (e.g., $file, $traversal, $chain)
+ * Distinguished from regular identifiers by the $ prefix.
+ */
+export class BuiltinIdentifierToken extends TokenNode {
+	static highlighting = "keyword" as const;
+}

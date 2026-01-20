@@ -184,15 +184,15 @@ describe("TQL Parser", () => {
 	});
 
 	describe("Sort and display clauses", () => {
-		it("should parse sort by property", () => {
-			const query = parse('group "Test" from up sort by date desc');
+		it("should parse sort property", () => {
+			const query = parse('group "Test" from up sort date desc');
 			expect(query.sort).toBeDefined();
 			expect(query.sort?.keys.length).toBe(1);
 			expect(query.sort?.keys[0]?.direction).toBe("desc");
 		});
 
-		it("should parse sort by chain", () => {
-			const query = parse('group "Test" from up sort by chain');
+		it("should parse sort $chain", () => {
+			const query = parse('group "Test" from up sort $chain');
 			expect(query.sort?.keys[0]?.key).toBe("chain");
 		});
 

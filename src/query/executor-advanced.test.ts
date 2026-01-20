@@ -41,7 +41,7 @@ describe("TQL Executor - Advanced Features", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 sort by номер asc`,
+				`group "Test" from down depth 1 sort номер asc`,
 				graph,
 				"root.md"
 			);
@@ -69,7 +69,7 @@ describe("TQL Executor - Advanced Features", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where № > 75 sort by № desc`,
+				`group "Test" from down depth 1 where № > 75 sort № desc`,
 				graph,
 				"root.md"
 			);

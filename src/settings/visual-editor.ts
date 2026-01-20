@@ -257,7 +257,7 @@ export function visualToQuery(visual: VisualQuery): string {
 
 	// SORT clause
 	if (visual.sort) {
-		lines.push(`sort by ${visual.sort.property} ${visual.sort.direction}`);
+		lines.push(`sort ${visual.sort.property} ${visual.sort.direction}`);
 	}
 
 	// DISPLAY clause

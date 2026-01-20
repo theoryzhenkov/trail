@@ -11,6 +11,6 @@ export class AscToken extends TokenNode {
 	static documentation: NodeDoc = {
 		title: "asc",
 		description: "Ascending sort order (A-Z, 0-9, oldest first). This is the default.",
-		examples: ["sort by priority asc", "sort by file.name asc"],
+		examples: ["sort priority asc", "sort $file.name asc"],
 	};
 }

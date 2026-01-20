@@ -18,8 +18,8 @@ export interface TraversalOptions {
 	maxDepth: number;
 	/** Optional group name for extend */
 	extendGroup?: string;
-	/** Flatten the results (BFS, no tree structure) */
-	flatten?: boolean;
+	/** Flatten: true = flatten all (BFS), number = flatten from depth N */
+	flatten?: number | true;
 	/** Prune expression (skip nodes where this evaluates to true) */
 	pruneExpr?: ExprNode;
 	/** Callback to resolve group queries for extend */
@@ -40,11 +40,23 @@ export interface TraversalResult {
 export function traverse(ctx: ExecutorContext, options: TraversalOptions): TraversalResult {
 	const warnings: QueryWarning[] = [];
 
-	if (options.flatten) {
+	if (options.flatten === true) {
+		// Full flatten: BFS, all nodes at depth 1
 		const nodes = traverseFlat(ctx, options, warnings);
 		return {nodes, warnings};
 	}
 
+	if (typeof options.flatten === "number") {
+		// Partial flatten: DFS with tree structure until flattenDepth, then flatten
+		const ancestorPaths = new Set<string>([options.startPath]);
+		const traversalPath = [options.startPath];
+		const nodes = traverseWithPartialFlatten(
+			ctx, options, 1, ancestorPaths, traversalPath, warnings, options.flatten
+		);
+		return {nodes, warnings};
+	}
+
+	// No flatten: normal DFS tree traversal
 	const ancestorPaths = new Set<string>([options.startPath]);
 	const traversalPath = [options.startPath];
 	const nodes = traverseRelation(ctx, options, 1, ancestorPaths, traversalPath, warnings);
@@ -141,6 +153,199 @@ function traverseFlat(
 		warnings.push({
 			message: `'extend' is ignored when 'flatten' is used on relation '${relation}'`,
 		});
+	}
+
+	return results;
+}
+
+/**
+ * DFS traversal with partial flatten - tree structure until flattenDepth, then flatten
+ */
+function traverseWithPartialFlatten(
+	ctx: ExecutorContext,
+	options: TraversalOptions,
+	currentDepth: number,
+	ancestorPaths: Set<string>,
+	traversalPath: string[],
+	warnings: QueryWarning[],
+	flattenDepth: number
+): QueryResultNode[] {
+	const {relation, maxDepth, extendGroup, pruneExpr, resolveGroup} = options;
+
+	if (currentDepth > maxDepth) {
+		// At leaf - check for extend
+		if (extendGroup && resolveGroup) {
+			return extendFromGroup(
+				ctx,
+				traversalPath[traversalPath.length - 1]!,
+				extendGroup,
+				ancestorPaths,
+				traversalPath,
+				warnings,
+				pruneExpr,
+				resolveGroup
+			);
+		}
+		return [];
+	}
+
+	const sourcePath = traversalPath[traversalPath.length - 1]!;
+	const edges = ctx.getOutgoingEdges(sourcePath, relation);
+	const results: QueryResultNode[] = [];
+
+	for (const edge of edges) {
+		// Cycle detection (per-path)
+		if (ancestorPaths.has(edge.toPath)) {
+			continue;
+		}
+
+		const props = ctx.getProperties(edge.toPath);
+		const newPath = [...traversalPath, edge.toPath];
+
+		// Build traversal context for expression evaluation
+		const traversalCtx: TraversalContext = {
+			depth: currentDepth,
+			relation: edge.relation,
+			isImplied: edge.implied,
+			parent: sourcePath,
+			path: newPath,
+		};
+
+		// Apply PRUNE filter
+		if (pruneExpr) {
+			ctx.setCurrentFile(edge.toPath, props);
+			ctx.setTraversal(traversalCtx);
+			const pruneResult = pruneExpr.evaluate(ctx);
+			if (ctx.isTruthy(pruneResult)) {
+				continue; // Skip this node and its subtree
+			}
+		}
+
+		const visualDirection = ctx.getVisualDirection(edge.relation);
+
+		// Traverse children
+		const newAncestors = new Set(ancestorPaths);
+		newAncestors.add(edge.toPath);
+
+		let children: QueryResultNode[];
+
+		if (currentDepth >= flattenDepth) {
+			// At or beyond flatten depth: collect all descendants as flat children
+			children = collectDescendantsFlat(
+				ctx, options, newAncestors, newPath, warnings, currentDepth + 1
+			);
+		} else {
+			// Before flatten depth: continue with partial flatten
+			const childOptions: TraversalOptions = {
+				...options,
+				startPath: edge.toPath,
+			};
+
+			children = traverseWithPartialFlatten(
+				ctx,
+				childOptions,
+				currentDepth + 1,
+				newAncestors,
+				newPath,
+				warnings,
+				flattenDepth
+			);
+		}
+
+		results.push({
+			path: edge.toPath,
+			relation: edge.relation,
+			depth: currentDepth,
+			implied: edge.implied,
+			impliedFrom: edge.impliedFrom,
+			parent: sourcePath,
+			traversalPath: newPath,
+			properties: props,
+			displayProperties: [],
+			visualDirection,
+			hasFilteredAncestor: false,
+			children,
+		});
+	}
+
+	return results;
+}
+
+/**
+ * Collect all descendants as a flat list (used by partial flatten)
+ */
+function collectDescendantsFlat(
+	ctx: ExecutorContext,
+	options: TraversalOptions,
+	ancestorPaths: Set<string>,
+	traversalPath: string[],
+	warnings: QueryWarning[],
+	currentDepth: number
+): QueryResultNode[] {
+	const {relation, maxDepth, pruneExpr} = options;
+
+	if (currentDepth > maxDepth) {
+		return [];
+	}
+
+	const sourcePath = traversalPath[traversalPath.length - 1]!;
+	const edges = ctx.getOutgoingEdges(sourcePath, relation);
+	const results: QueryResultNode[] = [];
+
+	for (const edge of edges) {
+		// Cycle detection
+		if (ancestorPaths.has(edge.toPath)) {
+			continue;
+		}
+
+		const props = ctx.getProperties(edge.toPath);
+		const newPath = [...traversalPath, edge.toPath];
+
+		// Build traversal context
+		const traversalCtx: TraversalContext = {
+			depth: currentDepth,
+			relation: edge.relation,
+			isImplied: edge.implied,
+			parent: sourcePath,
+			path: newPath,
+		};
+
+		// Apply PRUNE filter
+		if (pruneExpr) {
+			ctx.setCurrentFile(edge.toPath, props);
+			ctx.setTraversal(traversalCtx);
+			const pruneResult = pruneExpr.evaluate(ctx);
+			if (ctx.isTruthy(pruneResult)) {
+				continue;
+			}
+		}
+
+		const visualDirection = ctx.getVisualDirection(edge.relation);
+
+		// Add this node (with no children - flattened)
+		results.push({
+			path: edge.toPath,
+			relation: edge.relation,
+			depth: currentDepth,
+			implied: edge.implied,
+			impliedFrom: edge.impliedFrom,
+			parent: sourcePath,
+			traversalPath: newPath,
+			properties: props,
+			displayProperties: [],
+			visualDirection,
+			hasFilteredAncestor: false,
+			children: [],
+		});
+
+		// Recursively collect descendants
+		const newAncestors = new Set(ancestorPaths);
+		newAncestors.add(edge.toPath);
+
+		const descendants = collectDescendantsFlat(
+			ctx, options, newAncestors, newPath, warnings, currentDepth + 1
+		);
+		results.push(...descendants);
 	}
 
 	return results;

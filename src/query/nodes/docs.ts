@@ -10,7 +10,7 @@ import type {NodeDoc} from "./types";
 // Import all token classes for their static documentation
 import {
 	GroupToken, FromToken, WhereToken, WhenToken, PruneToken, SortToken, DisplayToken,
-	DepthToken, UnlimitedToken, ExtendToken, FlattenToken, ByToken, ChainToken,
+	DepthToken, UnlimitedToken, ExtendToken, FlattenToken,
 	AscToken, DescToken, AllToken,
 	AndToken, OrToken, NotToken, InToken,
 	TrueToken, FalseToken, NullToken,
@@ -39,8 +39,6 @@ const TOKEN_CLASSES: Record<string, TokenClass> = {
 	unlimited: UnlimitedToken,
 	extend: ExtendToken,
 	flatten: FlattenToken,
-	by: ByToken,
-	chain: ChainToken,
 	asc: AscToken,
 	desc: DescToken,
 	all: AllToken,

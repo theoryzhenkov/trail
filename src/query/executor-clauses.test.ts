@@ -57,7 +57,7 @@ describe("TQL Executor - Clauses", () => {
 		it("should sort by property ascending", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 sort by age asc`,
+				`group "Test" from down depth 1 sort age asc`,
 				graph,
 				"root.md"
 			);
@@ -73,7 +73,7 @@ describe("TQL Executor - Clauses", () => {
 		it("should sort by property descending", () => {
 			const graph = TestGraphs.withProperties();
 			const result = runQuery(
-				`group "Test" from down depth 1 sort by age desc`,
+				`group "Test" from down depth 1 sort age desc`,
 				graph,
 				"root.md"
 			);

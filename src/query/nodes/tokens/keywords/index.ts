@@ -16,8 +16,6 @@ export {DepthToken} from "./DepthToken";
 export {UnlimitedToken} from "./UnlimitedToken";
 export {ExtendToken} from "./ExtendToken";
 export {FlattenToken} from "./FlattenToken";
-export {ByToken} from "./ByToken";
-export {ChainToken} from "./ChainToken";
 export {AscToken} from "./AscToken";
 export {DescToken} from "./DescToken";
 export {AllToken} from "./AllToken";
