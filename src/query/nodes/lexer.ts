@@ -6,14 +6,10 @@
 
 import type {Span} from "./types";
 import {TokenNode} from "./base/TokenNode";
+import {registry} from "./registry";
 import {
-	// Keywords
-	GroupToken, FromToken, WhereToken, WhenToken, PruneToken, SortToken, DisplayToken,
-	DepthToken, ExtendToken, FlattenToken,
-	AscToken, DescToken, AllToken,
-	AndToken, OrToken, NotToken, InToken,
-	TrueToken, FalseToken, NullToken,
-	TodayToken, YesterdayToken, TomorrowToken, StartOfWeekToken, EndOfWeekToken,
+	// Import keywords to trigger registration
+	TrueToken, FalseToken,
 	// Operators
 	EqToken, NotEqToken, LtToken, GtToken, LtEqToken, GtEqToken,
 	EqNullToken, NotEqNullToken, PlusToken, MinusToken, BangToken, DotDotToken,
@@ -33,37 +29,6 @@ export class LexerError extends Error {
 		this.name = "LexerError";
 	}
 }
-
-/**
- * Keyword map - lowercase keyword to token class
- */
-const KEYWORDS: Record<string, new (value: string, span: Span) => TokenNode> = {
-	group: GroupToken,
-	from: FromToken,
-	where: WhereToken,
-	when: WhenToken,
-	prune: PruneToken,
-	sort: SortToken,
-	display: DisplayToken,
-	depth: DepthToken,
-	extend: ExtendToken,
-	flatten: FlattenToken,
-	asc: AscToken,
-	desc: DescToken,
-	all: AllToken,
-	and: AndToken,
-	or: OrToken,
-	not: NotToken,
-	in: InToken,
-	true: TrueToken,
-	false: FalseToken,
-	null: NullToken,
-	today: TodayToken,
-	yesterday: YesterdayToken,
-	tomorrow: TomorrowToken,
-	startofweek: StartOfWeekToken,
-	endofweek: EndOfWeekToken,
-};
 
 export class Lexer {
 	private input: string;
@@ -254,7 +219,7 @@ export class Lexer {
 
 		// Check if it's a keyword
 		const lowerValue = value.toLowerCase();
-		const KeywordClass = KEYWORDS[lowerValue];
+		const KeywordClass = registry.getTokenClass(lowerValue);
 
 		if (KeywordClass) {
 			// Handle boolean literals specially

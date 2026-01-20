@@ -3,8 +3,10 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
+import {register} from "../../registry";
 import type {NodeDoc} from "../../types";
 
+@register("EndOfWeekToken", {keyword: "endofweek"})
 export class EndOfWeekToken extends TokenNode {
 	static keyword = "endOfWeek";
 	static highlighting = "atom" as const;

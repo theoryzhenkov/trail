@@ -6,60 +6,16 @@
  */
 
 import type {NodeDoc} from "./types";
+import {registry} from "./registry";
 
-// Import all token classes for their static documentation
-import {
-	GroupToken, FromToken, WhereToken, WhenToken, PruneToken, SortToken, DisplayToken,
-	DepthToken, ExtendToken, FlattenToken,
-	AscToken, DescToken, AllToken,
-	AndToken, OrToken, NotToken, InToken,
-	TrueToken, FalseToken, NullToken,
-	TodayToken, YesterdayToken, TomorrowToken, StartOfWeekToken, EndOfWeekToken,
-} from "./tokens";
-
-// Token class type
-type TokenClass = {
-	keyword?: string;
-	documentation?: NodeDoc;
-	highlighting?: string;
-};
-
-/**
- * Map of keyword to token class
- */
-const TOKEN_CLASSES: Record<string, TokenClass> = {
-	group: GroupToken,
-	from: FromToken,
-	where: WhereToken,
-	when: WhenToken,
-	prune: PruneToken,
-	sort: SortToken,
-	display: DisplayToken,
-	depth: DepthToken,
-	extend: ExtendToken,
-	flatten: FlattenToken,
-	asc: AscToken,
-	desc: DescToken,
-	all: AllToken,
-	and: AndToken,
-	or: OrToken,
-	not: NotToken,
-	in: InToken,
-	true: TrueToken,
-	false: FalseToken,
-	null: NullToken,
-	today: TodayToken,
-	yesterday: YesterdayToken,
-	tomorrow: TomorrowToken,
-	startofweek: StartOfWeekToken,
-	endofweek: EndOfWeekToken,
-};
+// Import tokens to trigger registration
+import "./tokens/keywords";
 
 /**
  * Get documentation for a keyword
  */
 export function getKeywordDoc(keyword: string): NodeDoc | undefined {
-	const cls = TOKEN_CLASSES[keyword.toLowerCase()];
+	const cls = registry.getTokenClass(keyword);
 	return cls?.documentation;
 }
 
@@ -67,7 +23,7 @@ export function getKeywordDoc(keyword: string): NodeDoc | undefined {
  * Get highlighting category for a keyword
  */
 export function getKeywordHighlighting(keyword: string): string | undefined {
-	const cls = TOKEN_CLASSES[keyword.toLowerCase()];
+	const cls = registry.getTokenClass(keyword);
 	return cls?.highlighting;
 }
 
@@ -76,9 +32,9 @@ export function getKeywordHighlighting(keyword: string): string | undefined {
  */
 export function getAllKeywordDocs(): Record<string, NodeDoc> {
 	const result: Record<string, NodeDoc> = {};
-	for (const [keyword, cls] of Object.entries(TOKEN_CLASSES)) {
-		if (cls.documentation) {
-			result[keyword] = cls.documentation;
+	for (const cls of registry.getAllTokenClasses()) {
+		if (cls.keyword && cls.documentation) {
+			result[cls.keyword.toLowerCase()] = cls.documentation;
 		}
 	}
 	return result;
@@ -88,23 +44,25 @@ export function getAllKeywordDocs(): Record<string, NodeDoc> {
  * Check if a word is a keyword
  */
 export function isKeyword(word: string): boolean {
-	return word.toLowerCase() in TOKEN_CLASSES;
+	return registry.hasToken(word);
 }
 
 /**
  * Get all keywords
  */
 export function getAllKeywords(): string[] {
-	return Object.keys(TOKEN_CLASSES);
+	return registry.getAllTokenClasses()
+		.map(cls => cls.keyword)
+		.filter((k): k is string => k !== undefined);
 }
 
 /**
  * Get keywords by highlighting category
  */
 export function getKeywordsByHighlighting(category: string): string[] {
-	return Object.entries(TOKEN_CLASSES)
-		.filter(([, cls]) => cls.highlighting === category)
-		.map(([keyword]) => keyword);
+	return registry.getAllTokenClasses()
+		.filter(cls => cls.highlighting === category && cls.keyword)
+		.map(cls => cls.keyword!);
 }
 
 /**

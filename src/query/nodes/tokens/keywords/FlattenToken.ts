@@ -3,8 +3,10 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
+import {register} from "../../registry";
 import type {NodeDoc} from "../../types";
 
+@register("FlattenToken", {keyword: "flatten"})
 export class FlattenToken extends TokenNode {
 	static keyword = "flatten";
 	static highlighting = "typeName" as const;

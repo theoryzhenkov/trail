@@ -3,8 +3,10 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
+import {register} from "../../registry";
 import type {NodeDoc} from "../../types";
 
+@register("OrToken", {keyword: "or"})
 export class OrToken extends TokenNode {
 	static keyword = "or";
 	static highlighting = "operatorKeyword" as const;
