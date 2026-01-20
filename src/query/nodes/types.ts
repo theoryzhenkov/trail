@@ -144,3 +144,71 @@ export interface ValidationContext {
 	hasGroup(name: string): boolean;
 	addError(message: string, span: Span, code: string): void;
 }
+
+// ============================================================================
+// Autocompletion Types
+// ============================================================================
+
+/**
+ * Context positions where completions can appear
+ */
+export type CompletionContext =
+	| "query-start" // Start of query (expects "group")
+	| "after-group" // After group keyword (expects string)
+	| "after-group-name" // After group name (expects "from")
+	| "clause" // Position where clause keywords are valid
+	| "relation" // After "from" or in relation position
+	| "expression" // Expression position (where, when, prune, etc.)
+	| "after-expression" // After an expression (and, or, operators)
+	| "sort-key" // After "sort by"
+	| "display" // After "display"
+	| "function-arg" // Inside function arguments
+	| "property"; // Property path position
+
+/**
+ * Completion metadata for nodes that can be suggested
+ */
+export interface Completable {
+	/**
+	 * Keywords that trigger this completion
+	 */
+	keywords?: string[];
+
+	/**
+	 * Context(s) where this completion is valid
+	 */
+	context: CompletionContext | CompletionContext[];
+
+	/**
+	 * Priority for sorting (higher = shown first)
+	 */
+	priority?: number;
+
+	/**
+	 * Category for grouping in completion menu
+	 */
+	category?: "keyword" | "operator" | "function" | "property" | "value";
+
+	/**
+	 * Snippet to insert (with $1, $2 placeholders)
+	 */
+	snippet?: string;
+}
+
+/**
+ * A completion suggestion
+ */
+export interface Suggestion {
+	/** Text to display */
+	label: string;
+	/** Text to insert */
+	insertText: string;
+	/** Kind of completion */
+	kind: "keyword" | "operator" | "function" | "property" | "value" | "snippet";
+	/** Documentation */
+	detail?: string;
+	/** Full documentation */
+	documentation?: string;
+	/** Sort priority */
+	priority: number;
+}

@@ -3,7 +3,7 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 export class GroupToken extends TokenNode {
 	static keyword = "group";
@@ -13,5 +13,12 @@ export class GroupToken extends TokenNode {
 		description: "Defines the name of this query group. Required as the first clause.",
 		syntax: 'group "Name"',
 		examples: ['group "Ancestors"', 'group "Related Projects"'],
+	};
+	static completable: Completable = {
+		keywords: ["group"],
+		context: "query-start",
+		priority: 100,
+		category: "keyword",
+		snippet: 'group "$1"',
 	};
 }

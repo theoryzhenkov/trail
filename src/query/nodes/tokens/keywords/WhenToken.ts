@@ -3,7 +3,7 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 export class WhenToken extends TokenNode {
 	static keyword = "when";
@@ -17,5 +17,11 @@ export class WhenToken extends TokenNode {
 			'when hasTag("daily")',
 			'when file.folder = "Projects"',
 		],
+	};
+	static completable: Completable = {
+		keywords: ["when"],
+		context: "clause",
+		priority: 70,
+		category: "keyword",
 	};
 }

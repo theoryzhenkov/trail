@@ -3,7 +3,7 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 export class SortToken extends TokenNode {
 	static keyword = "sort";
@@ -17,5 +17,12 @@ export class SortToken extends TokenNode {
 			"sort by chain, priority desc",
 			"sort by file.modified desc, file.name",
 		],
+	};
+	static completable: Completable = {
+		keywords: ["sort"],
+		context: "clause",
+		priority: 60,
+		category: "keyword",
+		snippet: "sort by $1",
 	};
 }

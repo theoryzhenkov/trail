@@ -3,7 +3,7 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 export class PruneToken extends TokenNode {
 	static keyword = "prune";
@@ -17,5 +17,11 @@ export class PruneToken extends TokenNode {
 			'prune hasTag("private")',
 			"prune traversal.depth > 5",
 		],
+	};
+	static completable: Completable = {
+		keywords: ["prune"],
+		context: "clause",
+		priority: 50,
+		category: "keyword",
 	};
 }

@@ -3,7 +3,7 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 export class DisplayToken extends TokenNode {
 	static keyword = "display";
@@ -17,5 +17,11 @@ export class DisplayToken extends TokenNode {
 			"display all",
 			"display all, file.modified",
 		],
+	};
+	static completable: Completable = {
+		keywords: ["display"],
+		context: "clause",
+		priority: 40,
+		category: "keyword",
 	};
 }

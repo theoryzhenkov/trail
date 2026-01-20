@@ -8,6 +8,7 @@
 import type {Node} from "./base/Node";
 import type {TokenNode} from "./base/TokenNode";
 import type {ExprNode} from "./base/ExprNode";
+import type {Completable, CompletionContext, NodeDoc} from "./types";
 
 /**
  * Type for a node class constructor
@@ -21,9 +22,18 @@ export type NodeClass<T extends Node = Node> = new (...args: any[]) => T;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type TokenClass = (new (...args: any[]) => TokenNode) & {
 	keyword?: string;
-	documentation?: unknown;
+	documentation?: NodeDoc;
 	highlighting?: string;
+	completable?: Completable;
 };
+
+/**
+ * Type for any class with static completion metadata
+ */
+export interface CompletableClass {
+	completable?: Completable;
+	documentation?: NodeDoc;
+}
 
 /**
  * Registration options
@@ -42,12 +52,19 @@ class NodeRegistry {
 	private nodesByType = new Map<string, NodeClass>();
 	private tokensByKeyword = new Map<string, TokenClass>();
 	private exprNodes = new Map<string, NodeClass<ExprNode>>();
+	private completableNodes = new Map<string, CompletableClass>();
 
 	/**
 	 * Register a node class by its type identifier
 	 */
 	register(type: string, cls: NodeClass): void {
 		this.nodesByType.set(type, cls);
+
+		// Track if it has completion metadata
+		const completable = (cls as unknown as CompletableClass).completable;
+		if (completable) {
+			this.completableNodes.set(type, cls as unknown as CompletableClass);
+		}
 	}
 
 	/**
@@ -55,6 +72,11 @@ class NodeRegistry {
 	 */
 	registerToken(keyword: string, cls: TokenClass): void {
 		this.tokensByKeyword.set(keyword.toLowerCase(), cls);
+
+		// Track if it has completion metadata
+		if (cls.completable) {
+			this.completableNodes.set(keyword, cls);
+		}
 	}
 
 	/**
@@ -63,6 +85,12 @@ class NodeRegistry {
 	registerExpr(type: string, cls: NodeClass<ExprNode>): void {
 		this.exprNodes.set(type, cls);
 		this.nodesByType.set(type, cls);
+
+		// Track if it has completion metadata
+		const completable = (cls as unknown as CompletableClass).completable;
+		if (completable) {
+			this.completableNodes.set(type, cls as unknown as CompletableClass);
+		}
 	}
 
 	/**
@@ -112,6 +140,36 @@ class NodeRegistry {
 	 */
 	hasToken(keyword: string): boolean {
 		return this.tokensByKeyword.has(keyword.toLowerCase());
+	}
+
+	/**
+	 * Get all completable nodes for a given context
+	 */
+	getCompletablesForContext(context: CompletionContext): CompletableClass[] {
+		const results: CompletableClass[] = [];
+
+		for (const cls of this.completableNodes.values()) {
+			const completable = cls.completable;
+			if (!completable) continue;
+
+			const contexts = Array.isArray(completable.context)
+				? completable.context
+				: [completable.context];
+
+			if (contexts.includes(context)) {
+				results.push(cls);
+			}
+		}
+
+		// Sort by priority (higher first)
+		return results.sort((a, b) => (b.completable?.priority ?? 0) - (a.completable?.priority ?? 0));
+	}
+
+	/**
+	 * Get all completable nodes
+	 */
+	getAllCompletables(): CompletableClass[] {
+		return Array.from(this.completableNodes.values());
 	}
 }
 

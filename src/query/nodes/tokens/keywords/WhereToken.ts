@@ -3,7 +3,7 @@
  */
 
 import {TokenNode} from "../../base/TokenNode";
-import type {NodeDoc} from "../../types";
+import type {NodeDoc, Completable} from "../../types";
 
 export class WhereToken extends TokenNode {
 	static keyword = "where";
@@ -17,5 +17,11 @@ export class WhereToken extends TokenNode {
 			'where status !=? "archived"',
 			'where hasTag("active") and exists(due)',
 		],
+	};
+	static completable: Completable = {
+		keywords: ["where"],
+		context: "clause",
+		priority: 80,
+		category: "keyword",
 	};
 }

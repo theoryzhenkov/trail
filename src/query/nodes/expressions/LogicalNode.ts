@@ -4,7 +4,7 @@
 
 import {BinaryNode} from "../base/BinaryNode";
 import {ExprNode} from "../base/ExprNode";
-import type {Span, Value, NodeDoc} from "../types";
+import type {Span, Value, NodeDoc, Completable} from "../types";
 import type {ExecutorContext} from "../context";
 import {register} from "../registry";
 
@@ -20,6 +20,13 @@ export class LogicalNode extends BinaryNode {
 	};
 
 	static highlighting = "operatorKeyword" as const;
+
+	static completable: Completable = {
+		keywords: ["and", "or"],
+		context: "after-expression",
+		priority: 90,
+		category: "operator",
+	};
 
 	constructor(op: "and" | "or", left: ExprNode, right: ExprNode, span: Span) {
 		super(left, right, span);
