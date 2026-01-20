@@ -67,9 +67,8 @@ export class CompareNode extends BinaryNode {
 				return ctx.compare(left, right) <= 0;
 			case ">=":
 				return ctx.compare(left, right) >= 0;
-			default:
-				ctx.addError(`Unknown operator: ${this.op}`, this.span);
-				return null;
 		}
+		// Exhaustive check - should never reach here
+		return null;
 	}
 }

@@ -8,7 +8,7 @@ import {SortNode} from "./SortNode";
 import {DisplayNode} from "./DisplayNode";
 import {ExprNode} from "../base/ExprNode";
 import {register} from "../registry";
-import type {Span, NodeDoc, ValidationContext, QueryResult, QueryResultNode, QueryWarning} from "../types";
+import type {Span, NodeDoc, ValidationContext, QueryResult, QueryResultNode} from "../types";
 import type {ExecutorContext} from "../context";
 
 @register("query")
@@ -110,18 +110,11 @@ export class QueryNode extends ClauseNode {
 		};
 	}
 
-	private traverse(ctx: ExecutorContext): QueryResultNode[] {
+	private traverse(_ctx: ExecutorContext): QueryResultNode[] {
 		// Placeholder - traversal logic to be implemented
 		// This would traverse the graph based on FROM clause relations
-		const results: QueryResultNode[] = [];
-		
-		for (const relSpec of this.from.relations) {
-			// Traverse each relation
-			// This is where the graph traversal happens
-			// For now, return empty - full implementation in executor refactor
-		}
-		
-		return results;
+		// Full implementation will be added during executor refactor
+		return [];
 	}
 
 	private applyWhereFilter(nodes: QueryResultNode[], ctx: ExecutorContext): QueryResultNode[] {
