@@ -185,7 +185,7 @@ describe("TQL Executor - Advanced Features", () => {
 			// Group that traverses down unlimited
 			const childrenGroup = createMockGroup(
 				"Children",
-				`group "Children" from down depth unlimited`,
+				`group "Children" from down `,
 				["down"],
 				["Children"]
 			);
@@ -193,7 +193,7 @@ describe("TQL Executor - Advanced Features", () => {
 
 			// Query with extend - should not infinite loop due to cycle
 			const result = runQuery(
-				`group "Test" from down depth unlimited`,
+				`group "Test" from down `,
 				graph,
 				"root.md"
 			);

@@ -327,7 +327,7 @@ describe("TQL Executor - Chain Sorting", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth unlimited sort $chain`,
+				`group "Test" from down  sort $chain`,
 				graph,
 				"root.md"
 			);

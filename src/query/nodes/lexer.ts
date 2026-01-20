@@ -9,7 +9,7 @@ import {TokenNode} from "./base/TokenNode";
 import {
 	// Keywords
 	GroupToken, FromToken, WhereToken, WhenToken, PruneToken, SortToken, DisplayToken,
-	DepthToken, UnlimitedToken, ExtendToken, FlattenToken,
+	DepthToken, ExtendToken, FlattenToken,
 	AscToken, DescToken, AllToken,
 	AndToken, OrToken, NotToken, InToken,
 	TrueToken, FalseToken, NullToken,
@@ -46,7 +46,6 @@ const KEYWORDS: Record<string, new (value: string, span: Span) => TokenNode> = {
 	sort: SortToken,
 	display: DisplayToken,
 	depth: DepthToken,
-	unlimited: UnlimitedToken,
 	extend: ExtendToken,
 	flatten: FlattenToken,
 	asc: AscToken,

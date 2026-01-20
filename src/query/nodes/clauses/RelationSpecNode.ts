@@ -14,9 +14,9 @@ export class RelationSpecNode extends ClauseNode {
 
 	static documentation: NodeDoc = {
 		title: "Relation Specification",
-		description: "Specifies a relation to traverse with optional depth, extend, and flatten modifiers. Use 'flatten' to flatten all, or 'flatten N' to flatten from depth N.",
-		syntax: "relation [depth N|unlimited] [extend Group] [flatten [N]]",
-		examples: ["up depth 3", "down extend Children", "same flatten", "down depth 5 flatten 2"],
+		description: "Specifies a relation to traverse with optional depth, extend, and flatten modifiers. Use 'flatten' to flatten all, or 'flatten N' to flatten from depth N. If depth is omitted, traversal is unlimited.",
+		syntax: "relation [depth N] [extend Group] [flatten [N]]",
+		examples: ["up depth 3", "down", "down extend Children", "same flatten", "down depth 5 flatten 2"],
 	};
 
 	constructor(

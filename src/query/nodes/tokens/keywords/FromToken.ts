@@ -11,9 +11,9 @@ export class FromToken extends TokenNode {
 	static documentation: NodeDoc = {
 		title: "FROM clause",
 		description: "Specifies which relations to traverse. Supports multiple relations with depth and extend modifiers.",
-		syntax: "from Relation [depth N|unlimited] [extend Group], ...",
+		syntax: "from Relation [depth N] [extend Group], ...",
 		examples: [
-			"from up depth unlimited",
+			"from up",
 			"from up, down depth 2",
 			"from up extend Children depth 5",
 		],

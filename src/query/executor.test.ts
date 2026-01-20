@@ -19,7 +19,7 @@ describe("TQL Executor", () => {
 		it("should traverse down relations", () => {
 			const graph = TestGraphs.simpleHierarchy();
 			const result = runQuery(
-				`group "Test" from down depth unlimited`,
+				`group "Test" from down `,
 				graph,
 				"A.md"
 			);
@@ -34,7 +34,7 @@ describe("TQL Executor", () => {
 		it("should traverse up relations", () => {
 			const graph = TestGraphs.simpleHierarchy();
 			const result = runQuery(
-				`group "Test" from up depth unlimited`,
+				`group "Test" from up `,
 				graph,
 				"C.md"
 			);
@@ -197,7 +197,7 @@ describe("TQL Executor", () => {
 		it("should stop traversal at pruned nodes", () => {
 			const graph = TestGraphs.deepHierarchy();
 			const result = runQuery(
-				`group "Test" from down depth unlimited prune level = 2`,
+				`group "Test" from down  prune level = 2`,
 				graph,
 				"root.md"
 			);
@@ -792,7 +792,7 @@ describe("TQL Executor", () => {
 			};
 
 			const result = runQuery(
-				`group "Test" from down depth 1 where count(from down depth unlimited) = 2`,
+				`group "Test" from down depth 1 where count(from down ) = 2`,
 				graph,
 				"root.md"
 			);
@@ -875,7 +875,7 @@ describe("TQL Executor", () => {
 			// Group that traverses down unlimited
 			const childrenGroup = createMockGroup(
 				"Children",
-				`group "Children" from down depth unlimited`,
+				`group "Children" from down `,
 				["down"],
 				["Children"]
 			);
@@ -883,7 +883,7 @@ describe("TQL Executor", () => {
 
 			// Query with extend - should not infinite loop due to cycle
 			const result = runQuery(
-				`group "Test" from down depth unlimited`,
+				`group "Test" from down `,
 				graph,
 				"root.md"
 			);

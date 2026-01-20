@@ -100,7 +100,7 @@ export class GroupsTabRenderer {
 					.onClick(() => {
 						const newIndex = this.plugin.settings.tqlGroups.length;
 						this.plugin.settings.tqlGroups.push({
-							query: `group "New group"\nfrom up depth unlimited`,
+							query: `group "New group"\nfrom up`,
 							enabled: true,
 						});
 						openGroupSections.add(newIndex);

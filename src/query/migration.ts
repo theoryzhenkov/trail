@@ -40,9 +40,7 @@ export function groupToTql(group: RelationGroup): string {
 	// FROM clause
 	const fromParts = group.members.map((member) => {
 		let part = member.relation;
-		if (member.depth === 0) {
-			part += " depth unlimited";
-		} else if (member.depth > 0) {
+		if (member.depth > 0) {
 			part += ` depth ${member.depth}`;
 		}
 		if (member.extend) {

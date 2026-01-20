@@ -36,7 +36,7 @@ describe("TQL Executor - Clauses", () => {
 		it("should stop traversal at pruned nodes", () => {
 			const graph = TestGraphs.deepHierarchy();
 			const result = runQuery(
-				`group "Test" from down depth unlimited prune level = 2`,
+				`group "Test" from down  prune level = 2`,
 				graph,
 				"root.md"
 			);

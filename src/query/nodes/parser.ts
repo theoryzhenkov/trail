@@ -12,7 +12,7 @@ import {tokenize, LexerError} from "./lexer";
 // Token classes for type checking
 import {
 	GroupToken, FromToken, WhereToken, WhenToken, PruneToken, SortToken, DisplayToken,
-	DepthToken, UnlimitedToken, ExtendToken, FlattenToken,
+	DepthToken, ExtendToken, FlattenToken,
 	AscToken, DescToken, AllToken,
 	AndToken, OrToken, NotToken, InToken,
 	TrueToken, FalseToken, NullToken,
@@ -110,12 +110,8 @@ export class Parser {
 		// Parse modifiers in any order
 		while (this.check(DepthToken) || this.check(ExtendToken) || this.check(FlattenToken)) {
 			if (this.match(DepthToken)) {
-				if (this.match(UnlimitedToken)) {
-					depth = "unlimited";
-				} else {
-					const depthToken = this.expect(NumberToken, "depth number");
-					depth = parseInt(depthToken.value, 10);
-				}
+				const depthToken = this.expect(NumberToken, "depth number");
+				depth = parseInt(depthToken.value, 10);
 			} else if (this.match(ExtendToken)) {
 				if (this.check(StringToken)) {
 					extend = this.advance().value;

@@ -90,8 +90,8 @@ describe("TQL Parser", () => {
 			expect(query.from.relations[0]?.depth).toBe(3);
 		});
 
-		it("should parse query with unlimited depth", () => {
-			const query = parse('group "Test" from up depth unlimited');
+		it("should parse query with default unlimited depth", () => {
+			const query = parse('group "Test" from up');
 			expect(query.from.relations[0]?.depth).toBe("unlimited");
 		});
 

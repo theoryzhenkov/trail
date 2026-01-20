@@ -10,8 +10,8 @@ export class DepthToken extends TokenNode {
 	static highlighting = "typeName" as const;
 	static documentation: NodeDoc = {
 		title: "depth modifier",
-		description: "Sets how many levels to traverse for a relation. Use a number or 'unlimited'.",
-		syntax: "depth N | depth unlimited",
-		examples: ["from up depth 3", "from down depth unlimited"],
+		description: "Sets how many levels to traverse for a relation. If omitted, depth is unlimited.",
+		syntax: "depth N",
+		examples: ["from up depth 3", "from down"],
 	};
 }

@@ -44,12 +44,12 @@ export function createDefaultTqlGroups(): GroupDefinition[] {
 	return [
 		{
 			query: `group "Ancestors"
-from up depth unlimited`,
+from up`,
 			enabled: true,
 		},
 		{
 			query: `group "Children"
-from down depth unlimited`,
+from down`,
 			enabled: true,
 		},
 		{

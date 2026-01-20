@@ -13,7 +13,6 @@ export {DisplayToken} from "./DisplayToken";
 
 // Modifier keywords
 export {DepthToken} from "./DepthToken";
-export {UnlimitedToken} from "./UnlimitedToken";
 export {ExtendToken} from "./ExtendToken";
 export {FlattenToken} from "./FlattenToken";
 export {AscToken} from "./AscToken";
