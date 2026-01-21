@@ -84,6 +84,14 @@ export class RuntimeError extends Error {
 }
 
 /**
+ * A display property with evaluated value
+ */
+export interface DisplayProperty {
+	key: string;
+	value: Value;
+}
+
+/**
  * Query result node structure
  */
 export interface QueryResultNode {
@@ -95,7 +103,7 @@ export interface QueryResultNode {
 	parent: string | null;
 	traversalPath: string[];
 	properties: FileProperties;
-	displayProperties: string[];
+	displayProperties: DisplayProperty[];
 	visualDirection: VisualDirection;
 	hasFilteredAncestor: boolean;
 	children: QueryResultNode[];

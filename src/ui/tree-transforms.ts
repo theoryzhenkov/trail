@@ -53,13 +53,17 @@ function createTqlGroupFromIdenticalNodes(nodes: QueryResultNode[]): DisplayGrou
 	
 	const relation = firstNode.relation;
 	
-	// Create members from all nodes
+	// Create members from all nodes, including pre-computed display properties
 	const members: GroupMember[] = nodes.map(node => ({
 		path: node.path,
 		relation: node.relation,
 		implied: node.implied,
 		impliedFrom: node.impliedFrom,
-		properties: node.properties
+		properties: node.properties,
+		displayProperties: node.displayProperties.map(dp => ({
+			key: dp.key,
+			value: dp.value as GroupMember["displayProperties"][number]["value"],
+		})),
 	}));
 	
 	// Since all nodes have identical children, process first node's children

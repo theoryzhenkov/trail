@@ -1,5 +1,8 @@
 /**
  * Sorting logic for TQL query results
+ *
+ * Uses the standard evaluation pattern: set context for each node,
+ * then call evaluate() on sort key expressions.
  */
 
 import type {ExecutorContext} from "../context";
@@ -7,6 +10,14 @@ import type {QueryResultNode, Value} from "../types";
 import type {SortKeyNode} from "../clauses/SortKeyNode";
 import type {RelationEdge} from "../../../types";
 import {buildChainStructure, getBasename, type ChainStructure} from "../../chain-sort";
+
+/**
+ * Node with pre-computed sort values
+ */
+interface SortableNode {
+	node: QueryResultNode;
+	values: Value[];
+}
 
 /**
  * Sort query result nodes based on sort keys
@@ -24,10 +35,13 @@ export function sortNodes(
 		}));
 	}
 
+	// Pre-compute sort values for all nodes using evaluate()
+	const sortables = prepareSortables(nodes, keys, ctx);
+
 	// Check if chain sorting is needed
 	const hasChainKey = keys.some((k) => k.key === "chain");
 
-	let sorted: QueryResultNode[];
+	let sorted: SortableNode[];
 
 	if (hasChainKey) {
 		// Build chain structure for these siblings
@@ -37,17 +51,40 @@ export function sortNodes(
 		const chainStructure = buildChainStructure(nodePaths, edgesBySource, sequentialRelations);
 
 		// Sort with chain awareness
-		sorted = sortWithChains(nodes, keys, chainStructure);
+		sorted = sortWithChains(sortables, keys, chainStructure);
 	} else {
 		// Simple property-based sort
-		sorted = [...nodes].sort((a, b) => compareNodes(a, b, keys));
+		sorted = [...sortables].sort((a, b) => compareSortables(a, b, keys));
 	}
 
-	// Sort children recursively
-	return sorted.map((node) => ({
-		...node,
-		children: sortNodes(node.children, keys, ctx),
+	// Extract nodes and recursively sort children
+	return sorted.map((s) => ({
+		...s.node,
+		children: sortNodes(s.node.children, keys, ctx),
 	}));
+}
+
+/**
+ * Pre-compute sort values for all nodes using the standard evaluation pattern.
+ * Sets context for each node and calls evaluate() on sort key expressions.
+ */
+function prepareSortables(
+	nodes: QueryResultNode[],
+	keys: SortKeyNode[],
+	ctx: ExecutorContext
+): SortableNode[] {
+	return nodes.map((node) => {
+		// Set context to this node's file (standard pattern)
+		ctx.setCurrentFile(node.path, node.properties);
+
+		// Evaluate each sort key using PropertyNode.evaluate()
+		const values = keys.map((key) => {
+			if (key.key === "chain") return null;
+			return key.key.evaluate(ctx);
+		});
+
+		return {node, values};
+	});
 }
 
 /**
@@ -69,69 +106,68 @@ function buildEdgeMapForNodes(
  * Sort nodes with chain awareness
  */
 function sortWithChains(
-	nodes: QueryResultNode[],
+	sortables: SortableNode[],
 	keys: SortKeyNode[],
 	structure: ChainStructure
-): QueryResultNode[] {
-	const nodeByPath = new Map(nodes.map((n) => [n.path, n]));
+): SortableNode[] {
+	const sortableByPath = new Map(sortables.map((s) => [s.node.path, s]));
 
 	// Determine chain sort position in keys
 	const chainKeyIndex = keys.findIndex((k) => k.key === "chain");
 	const isChainPrimary = chainKeyIndex === 0;
 
 	if (isChainPrimary || structure.chains.size === 0) {
-		return sortChainsPrimary(nodes, keys, structure, nodeByPath);
+		return sortChainsPrimary(sortables, keys, structure, sortableByPath);
 	}
 
-	return sortChainsSecondary(nodes, keys, structure, nodeByPath, chainKeyIndex);
+	return sortChainsSecondary(sortables, keys, structure, sortableByPath, chainKeyIndex);
 }
 
 /**
  * Chain sort primary: chains are kept intact, sorted by head's properties
  */
 function sortChainsPrimary(
-	_nodes: QueryResultNode[],
+	_sortables: SortableNode[],
 	keys: SortKeyNode[],
 	structure: ChainStructure,
-	nodeByPath: Map<string, QueryResultNode>
-): QueryResultNode[] {
-	// Collect sort keys: chain heads + disconnected
-	const sortKeys: Array<{path: string; isChainHead: boolean; node: QueryResultNode}> = [];
+	sortableByPath: Map<string, SortableNode>
+): SortableNode[] {
+	// Collect chain heads + disconnected nodes
+	const heads: SortableNode[] = [];
 
 	for (const head of structure.chains.keys()) {
-		const node = nodeByPath.get(head);
-		if (node) {
-			sortKeys.push({path: head, isChainHead: true, node});
+		const sortable = sortableByPath.get(head);
+		if (sortable) {
+			heads.push(sortable);
 		}
 	}
 
 	for (const path of structure.disconnected) {
-		const node = nodeByPath.get(path);
-		if (node) {
-			sortKeys.push({path, isChainHead: false, node});
+		const sortable = sortableByPath.get(path);
+		if (sortable) {
+			heads.push(sortable);
 		}
 	}
 
-	// Filter out chain key for property comparison
-	const nonChainKeys = keys.filter((k) => k.key !== "chain");
-
-	// Sort by properties (excluding chain key)
-	sortKeys.sort((a, b) => compareNodes(a.node, b.node, nonChainKeys));
+	// Sort heads by properties (excluding chain key)
+	heads.sort((a, b) => compareSortables(a, b, keys));
 
 	// Expand: chain heads become full chains, disconnected stay as-is
-	const result: QueryResultNode[] = [];
+	const result: SortableNode[] = [];
 
-	for (const key of sortKeys) {
-		if (key.isChainHead) {
-			const chain = structure.chains.get(key.path) ?? [];
+	for (const head of heads) {
+		const chain = structure.chains.get(head.node.path);
+		if (chain) {
+			// This is a chain head - expand to full chain
 			for (const path of chain) {
-				const node = nodeByPath.get(path);
-				if (node) {
-					result.push(node);
+				const sortable = sortableByPath.get(path);
+				if (sortable) {
+					result.push(sortable);
 				}
 			}
 		} else {
-			result.push(key.node);
+			// Disconnected node
+			result.push(head);
 		}
 	}
 
@@ -142,31 +178,26 @@ function sortChainsPrimary(
  * Chain sort secondary: property sort first, then chain sort within property groups
  */
 function sortChainsSecondary(
-	nodes: QueryResultNode[],
+	sortables: SortableNode[],
 	keys: SortKeyNode[],
 	structure: ChainStructure,
-	nodeByPath: Map<string, QueryResultNode>,
+	sortableByPath: Map<string, SortableNode>,
 	chainKeyIndex: number
-): QueryResultNode[] {
+): SortableNode[] {
 	const keysBeforeChain = keys.slice(0, chainKeyIndex);
 
 	// Sort all nodes by properties before chain key
-	const sortedByProps = [...nodes].sort((a, b) => compareNodes(a, b, keysBeforeChain));
+	const sortedByProps = [...sortables].sort((a, b) => compareSortables(a, b, keysBeforeChain));
 
 	if (keysBeforeChain.length === 0) {
-		return sortChainsPrimary(nodes, keys, structure, nodeByPath);
+		return sortChainsPrimary(sortables, keys, structure, sortableByPath);
 	}
 
 	// Group nodes by their primary sort key value
-	const primaryKey = keysBeforeChain[0];
-	if (!primaryKey || primaryKey.key === "chain") {
-		return sortChainsPrimary(nodes, keys, structure, nodeByPath);
-	}
-
-	const groups = groupByPropertyValue(sortedByProps, primaryKey);
+	const groups = groupByValue(sortedByProps, chainKeyIndex - 1);
 
 	// Apply chain sorting within each group
-	const result: QueryResultNode[] = [];
+	const result: SortableNode[] = [];
 	const keysAfterChain = keys.slice(chainKeyIndex + 1);
 
 	for (const group of groups) {
@@ -176,14 +207,14 @@ function sortChainsSecondary(
 		}
 
 		// Build chain structure for this subgroup
-		const groupPaths = new Set(group.map((n) => n.path));
+		const groupPaths = new Set(group.map((s) => s.node.path));
 		const groupStructure = filterChainStructure(structure, groupPaths);
 
 		if (groupStructure.chains.size === 0) {
 			result.push(...group);
 		} else {
-			const groupNodeByPath = new Map(group.map((n) => [n.path, n]));
-			result.push(...sortChainsPrimary(group, keysAfterChain, groupStructure, groupNodeByPath));
+			const groupSortableByPath = new Map(group.map((s) => [s.node.path, s]));
+			result.push(...sortChainsPrimary(group, keysAfterChain, groupStructure, groupSortableByPath));
 		}
 	}
 
@@ -225,55 +256,38 @@ function filterChainStructure(structure: ChainStructure, paths: Set<string>): Ch
 }
 
 /**
- * Group nodes by their value for a sort key
+ * Group sortables by their value at a specific key index
  */
-function groupByPropertyValue(nodes: QueryResultNode[], key: SortKeyNode): QueryResultNode[][] {
-	if (key.key === "chain") {
-		return [nodes];
-	}
-
-	const groups = new Map<string, QueryResultNode[]>();
+function groupByValue(sortables: SortableNode[], keyIndex: number): SortableNode[][] {
+	const groups = new Map<string, SortableNode[]>();
 	const order: string[] = [];
 
-	// Use getFrontmatterPath for proper handling of $file.properties.* syntax
-	const propPath = key.key.getFrontmatterPath();
-	if (!propPath) {
-		// Can't group by file metadata - return all nodes as one group
-		return [nodes];
-	}
-
-	for (const node of nodes) {
-		const value = getPropertyValue(node.properties, propPath);
-		const valueStr = value === null ? "" : String(value);
+	for (const sortable of sortables) {
+		const value = sortable.values[keyIndex];
+		const valueStr = value === null || value === undefined ? "" : String(value);
 
 		if (!groups.has(valueStr)) {
 			groups.set(valueStr, []);
 			order.push(valueStr);
 		}
-		groups.get(valueStr)!.push(node);
+		groups.get(valueStr)!.push(sortable);
 	}
 
 	return order.map((k) => groups.get(k)!);
 }
 
 /**
- * Compare two nodes for sorting
+ * Compare two sortables using pre-computed values
  */
-function compareNodes(a: QueryResultNode, b: QueryResultNode, keys: SortKeyNode[]): number {
-	for (const key of keys) {
+function compareSortables(a: SortableNode, b: SortableNode, keys: SortKeyNode[]): number {
+	for (let i = 0; i < keys.length; i++) {
+		const key = keys[i]!;
 		if (key.key === "chain") {
 			continue;
 		}
 
-		// Use getFrontmatterPath for proper handling of $file.properties.* syntax
-		const propPath = key.key.getFrontmatterPath();
-		if (!propPath) {
-			// Skip file metadata properties - they can't be accessed from node.properties
-			continue;
-		}
-		
-		const aVal = getPropertyValue(a.properties, propPath);
-		const bVal = getPropertyValue(b.properties, propPath);
+		const aVal = a.values[i] ?? null;
+		const bVal = b.values[i] ?? null;
 		let cmp = compareValues(aVal, bVal);
 
 		if (key.direction === "desc") {
@@ -286,7 +300,7 @@ function compareNodes(a: QueryResultNode, b: QueryResultNode, keys: SortKeyNode[
 	}
 
 	// Fallback: alphabetical by basename
-	return getBasename(a.path).localeCompare(getBasename(b.path));
+	return getBasename(a.node.path).localeCompare(getBasename(b.node.path));
 }
 
 /**
@@ -308,41 +322,4 @@ function compareValues(a: Value, b: Value): number {
 	}
 
 	return String(a).localeCompare(String(b));
-}
-
-/**
- * Get property value from file properties.
- * Supports nested YAML properties via dot notation.
- * If nested traversal fails, tries the flat key as fallback.
- */
-function getPropertyValue(props: Record<string, unknown>, path: string): Value {
-	const parts = path.split(".");
-	
-	// First try nested traversal (prioritized for nested YAML)
-	let current: unknown = props;
-	for (const part of parts) {
-		if (current === null || current === undefined) {
-			break;
-		}
-		if (typeof current === "object" && current !== null) {
-			current = (current as Record<string, unknown>)[part];
-		} else {
-			current = undefined;
-			break;
-		}
-	}
-
-	if (current !== undefined) {
-		return current as Value;
-	}
-
-	// Fallback: try flat key if nested traversal failed
-	if (parts.length > 1) {
-		const flatValue = props[path];
-		if (flatValue !== undefined) {
-			return flatValue as Value;
-		}
-	}
-
-	return null;
 }

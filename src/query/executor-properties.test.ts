@@ -290,7 +290,8 @@ describe("TQL Executor - Property Access", () => {
 
 			const node = result.results.find((n) => n.path === "note1.md");
 			expect(node).toBeDefined();
-			expect(node?.displayProperties).toContain("property with spaces");
+			const keys = node?.displayProperties.map(dp => dp.key);
+			expect(keys).toContain("property with spaces");
 		});
 
 		it("should work with shortcut syntax and quoted segments", () => {
@@ -363,8 +364,9 @@ describe("TQL Executor - Property Access", () => {
 			// Check display properties are set
 			const node = result.results.find((n) => n.path === "person1.md");
 			expect(node).toBeDefined();
-			expect(node?.displayProperties).toContain("gender");
-			expect(node?.displayProperties).toContain("age");
+			const keys = node?.displayProperties.map(dp => dp.key);
+			expect(keys).toContain("gender");
+			expect(keys).toContain("age");
 		});
 
 		it("should display shortcut property syntax", () => {
@@ -377,8 +379,9 @@ describe("TQL Executor - Property Access", () => {
 
 			const node = result.results.find((n) => n.path === "person1.md");
 			expect(node).toBeDefined();
-			expect(node?.displayProperties).toContain("gender");
-			expect(node?.displayProperties).toContain("age");
+			const keys = node?.displayProperties.map(dp => dp.key);
+			expect(keys).toContain("gender");
+			expect(keys).toContain("age");
 		});
 
 		it("should display nested properties with shortcut syntax", () => {
@@ -406,7 +409,8 @@ describe("TQL Executor - Property Access", () => {
 
 			const node = result.results.find((n) => n.path === "note1.md");
 			expect(node).toBeDefined();
-			expect(node?.displayProperties).toContain("obsidian.icon");
+			const keys = node?.displayProperties.map(dp => dp.key);
+			expect(keys).toContain("obsidian.icon");
 		});
 	});
 });

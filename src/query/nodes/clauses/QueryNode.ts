@@ -15,6 +15,7 @@ import type {
 	ValidationContext,
 	QueryResult,
 	QueryResultNode,
+	DisplayProperty,
 	CompletionContext,
 	Completable,
 } from "../types";
@@ -119,7 +120,7 @@ export class QueryNode extends ClauseNode {
 		});
 
 		// Apply DISPLAY clause (QueryNode-specific)
-		const displayed = this.applyDisplay(results);
+		const displayed = this.applyDisplay(results, ctx);
 
 		return {
 			visible: true,
@@ -129,35 +130,64 @@ export class QueryNode extends ClauseNode {
 		};
 	}
 
-	private applyDisplay(nodes: QueryResultNode[]): QueryResultNode[] {
+	/**
+	 * Apply DISPLAY clause by evaluating property values for each node.
+	 * Uses the standard pattern: set context, then evaluate.
+	 */
+	private applyDisplay(nodes: QueryResultNode[], ctx: ExecutorContext): QueryResultNode[] {
 		if (!this.display) {
 			return nodes;
 		}
 
-		return nodes.map((node) => ({
-			...node,
-			displayProperties: this.getDisplayProperties(node),
-			children: this.applyDisplay(node.children),
-		}));
+		return nodes.map((node) => {
+			// Set context to this node's file (standard pattern)
+			ctx.setCurrentFile(node.path, node.properties);
+
+			return {
+				...node,
+				displayProperties: this.evaluateDisplayProperties(node, ctx),
+				children: this.applyDisplay(node.children, ctx),
+			};
+		});
 	}
 
-	private getDisplayProperties(node: QueryResultNode): string[] {
+	/**
+	 * Evaluate display properties using PropertyNode.evaluate().
+	 */
+	private evaluateDisplayProperties(node: QueryResultNode, ctx: ExecutorContext): DisplayProperty[] {
 		if (!this.display) return [];
 
+		const results: DisplayProperty[] = [];
+
+		// Handle "display all" - include all frontmatter properties
 		if (this.display.all) {
-			const allProps = Object.keys(node.properties).filter(
-				(k) => !k.startsWith("file.") && !k.startsWith("traversal.")
-			);
-			// Use getFrontmatterPath for proper handling of $file.properties.* syntax
-			const explicit = this.display.properties
-				.map((p) => p.getFrontmatterPath())
-				.filter((p): p is string => p !== null);
-			return [...new Set([...allProps, ...explicit])];
+			for (const [key, value] of Object.entries(node.properties)) {
+				// Skip internal prefixes
+				if (key.startsWith("file.") || key.startsWith("traversal.")) continue;
+				results.push({key, value: value as DisplayProperty["value"]});
+			}
 		}
 
-		// Use getFrontmatterPath for proper handling of $file.properties.* syntax
-		return this.display.properties
-			.map((p) => p.getFrontmatterPath())
-			.filter((p): p is string => p !== null);
+		// Evaluate explicit properties using PropertyNode.evaluate()
+		for (const prop of this.display.properties) {
+			// Determine user-friendly key:
+			// - $file.properties.x.y → "x.y" (frontmatter path)
+			// - $file.name → "file.name" (keep namespace for metadata)
+			// - status → "status" (direct property)
+			const frontmatterPath = prop.getFrontmatterPath();
+			const key = frontmatterPath ?? prop.path.join(".");
+			const value = prop.evaluate(ctx);
+
+			// Skip if already added by "all" and this is a frontmatter property
+			if (this.display.all && frontmatterPath) {
+				if (results.some((r) => r.key === frontmatterPath)) {
+					continue;
+				}
+			}
+
+			results.push({key, value});
+		}
+
+		return results;
 	}
 }

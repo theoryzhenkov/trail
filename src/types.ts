@@ -102,6 +102,14 @@ export interface ParsedRelation {
 }
 
 /**
+ * A display property with evaluated value
+ */
+export interface DisplayProperty {
+	key: string;
+	value: PropertyValue;
+}
+
+/**
  * A member within a display group (single file entry)
  */
 export interface GroupMember {
@@ -110,6 +118,7 @@ export interface GroupMember {
 	implied: boolean;
 	impliedFrom?: string;
 	properties: FileProperties;
+	displayProperties: DisplayProperty[];
 }
 
 /**

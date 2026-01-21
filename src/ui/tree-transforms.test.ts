@@ -280,7 +280,7 @@ describe("invertDisplayGroups", () => {
 	it("should invert single-level group (no subgroups)", () => {
 		const groups: DisplayGroup[] = [{
 			relation: "parent",
-			members: [{ path: "A.md", relation: "parent", implied: false, properties: {} }],
+			members: [{ path: "A.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
 			subgroups: [],
 		}];
 		const result = invertDisplayGroups(groups);
@@ -294,10 +294,10 @@ describe("invertDisplayGroups", () => {
 		// Parent -> Child becomes Child -> Parent
 		const groups: DisplayGroup[] = [{
 			relation: "parent",
-			members: [{ path: "Parent.md", relation: "parent", implied: false, properties: {} }],
+			members: [{ path: "Parent.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
 			subgroups: [{
 				relation: "parent",
-				members: [{ path: "Grandparent.md", relation: "parent", implied: false, properties: {} }],
+				members: [{ path: "Grandparent.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
 				subgroups: [],
 			}],
 		}];
@@ -314,16 +314,16 @@ describe("invertDisplayGroups", () => {
 		// A -> [B, C] becomes B -> A and C -> A (two roots)
 		const groups: DisplayGroup[] = [{
 			relation: "parent",
-			members: [{ path: "A.md", relation: "parent", implied: false, properties: {} }],
+			members: [{ path: "A.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
 			subgroups: [
 				{
 					relation: "parent",
-					members: [{ path: "B.md", relation: "parent", implied: false, properties: {} }],
+					members: [{ path: "B.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
 					subgroups: [],
 				},
 				{
 					relation: "parent",
-					members: [{ path: "C.md", relation: "parent", implied: false, properties: {} }],
+					members: [{ path: "C.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
 					subgroups: [],
 				},
 			],
@@ -340,14 +340,14 @@ describe("invertDisplayGroups", () => {
 		const groups: DisplayGroup[] = [{
 			relation: "parent",
 			members: [
-				{ path: "Dad.md", relation: "parent", implied: false, properties: {} },
-				{ path: "Mom.md", relation: "parent", implied: false, properties: {} },
+				{ path: "Dad.md", relation: "parent", implied: false, properties: {}, displayProperties: [] },
+				{ path: "Mom.md", relation: "parent", implied: false, properties: {}, displayProperties: [] },
 			],
 			subgroups: [{
 				relation: "parent",
 				members: [
-					{ path: "Grandma.md", relation: "parent", implied: false, properties: {} },
-					{ path: "Grandpa.md", relation: "parent", implied: false, properties: {} },
+					{ path: "Grandma.md", relation: "parent", implied: false, properties: {}, displayProperties: [] },
+					{ path: "Grandpa.md", relation: "parent", implied: false, properties: {}, displayProperties: [] },
 				],
 				subgroups: [],
 			}],

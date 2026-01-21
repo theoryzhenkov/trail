@@ -313,8 +313,9 @@ describe("TQL Executor", () => {
 			);
 
 			for (const node of result.results) {
-				expect(node.displayProperties).toContain("name");
-				expect(node.displayProperties).toContain("age");
+				const keys = node.displayProperties.map(dp => dp.key);
+				expect(keys).toContain("name");
+				expect(keys).toContain("age");
 			}
 		});
 	});

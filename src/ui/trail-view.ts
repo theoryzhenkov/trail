@@ -1,6 +1,6 @@
 import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
-import type {DisplayGroup, GroupDefinition, GroupMember, RelationDefinition, FileProperties} from "../types";
+import type {DisplayGroup, GroupDefinition, GroupMember, RelationDefinition} from "../types";
 import {tqlTreeToGroups, flattenTqlTree, invertDisplayGroups} from "./tree-transforms";
 import {
 	renderEmptyState,
@@ -11,14 +11,6 @@ import {parse, execute, createValidationContext, TQLError, getCache} from "../qu
 import type {QueryResult, QueryResultNode} from "../query";
 
 export const TRAIL_VIEW_TYPE = "trail-view";
-
-/**
- * Information about a display property, including whether it's a builtin ($file.*, $traversal.*)
- */
-interface DisplayPropertyInfo {
-	key: string;
-	isBuiltin: boolean;
-}
 
 export class TrailView extends ItemView {
 	private plugin: TrailPlugin;
@@ -221,23 +213,9 @@ export class TrailView extends ItemView {
 				return true;
 			}
 
-			// Get display properties from parsed query
-			let displayProperties: DisplayPropertyInfo[] = [];
-			try {
-				const ast = parse(group.query);
-				if (ast.display) {
-					displayProperties = ast.display.properties.map(p => ({
-						key: p.path.join("."),
-						isBuiltin: p.isBuiltin,
-					}));
-				}
-			} catch {
-				// Ignore parse errors for display properties
-			}
-
-			// Transform tree to display groups
+			// Transform tree to display groups (display properties are pre-computed)
 			const displayGroups = this.transformTqlToDisplayGroups(result.results);
-			this.renderDisplayGroups(section.contentEl, displayGroups, 0, displayProperties);
+			this.renderDisplayGroups(section.contentEl, displayGroups, 0);
 			return true;
 		} catch (e) {
 			// Show error in UI
@@ -402,11 +380,10 @@ export class TrailView extends ItemView {
 	private renderDisplayGroups(
 		containerEl: HTMLElement,
 		groups: DisplayGroup[],
-		depth: number,
-		displayProperties: DisplayPropertyInfo[]
+		depth: number
 	) {
 		for (const group of groups) {
-			this.renderDisplayGroup(containerEl, group, depth, displayProperties);
+			this.renderDisplayGroup(containerEl, group, depth);
 		}
 	}
 
@@ -416,8 +393,7 @@ export class TrailView extends ItemView {
 	private renderDisplayGroup(
 		containerEl: HTMLElement,
 		group: DisplayGroup,
-		depth: number,
-		displayProperties: DisplayPropertyInfo[]
+		depth: number
 	) {
 		const groupEl = containerEl.createDiv({cls: "trail-group"});
 		groupEl.style.setProperty("--group-depth", String(depth));
@@ -439,14 +415,14 @@ export class TrailView extends ItemView {
 			
 			// File links
 			for (const member of group.members) {
-				this.renderGroupMember(membersEl, member, displayProperties);
+				this.renderGroupMember(membersEl, member);
 			}
 		}
 
 		// Render subgroups recursively
 		if (group.subgroups.length > 0) {
 			const subgroupsEl = groupEl.createDiv({cls: "trail-group-subgroups"});
-			this.renderDisplayGroups(subgroupsEl, group.subgroups, depth + 1, displayProperties);
+			this.renderDisplayGroups(subgroupsEl, group.subgroups, depth + 1);
 		}
 	}
 
@@ -455,69 +431,28 @@ export class TrailView extends ItemView {
 	 */
 	private renderGroupMember(
 		containerEl: HTMLElement,
-		member: GroupMember,
-		displayProperties: DisplayPropertyInfo[]
+		member: GroupMember
 	) {
 		const memberEl = containerEl.createDiv({cls: "trail-group-member"});
 		renderFileLink(memberEl, this.plugin.app, member.path);
-		this.renderPropertyBadges(memberEl, member.path, member.properties, displayProperties);
+		this.renderPropertyBadges(memberEl, member.displayProperties);
 	}
 
 	/**
-	 * Renders property badges, handling builtin ($file.*) and user properties separately.
-	 * This prevents collision between user properties like "file.name" and builtin $file.name.
+	 * Renders property badges from pre-computed display property values.
 	 */
 	private renderPropertyBadges(
 		containerEl: HTMLElement,
-		filePath: string,
-		properties: FileProperties,
-		displayProperties: DisplayPropertyInfo[]
+		displayProperties: GroupMember["displayProperties"]
 	) {
 		if (displayProperties.length === 0) {
 			return;
 		}
 
 		const badges: string[] = [];
-		
-		// Get file metadata lazily (only if needed)
-		let fileMetadata: Record<string, string | number> | null = null;
-		const getFileMetadata = () => {
-			if (fileMetadata !== null) return fileMetadata;
-			const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
-			if (!(file instanceof TFile)) {
-				fileMetadata = {};
-				return fileMetadata;
-			}
-			fileMetadata = {
-				"name": file.basename,
-				"path": file.path,
-				"folder": file.parent?.path ?? "",
-				"created": new Date(file.stat.ctime).toISOString(),
-				"modified": new Date(file.stat.mtime).toISOString(),
-				"size": file.stat.size,
-			};
-			return fileMetadata;
-		};
 
-		for (const prop of displayProperties) {
-			const key = prop.key.trim().toLowerCase();
-			if (!key) continue;
-
-			let value: unknown;
-			if (prop.isBuiltin) {
-				// Builtin property: look up from file metadata
-				// Key is like "file.folder" - extract the property part after the namespace
-				const parts = key.split(".");
-				if (parts[0] === "file" && parts[1]) {
-					value = getFileMetadata()[parts[1]];
-				}
-				// Could add $traversal.* support here if needed
-			} else {
-				// User property: look up from frontmatter
-				value = properties[key];
-			}
-
-			if (value === undefined) continue;
+		for (const {key, value} of displayProperties) {
+			if (value === undefined || value === null) continue;
 			badges.push(this.formatPropertyValue(key, value));
 		}
 
