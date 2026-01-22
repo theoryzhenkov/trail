@@ -1,6 +1,8 @@
 import {ParsedRelation} from "../types";
 
-export const RELATION_NAME_REGEX = /^[a-z0-9_-]+$/i;
+// Relation names must start with alphanumeric, can contain _, -
+// This prevents "-" alone from being a valid relation (used in chain syntax ::-::)
+export const RELATION_NAME_REGEX = /^[a-z0-9][a-z0-9_-]*$/i;
 
 export function normalizeRelationName(name: string): string {
 	return name.trim().toLowerCase();

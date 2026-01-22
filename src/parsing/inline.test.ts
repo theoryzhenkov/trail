@@ -152,6 +152,69 @@ describe("parseInlineRelations", () => {
 		});
 	});
 
+	describe("chain syntax (::-::)", () => {
+		it("should parse basic chain", () => {
+			const content = "[[A]]::next::[[B]]::-::[[C]]";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(2);
+			// First: A -> B
+			expect(result[0]).toEqual({
+				relation: "next",
+				target: "B",
+				source: "A",
+			});
+			// Chain: B -> C
+			expect(result[1]).toEqual({
+				relation: "next",
+				target: "C",
+				source: "B",
+			});
+		});
+
+		it("should parse longer chain", () => {
+			const content = "[[A]]::next::[[B]]::-::[[C]]::-::[[D]]";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(3);
+			expect(result[0]).toEqual({ relation: "next", target: "B", source: "A" });
+			expect(result[1]).toEqual({ relation: "next", target: "C", source: "B" });
+			expect(result[2]).toEqual({ relation: "next", target: "D", source: "C" });
+		});
+
+		it("should handle whitespace in chain", () => {
+			const content = "[[A]]::next::[[B]]  ::-::  [[C]]";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(2);
+			expect(result[1]?.source).toBe("B");
+			expect(result[1]?.target).toBe("C");
+		});
+
+		it("should support mixed fan-out and chain", () => {
+			// A -> B, A -> C, C -> D
+			const content = "[[A]]::next::[[B]]::[[C]]::-::[[D]]";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(3);
+			expect(result[0]).toEqual({ relation: "next", target: "B", source: "A" });
+			expect(result[1]).toEqual({ relation: "next", target: "C", source: "A" });
+			expect(result[2]).toEqual({ relation: "next", target: "D", source: "C" });
+		});
+
+		it("should chain from last target in mixed patterns", () => {
+			// A -> B, B -> C, A -> D, D -> E
+			const content = "[[A]]::next::[[B]]::-::[[C]]::[[D]]::-::[[E]]";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(4);
+			expect(result[0]).toEqual({ relation: "next", target: "B", source: "A" });
+			expect(result[1]).toEqual({ relation: "next", target: "C", source: "B" });
+			expect(result[2]).toEqual({ relation: "next", target: "D", source: "A" }); // fan-out from A
+			expect(result[3]).toEqual({ relation: "next", target: "E", source: "D" }); // chain from D
+		});
+	});
+
 	describe("mixed syntax", () => {
 		it("should parse all three syntax types in one content", () => {
 			const content = `

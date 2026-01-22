@@ -6,6 +6,7 @@
  * - Suffix: [[A]]::rel (A -> currentFile, unless continuation found)
  * - Triple: [[A]]::rel::[[B]] (A -> B)
  * - Fan-out: [[A]]::rel::[[B]]::[[C]] (A -> B, A -> C)
+ * - Chain: [[A]]::rel::[[B]]::-::[[C]] (A -> B, B -> C)
  *
  * @see docs/syntax/inline.md
  */
@@ -15,16 +16,22 @@ import {dedupeRelations, extractLinkTarget, isValidRelationName, normalizeRelati
 
 // Fan-out/Triple syntax: [[Source]]::relation::[[Target]] with optional ::[[MoreTargets]]
 // This regex captures the initial triple and we handle continuation separately
-const FANOUT_START_REGEX = /\[\[([^\]]+)\]\]::\s*([a-z0-9_-]+)\s*::\s*\[\[([^\]]+)\]\]/gi;
+// Relation name must start with alphanumeric (not just - or _) to avoid matching ::-:: chain syntax
+const FANOUT_START_REGEX = /\[\[([^\]]+)\]\]::\s*([a-z0-9][a-z0-9_-]*)\s*::\s*\[\[([^\]]+)\]\]/gi;
 
 // Continuation target pattern: ::[[Target]] (for fan-out), allowing whitespace before ::
 const CONTINUATION_TARGET_REGEX = /^\s*::\s*\[\[([^\]]+)\]\]/i;
 
+// Chain continuation pattern: ::-::[[Target]] (chains from previous target)
+const CHAIN_TARGET_REGEX = /^\s*::-::\s*\[\[([^\]]+)\]\]/i;
+
 // Prefix syntax: relation::[[Target]]
-const PREFIX_REGEX = /([a-z0-9_-]+)::\s*\[\[([^\]]+)\]\]/gi;
+// Relation name must start with alphanumeric to avoid matching continuation patterns
+const PREFIX_REGEX = /([a-z0-9][a-z0-9_-]*)::\s*\[\[([^\]]+)\]\]/gi;
 
 // Suffix syntax: [[Source]]::relation (source -> currentFile)
-const SUFFIX_REGEX = /\[\[([^\]]+)\]\]::\s*([a-z0-9_-]+)/gi;
+// Relation name must start with alphanumeric to avoid matching continuation patterns
+const SUFFIX_REGEX = /\[\[([^\]]+)\]\]::\s*([a-z0-9][a-z0-9_-]*)/gi;
 
 export function parseInlineRelations(content: string, allowedRelations?: Set<string>): ParsedRelation[] {
 	const relations: ParsedRelation[] = [];
@@ -67,20 +74,50 @@ export function parseInlineRelations(content: string, allowedRelations?: Set<str
 		// Add the first target
 		relations.push({relation, target: firstTarget, source});
 		
-		// Look for continuation targets (fan-out): ::[[Target]]
+		// Track last target for chain continuations
+		let lastTarget = firstTarget;
+		
+		// Look for continuation patterns: ::[[Target]] (fan-out) or ::-::[[Target]] (chain)
 		let remaining = content.slice(matchEnd);
-		let contMatch = remaining.match(CONTINUATION_TARGET_REGEX);
-		while (contMatch) {
-			const rawContTarget = contMatch[1];
-			if (rawContTarget) {
-				const contTarget = extractLinkTarget(rawContTarget);
-				if (contTarget.length > 0) {
-					relations.push({relation, target: contTarget, source});
+		let foundContinuation = true;
+		
+		while (foundContinuation) {
+			foundContinuation = false;
+			
+			// Check for chain pattern first (more specific: ::-::)
+			const chainMatch = remaining.match(CHAIN_TARGET_REGEX);
+			if (chainMatch) {
+				const rawChainTarget = chainMatch[1];
+				if (rawChainTarget) {
+					const chainTarget = extractLinkTarget(rawChainTarget);
+					if (chainTarget.length > 0) {
+						// Chain: previous target -> new target
+						relations.push({relation, target: chainTarget, source: lastTarget});
+						lastTarget = chainTarget;
+					}
 				}
+				matchEnd += chainMatch[0].length;
+				remaining = content.slice(matchEnd);
+				foundContinuation = true;
+				continue;
 			}
-			matchEnd += contMatch[0].length;
-			remaining = content.slice(matchEnd);
-			contMatch = remaining.match(CONTINUATION_TARGET_REGEX);
+			
+			// Check for fan-out pattern: ::[[Target]]
+			const fanoutMatch = remaining.match(CONTINUATION_TARGET_REGEX);
+			if (fanoutMatch) {
+				const rawFanoutTarget = fanoutMatch[1];
+				if (rawFanoutTarget) {
+					const fanoutTarget = extractLinkTarget(rawFanoutTarget);
+					if (fanoutTarget.length > 0) {
+						// Fan-out: original source -> new target
+						relations.push({relation, target: fanoutTarget, source});
+						lastTarget = fanoutTarget;
+					}
+				}
+				matchEnd += fanoutMatch[0].length;
+				remaining = content.slice(matchEnd);
+				foundContinuation = true;
+			}
 		}
 		
 		matchedRanges.push({start: matchStart, end: matchEnd});
