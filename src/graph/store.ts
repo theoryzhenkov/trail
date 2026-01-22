@@ -263,13 +263,42 @@ export class GraphStore {
 		const edges: RelationEdge[] = [];
 
 		for (const relation of combined) {
-			const targetFile = this.app.metadataCache.getFirstLinkpathDest(relation.target, file.path);
-			if (!targetFile || !(targetFile instanceof TFile)) {
-				continue;
+			let fromPath: string;
+			let toPath: string;
+
+			if (relation.targetIsCurrentFile) {
+				// Suffix syntax: [[A]]::rel means A -> currentFile
+				const sourceFile = this.app.metadataCache.getFirstLinkpathDest(relation.target, file.path);
+				if (!sourceFile || !(sourceFile instanceof TFile)) {
+					continue;
+				}
+				fromPath = sourceFile.path;
+				toPath = file.path;
+			} else if (relation.source) {
+				// Triple syntax: [[A]]::rel::[[B]] means A -> B
+				const sourceFile = this.app.metadataCache.getFirstLinkpathDest(relation.source, file.path);
+				const targetFile = this.app.metadataCache.getFirstLinkpathDest(relation.target, file.path);
+				if (!sourceFile || !(sourceFile instanceof TFile)) {
+					continue;
+				}
+				if (!targetFile || !(targetFile instanceof TFile)) {
+					continue;
+				}
+				fromPath = sourceFile.path;
+				toPath = targetFile.path;
+			} else {
+				// Prefix syntax: rel::[[A]] means currentFile -> A
+				const targetFile = this.app.metadataCache.getFirstLinkpathDest(relation.target, file.path);
+				if (!targetFile || !(targetFile instanceof TFile)) {
+					continue;
+				}
+				fromPath = file.path;
+				toPath = targetFile.path;
 			}
+
 			edges.push({
-				fromPath: file.path,
-				toPath: targetFile.path,
+				fromPath,
+				toPath,
 				relation: relation.relation,
 				implied: false
 			});
