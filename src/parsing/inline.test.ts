@@ -103,6 +103,55 @@ describe("parseInlineRelations", () => {
 		});
 	});
 
+	describe("fan-out syntax ([[A]]::rel::[[B]]::[[C]])", () => {
+		it("should parse fan-out with two targets", () => {
+			const content = "[[A]]::next::[[B]]::[[C]]";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(2);
+			expect(result[0]).toEqual({
+				relation: "next",
+				target: "B",
+				source: "A",
+			});
+			expect(result[1]).toEqual({
+				relation: "next",
+				target: "C",
+				source: "A",
+			});
+		});
+
+		it("should parse fan-out with three targets", () => {
+			const content = "[[Source]]::down::[[A]]::[[B]]::[[C]]";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(3);
+			expect(result.every(r => r.source === "Source")).toBe(true);
+			expect(result.every(r => r.relation === "down")).toBe(true);
+			expect(result.map(r => r.target)).toEqual(["A", "B", "C"]);
+		});
+
+		it("should handle whitespace in fan-out", () => {
+			const content = "[[A]]::next::[[B]]  ::  [[C]]";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(2);
+			expect(result[0]?.target).toBe("B");
+			expect(result[1]?.target).toBe("C");
+		});
+
+		it("should not confuse fan-out with separate triples", () => {
+			const content = "[[A]]::next::[[B]] some text [[C]]::up::[[D]]";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(2);
+			expect(result[0]?.source).toBe("A");
+			expect(result[0]?.target).toBe("B");
+			expect(result[1]?.source).toBe("C");
+			expect(result[1]?.target).toBe("D");
+		});
+	});
+
 	describe("mixed syntax", () => {
 		it("should parse all three syntax types in one content", () => {
 			const content = `

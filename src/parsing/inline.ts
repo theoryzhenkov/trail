@@ -5,6 +5,7 @@
  * - Prefix: rel::[[A]] (currentFile -> A)
  * - Suffix: [[A]]::rel (A -> currentFile, unless continuation found)
  * - Triple: [[A]]::rel::[[B]] (A -> B)
+ * - Fan-out: [[A]]::rel::[[B]]::[[C]] (A -> B, A -> C)
  *
  * @see docs/syntax/inline.md
  */
@@ -12,8 +13,12 @@
 import {ParsedRelation} from "../types";
 import {dedupeRelations, extractLinkTarget, isValidRelationName, normalizeRelationName} from "./index";
 
-// Triple syntax: [[Source]]::relation::[[Target]]
-const TRIPLE_REGEX = /\[\[([^\]]+)\]\]::\s*([a-z0-9_-]+)\s*::\s*\[\[([^\]]+)\]\]/gi;
+// Fan-out/Triple syntax: [[Source]]::relation::[[Target]] with optional ::[[MoreTargets]]
+// This regex captures the initial triple and we handle continuation separately
+const FANOUT_START_REGEX = /\[\[([^\]]+)\]\]::\s*([a-z0-9_-]+)\s*::\s*\[\[([^\]]+)\]\]/gi;
+
+// Continuation target pattern: ::[[Target]] (for fan-out), allowing whitespace before ::
+const CONTINUATION_TARGET_REGEX = /^\s*::\s*\[\[([^\]]+)\]\]/i;
 
 // Prefix syntax: relation::[[Target]]
 const PREFIX_REGEX = /([a-z0-9_-]+)::\s*\[\[([^\]]+)\]\]/gi;
@@ -35,13 +40,13 @@ export function parseInlineRelations(content: string, allowedRelations?: Set<str
 		);
 	}
 
-	// First pass: match triple syntax (most specific)
-	for (const match of content.matchAll(TRIPLE_REGEX)) {
+	// First pass: match fan-out/triple syntax (most specific)
+	for (const match of content.matchAll(FANOUT_START_REGEX)) {
 		const rawSource = match[1];
 		const rawRelation = match[2];
 		const rawTarget = match[3];
 		const matchStart = match.index ?? 0;
-		const matchEnd = matchStart + match[0].length;
+		let matchEnd = matchStart + match[0].length;
 		
 		if (!rawSource || !rawRelation || !rawTarget) {
 			continue;
@@ -54,12 +59,30 @@ export function parseInlineRelations(content: string, allowedRelations?: Set<str
 			continue;
 		}
 		const source = extractLinkTarget(rawSource);
-		const target = extractLinkTarget(rawTarget);
-		if (source.length === 0 || target.length === 0) {
+		const firstTarget = extractLinkTarget(rawTarget);
+		if (source.length === 0 || firstTarget.length === 0) {
 			continue;
 		}
 		
-		relations.push({relation, target, source});
+		// Add the first target
+		relations.push({relation, target: firstTarget, source});
+		
+		// Look for continuation targets (fan-out): ::[[Target]]
+		let remaining = content.slice(matchEnd);
+		let contMatch = remaining.match(CONTINUATION_TARGET_REGEX);
+		while (contMatch) {
+			const rawContTarget = contMatch[1];
+			if (rawContTarget) {
+				const contTarget = extractLinkTarget(rawContTarget);
+				if (contTarget.length > 0) {
+					relations.push({relation, target: contTarget, source});
+				}
+			}
+			matchEnd += contMatch[0].length;
+			remaining = content.slice(matchEnd);
+			contMatch = remaining.match(CONTINUATION_TARGET_REGEX);
+		}
+		
 		matchedRanges.push({start: matchStart, end: matchEnd});
 	}
 
