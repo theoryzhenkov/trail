@@ -297,6 +297,84 @@ describe("parseInlineRelations", () => {
 		});
 	});
 
+	describe("context tracking", () => {
+		it("should use context from prefix pattern for continuation", () => {
+			const content = `next::[[A]]
+Some text here
+::[[B]]`;
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(2);
+			// Both should have currentFile as source (no source field)
+			expect(result[0]).toEqual({ relation: "next", target: "A" });
+			expect(result[1]).toEqual({ relation: "next", target: "B" });
+		});
+
+		it("should use context from suffix pattern for continuation", () => {
+			const content = `[[Source]]::next
+::[[A]]
+::[[B]]`;
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(2);
+			// Source -> A and Source -> B (no edge to currentFile)
+			expect(result[0]).toEqual({ relation: "next", target: "A", source: "Source" });
+			expect(result[1]).toEqual({ relation: "next", target: "B", source: "Source" });
+		});
+
+		it("should create edge to currentFile if suffix has no continuation", () => {
+			const content = "[[A]]::next";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(1);
+			expect(result[0]).toEqual({ relation: "next", target: "A", targetIsCurrentFile: true });
+		});
+
+		it("should use context for chain continuation", () => {
+			const content = `[[A]]::next::[[B]]
+some text
+::-::[[C]]`;
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(2);
+			expect(result[0]).toEqual({ relation: "next", target: "B", source: "A" });
+			expect(result[1]).toEqual({ relation: "next", target: "C", source: "B" });
+		});
+
+		it("should update context when new relation appears", () => {
+			const content = `[[A]]::next
+::[[B]]
+[[C]]::prev
+::[[D]]`;
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(2);
+			// A -> B with next relation
+			expect(result[0]).toEqual({ relation: "next", target: "B", source: "A" });
+			// C -> D with prev relation
+			expect(result[1]).toEqual({ relation: "prev", target: "D", source: "C" });
+		});
+
+		it("should ignore standalone continuation with no context", () => {
+			const content = "Some text ::[[A]]";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(0);
+		});
+
+		it("should ignore chain continuation with no lastTarget", () => {
+			const content = `[[A]]::next
+::-::[[B]]`;
+			const result = parseInlineRelations(content);
+			
+			// [[A]]::next sets context but lastTarget is null (currentFile)
+			// ::-::[[B]] needs lastTarget, so it should be ignored
+			// Actually, [[A]]::next should create A -> currentFile since no :: continuation follows
+			expect(result).toHaveLength(1);
+			expect(result[0]).toEqual({ relation: "next", target: "A", targetIsCurrentFile: true });
+		});
+	});
+
 	describe("deduplication", () => {
 		it("should deduplicate identical relations", () => {
 			const content = "next::[[A]] and next::[[A]]";
