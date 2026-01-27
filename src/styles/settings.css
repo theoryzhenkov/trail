@@ -125,6 +125,38 @@
 	padding-top: 16px;
 }
 
+/* Items list container (for aliases, implied relations) */
+.trail-items-list {
+	margin: 8px 0;
+	padding: 8px 12px;
+	background: var(--background-primary);
+	border-radius: var(--trail-radius);
+	border: 1px solid var(--trail-border);
+}
+
+.trail-items-list .setting-item {
+	padding: 6px 0;
+	border-top: none;
+}
+
+.trail-items-list .setting-item:first-child {
+	padding-top: 0;
+}
+
+.trail-items-list .setting-item:last-child {
+	padding-bottom: 0;
+}
+
+.trail-items-list .trail-empty-state {
+	display: block;
+	padding: 4px 0;
+	text-align: left;
+	color: var(--text-faint);
+	font-style: italic;
+	font-size: var(--font-ui-small);
+	margin: 0;
+}
+
 /* Subsections */
 .trail-subsection {
 	margin: 16px 0;

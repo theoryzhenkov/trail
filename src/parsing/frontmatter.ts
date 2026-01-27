@@ -20,20 +20,10 @@ export function parseFrontmatterRelations(
 	const relations: ParsedRelation[] = [];
 	const relationAliases = buildRelationAliases(relationDefinitions);
 	const frontmatterLowercase = normalizeFrontmatterKeys(frontmatter);
-	const relationsMap = frontmatter.relations;
-	const relationsMapEntries = normalizeRelationsMap(relationsMap);
 
-	for (const [relationName, aliases] of relationAliases.entries()) {
-		for (const alias of aliases) {
-			if (alias.type === "relationsMap") {
-				const value = relationsMapEntries.get(alias.key);
-				if (value !== undefined) {
-					relations.push(...parseRelationEntry(relationName, value));
-				}
-				continue;
-			}
-
-			const value = frontmatterLowercase.get(alias.key);
+	for (const [relationName, aliasKeys] of relationAliases.entries()) {
+		for (const aliasKey of aliasKeys) {
+			const value = resolveAliasValue(aliasKey, frontmatter, frontmatterLowercase);
 			if (value !== undefined) {
 				relations.push(...parseRelationEntry(relationName, value));
 			}
@@ -41,6 +31,44 @@ export function parseFrontmatterRelations(
 	}
 
 	return dedupeRelations(relations);
+}
+
+/**
+ * Resolve alias value based on syntax:
+ * - Quoted ("key.name") → literal property lookup
+ * - Contains dot (parent.key) → nested object lookup
+ * - Simple (key) → direct property lookup
+ */
+function resolveAliasValue(
+	aliasKey: string,
+	frontmatter: Record<string, unknown>,
+	frontmatterLowercase: Map<string, FrontmatterValue>
+): FrontmatterValue {
+	// Quoted string: literal property lookup
+	if (aliasKey.startsWith('"') && aliasKey.endsWith('"')) {
+		const literalKey = aliasKey.slice(1, -1).toLowerCase();
+		return frontmatterLowercase.get(literalKey);
+	}
+
+	// Contains dot: nested object lookup
+	const dotIndex = aliasKey.indexOf(".");
+	if (dotIndex !== -1) {
+		const parentKey = aliasKey.slice(0, dotIndex).toLowerCase();
+		const childKey = aliasKey.slice(dotIndex + 1).toLowerCase();
+		const parentValue = frontmatter[parentKey] ?? frontmatter[Object.keys(frontmatter).find(k => k.toLowerCase() === parentKey) ?? ""];
+		
+		if (parentValue && typeof parentValue === "object" && !Array.isArray(parentValue)) {
+			const parentObj = parentValue as Record<string, unknown>;
+			const matchingKey = Object.keys(parentObj).find(k => k.toLowerCase() === childKey);
+			if (matchingKey) {
+				return parentObj[matchingKey] as FrontmatterValue;
+			}
+		}
+		return undefined;
+	}
+
+	// Simple: direct property lookup
+	return frontmatterLowercase.get(aliasKey);
 }
 
 export function parseFileProperties(
@@ -104,18 +132,15 @@ function normalizeValues(value: FrontmatterValue): string[] {
 	return [];
 }
 
-function buildRelationAliases(relations: RelationDefinition[]): Map<string, RelationDefinition["aliases"]> {
-	const map = new Map<string, RelationDefinition["aliases"]>();
+function buildRelationAliases(relations: RelationDefinition[]): Map<string, string[]> {
+	const map = new Map<string, string[]>();
 	for (const relation of relations) {
 		const name = normalizeRelationName(relation.name);
 		if (!isValidRelationName(name)) {
 			continue;
 		}
-		const aliases = relation.aliases.map((alias) => ({
-			type: alias.type,
-			key: alias.key.toLowerCase()
-		}));
-		map.set(name, aliases);
+		const aliasKeys = relation.aliases.map((alias) => alias.key.toLowerCase());
+		map.set(name, aliasKeys);
 	}
 	return map;
 }
@@ -128,13 +153,3 @@ function normalizeFrontmatterKeys(frontmatter: Record<string, unknown>): Map<str
 	return map;
 }
 
-function normalizeRelationsMap(relationsMap: unknown): Map<string, FrontmatterValue> {
-	const map = new Map<string, FrontmatterValue>();
-	if (!relationsMap || typeof relationsMap !== "object" || Array.isArray(relationsMap)) {
-		return map;
-	}
-	for (const [key, value] of Object.entries(relationsMap as Record<string, FrontmatterValue>)) {
-		map.set(key.toLowerCase(), value);
-	}
-	return map;
-}

@@ -1,9 +1,15 @@
-import {GroupDefinition, RelationDefinition, RelationGroup} from "../types";
+import {GroupDefinition, RelationAlias, RelationDefinition, RelationGroup} from "../types";
 import {createDefaultRelations, createDefaultTqlGroups} from "./defaults";
 import {migrateAllGroups} from "../query/migration";
 import {migrateAllTqlSyntax, needsSyntaxMigration} from "../query/syntax-migration";
 
 export {TrailSettingTab} from "./settings-tab";
+
+/** @deprecated Legacy alias format with type field */
+interface LegacyRelationAlias {
+	type: "property" | "dotProperty" | "relationsMap";
+	key: string;
+}
 
 /**
  * Editor mode for TQL groups
@@ -43,6 +49,7 @@ export function buildSettings(savedData: Partial<TrailSettings> | null): TrailSe
 	let tqlGroups = data.tqlGroups ?? [];
 	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
 	let legacyGroups = data.groups ?? [];
+	let relations = data.relations ?? createDefaultRelations();
 	
 	// If no TQL groups but has legacy groups, apply defaults first
 	// (This handles fresh installs)
@@ -60,8 +67,11 @@ export function buildSettings(savedData: Partial<TrailSettings> | null): TrailSe
 	// Auto-migrate TQL syntax from 3.x to 4.x
 	migrateAllTqlSyntax(tqlGroups);
 
+	// Auto-migrate legacy alias format
+	migrateRelationAliases(relations);
+
 	return {
-		relations: data.relations ?? createDefaultRelations(),
+		relations,
 		tqlGroups,
 		groups: legacyGroups,
 		hideEmptyGroups: data.hideEmptyGroups ?? false,
@@ -100,5 +110,71 @@ export function savedDataNeedsMigration(savedData: Partial<TrailSettings> | null
 		}
 	}
 
+	// Check for legacy alias format
+	if (Array.isArray(savedData.relations)) {
+		for (const relation of savedData.relations) {
+			if (needsAliasMigration(relation.aliases)) {
+				return true;
+			}
+		}
+	}
+
 	return false;
+}
+
+/**
+ * Check if aliases array contains legacy format (with type field)
+ */
+function needsAliasMigration(aliases: unknown): boolean {
+	if (!Array.isArray(aliases)) return false;
+	return aliases.some((alias) => 
+		alias && typeof alias === "object" && "type" in alias
+	);
+}
+
+/**
+ * Migrate legacy alias format to new format.
+ * Old format: {type: "property"|"dotProperty"|"relationsMap", key: string}
+ * New format: {key: string} where:
+ *   - "key" → direct property lookup
+ *   - "parent.key" → nested object lookup
+ *   - '"key.name"' → literal property with dot
+ */
+function migrateRelationAliases(relations: RelationDefinition[]): void {
+	for (const relation of relations) {
+		if (!needsAliasMigration(relation.aliases)) {
+			continue;
+		}
+		
+		const migratedAliases: RelationAlias[] = [];
+		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
+		const legacyAliases = relation.aliases as unknown as LegacyRelationAlias[];
+		
+		for (const alias of legacyAliases) {
+			migratedAliases.push({key: migrateSingleAlias(alias)});
+		}
+		
+		relation.aliases = migratedAliases;
+	}
+}
+
+/**
+ * Convert a single legacy alias to new format key
+ */
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
+function migrateSingleAlias(alias: LegacyRelationAlias): string {
+	switch (alias.type) {
+		case "property":
+			// Direct property: keep as-is
+			return alias.key;
+		case "dotProperty":
+			// Literal dot property: wrap in quotes
+			return `"${alias.key}"`;
+		case "relationsMap":
+			// Nested in relations object: use dot notation
+			return `relations.${alias.key}`;
+		default:
+			// Unknown type: treat as direct property
+			return alias.key;
+	}
 }

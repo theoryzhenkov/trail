@@ -25,10 +25,21 @@ export function buildPropertyExcludeKeys(relations: RelationDefinition[]): Set<s
 	const keys = new Set<string>();
 	for (const relation of relations) {
 		for (const alias of relation.aliases) {
-			if (alias.type === "relationsMap") {
+			const key = alias.key;
+			
+			// Quoted string: literal property key
+			if (key.startsWith('"') && key.endsWith('"')) {
+				keys.add(key.slice(1, -1).toLowerCase());
 				continue;
 			}
-			keys.add(alias.key.toLowerCase());
+			
+			// Contains dot: nested object lookup, not a direct property
+			if (key.includes(".")) {
+				continue;
+			}
+			
+			// Simple key: direct property
+			keys.add(key.toLowerCase());
 		}
 	}
 	return keys;

@@ -57,7 +57,16 @@ interface RelationDefinition {
   visualDirection?: VisualDirection; // Display style (ascending/descending/sequential)
   icon?: string;                     // Optional Lucide icon
 }
+
+interface RelationAlias {
+  key: string;  // Alias key with syntax-based interpretation
+}
 ```
+
+Alias keys use syntax-based interpretation:
+- `up` → direct property lookup (`up: [[Note]]`)
+- `relations.up` → nested object lookup (`relations: { up: [[Note]] }`)
+- `"relations.up"` → literal property with dot (`relations.up: [[Note]]`)
 
 ### GroupDefinition
 

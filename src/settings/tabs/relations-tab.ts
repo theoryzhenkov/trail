@@ -3,7 +3,6 @@ import TrailPlugin from "../../main";
 import type {
 	ImpliedRelation,
 	RelationAlias,
-	RelationAliasType,
 	RelationDefinition,
 	VisualDirection
 } from "../../types";
@@ -187,24 +186,24 @@ export class RelationsTabRenderer {
 	}
 
 	private renderAliasesSubsection(containerEl: HTMLElement, relation: RelationDefinition) {
-		const section = containerEl.createDiv({cls: "trail-subsection"});
-		new Setting(section)
+		new Setting(containerEl)
 			.setName("Aliases")
 			.setDesc("Frontmatter keys that map to this relation.");
 
+		const itemsContainer = containerEl.createDiv({cls: "trail-items-list"});
+
 		if (relation.aliases.length === 0) {
-			section.createEl("p", {text: "No aliases defined.", cls: "trail-empty-state"});
+			itemsContainer.createEl("p", {text: "No aliases defined.", cls: "trail-empty-state"});
 		} else {
 			for (const [aliasIndex, alias] of relation.aliases.entries()) {
-				this.renderAliasRow(section, relation, alias, aliasIndex);
+				this.renderAliasRow(itemsContainer, relation, alias, aliasIndex);
 			}
 		}
 
-		new Setting(section)
+		new Setting(containerEl)
 			.addButton((button) => {
 				button.setButtonText("Add alias").onClick(() => {
 					relation.aliases.push({
-						type: "property",
 						key: relation.name || "key"
 					});
 					void this.plugin.saveSettings();
@@ -220,17 +219,6 @@ export class RelationsTabRenderer {
 		index: number
 	) {
 		new Setting(containerEl)
-			.addDropdown((dropdown) => {
-				dropdown
-					.addOption("property", "Property (up:)")
-					.addOption("dotProperty", "Dot (relations.up:)")
-					.addOption("relationsMap", "Map (relations: {up:})")
-					.setValue(alias.type)
-					.onChange((value) => {
-						alias.type = value as RelationAliasType;
-						void this.plugin.saveSettings();
-					});
-			})
 			.addText((text) => {
 				text
 					.setPlaceholder(relation.name || "key")
@@ -269,22 +257,23 @@ export class RelationsTabRenderer {
 	}
 
 	private renderImpliedSubsection(containerEl: HTMLElement, relation: RelationDefinition) {
-		const section = containerEl.createDiv({cls: "trail-subsection"});
-		new Setting(section)
+		new Setting(containerEl)
 			.setName("Implied relations")
 			.setDesc("Other relations that are automatically created when this relation exists.");
 
+		const itemsContainer = containerEl.createDiv({cls: "trail-items-list"});
+
 		if (relation.impliedRelations.length === 0) {
-			section.createEl("p", {text: "No implied relations.", cls: "trail-empty-state"});
+			itemsContainer.createEl("p", {text: "No implied relations.", cls: "trail-empty-state"});
 		} else {
 			for (const [impliedIndex, implied] of relation.impliedRelations.entries()) {
-				this.renderImpliedRow(section, relation, implied, impliedIndex);
+				this.renderImpliedRow(itemsContainer, relation, implied, impliedIndex);
 			}
 		}
 
 		const options = this.getRelationOptions();
 		if (options.length > 0) {
-			new Setting(section)
+			new Setting(containerEl)
 				.addButton((button) => {
 					button.setButtonText("Add implied relation").onClick(() => {
 						relation.impliedRelations.push({
@@ -296,7 +285,7 @@ export class RelationsTabRenderer {
 					});
 				});
 		} else {
-			section.createEl("p", {
+			containerEl.createEl("p", {
 				text: "Add more relations to create implied rules.",
 				cls: "trail-hint"
 			});

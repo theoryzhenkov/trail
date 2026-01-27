@@ -1,9 +1,6 @@
 export type RelationName = string;
 
-export type RelationAliasType = "property" | "dotProperty" | "relationsMap";
-
 export interface RelationAlias {
-	type: RelationAliasType;
 	key: string;
 }
 
