@@ -7,7 +7,7 @@ import type {
 	VisualDirection
 } from "../../types";
 import {isValidRelationName, normalizeRelationName} from "../validation";
-import {createSectionDetails, IconSuggest, renderReorderControls} from "../components";
+import {createSectionDetails, IconSuggest, setupDragReorder} from "../components";
 import {createDefaultAliases} from "../defaults";
 
 export class RelationsTabRenderer {
@@ -77,7 +77,7 @@ export class RelationsTabRenderer {
 			text: `${relation.impliedRelations.length} implied`
 		});
 
-		renderReorderControls(summary, index, this.plugin.settings.relations, () => {
+		setupDragReorder(summary, details, index, this.plugin.settings.relations, () => {
 			void this.plugin.saveSettings();
 			this.display();
 		});

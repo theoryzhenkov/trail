@@ -59,7 +59,8 @@
 }
 
 .trail-relation-summary {
-	padding: 12px 16px;
+	display: flex;
+	align-items: stretch;
 	cursor: pointer;
 	list-style: none;
 	user-select: none;
@@ -69,28 +70,16 @@
 	display: none;
 }
 
-.trail-relation-summary::before {
-	content: "▸";
-	display: inline-block;
-	margin-right: 8px;
-	transition: transform 0.15s ease;
-	color: var(--text-muted);
-}
-
-.trail-relation-section[open] > .trail-relation-summary::before {
-	transform: rotate(90deg);
-}
-
 .trail-relation-summary:hover {
 	background: var(--trail-bg-hover);
-	border-radius: var(--trail-radius) var(--trail-radius) 0 0;
 }
 
 .trail-relation-summary-content {
-	display: inline-flex;
+	display: flex;
 	align-items: center;
 	gap: 12px;
-	width: calc(100% - 20px);
+	flex: 1;
+	padding: 12px 16px;
 	justify-content: space-between;
 }
 
@@ -214,42 +203,46 @@
 	font-size: var(--font-ui-small);
 }
 
-/* Reorder controls for relation/group sections */
-.trail-reorder-controls {
-	display: flex;
-	gap: 2px;
-	margin-left: auto;
-}
-
-.trail-reorder-button {
+/* Drag handle for reordering relation/group sections */
+.trail-drag-handle {
+	order: -1;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	width: 24px;
-	height: 24px;
-	padding: 0;
-	border: none;
-	border-radius: var(--radius-s);
-	background: transparent;
-	color: var(--text-muted);
-	cursor: pointer;
-	transition: background-color 0.1s ease;
-}
-
-.trail-reorder-button:hover:not(:disabled) {
-	background: var(--background-modifier-hover);
-	color: var(--text-normal);
-}
-
-.trail-reorder-button:disabled {
+	flex-shrink: 0;
 	color: var(--text-faint);
-	cursor: not-allowed;
-	opacity: 0.4;
+	cursor: grab;
+	border-radius: var(--trail-radius) 0 0 var(--trail-radius);
+	transition: color 0.1s ease, background-color 0.1s ease;
 }
 
-.trail-reorder-button svg {
+.trail-relation-section[open] .trail-drag-handle {
+	border-radius: var(--trail-radius) 0 0 0;
+}
+
+.trail-drag-handle:hover {
+	color: var(--text-muted);
+	background: var(--background-modifier-hover);
+}
+
+.trail-drag-handle:active {
+	cursor: grabbing;
+}
+
+.trail-drag-handle svg {
 	width: 14px;
 	height: 14px;
+}
+
+/* Drag state styles */
+.trail-relation-section[data-dragging="true"] {
+	opacity: 0.5;
+}
+
+.trail-relation-section.trail-drag-over {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 1px var(--interactive-accent);
 }
 
 /* Migration banner */

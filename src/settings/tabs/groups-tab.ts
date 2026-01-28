@@ -12,7 +12,7 @@ import {hasLegacyGroups, EditorMode} from "../index";
 import {isVisualEditable, parseToVisual, visualToQuery, VisualCondition, VisualQuery} from "../visual-editor";
 import {
 	createSectionDetails,
-	renderReorderControls
+	setupDragReorder
 } from "../components";
 
 export class GroupsTabRenderer {
@@ -136,7 +136,7 @@ export class GroupsTabRenderer {
 			badges.createEl("span", {cls: "trail-badge trail-badge-disabled", text: "disabled"});
 		}
 
-		renderReorderControls(summary, index, this.plugin.settings.tqlGroups, () => {
+		setupDragReorder(summary, details, index, this.plugin.settings.tqlGroups, () => {
 			void this.plugin.saveSettings();
 			this.display();
 		});

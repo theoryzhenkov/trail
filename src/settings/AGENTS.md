@@ -256,9 +256,9 @@ details.open = openSections.has(index);
 
 ### Reordering
 
-Use `renderReorderControls()` for array item reordering:
+Use `setupDragReorder()` for drag-and-drop array item reordering:
 ```typescript
-renderReorderControls(summary, index, this.plugin.settings.myArray, () => {
+setupDragReorder(summary, details, index, this.plugin.settings.myArray, () => {
   void this.plugin.saveSettings();
   this.display();
 });
