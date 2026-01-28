@@ -52,6 +52,7 @@
 	border: 1px solid var(--trail-border);
 	border-radius: var(--trail-radius);
 	background: var(--background-primary);
+	overflow: hidden;
 }
 
 .trail-relation-section[open] {
@@ -213,12 +214,7 @@
 	flex-shrink: 0;
 	color: var(--text-faint);
 	cursor: grab;
-	border-radius: var(--trail-radius) 0 0 var(--trail-radius);
 	transition: color 0.1s ease, background-color 0.1s ease;
-}
-
-.trail-relation-section[open] .trail-drag-handle {
-	border-radius: var(--trail-radius) 0 0 0;
 }
 
 .trail-drag-handle:hover {
