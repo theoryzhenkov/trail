@@ -1,7 +1,7 @@
 const RELATION_NAME_REGEX = /^[a-z0-9_-]+$/i;
 
 export function normalizeRelationName(name: string): string {
-	return name.trim().toLowerCase();
+	return name.trim();
 }
 
 export function isValidRelationName(value: string): boolean {

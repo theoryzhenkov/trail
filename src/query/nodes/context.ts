@@ -358,17 +358,19 @@ export class ExecutorContext {
  * Validation context implementation
  */
 export class ValidationContextImpl {
-	private _relationNames: Set<string>;
+	private _relationNames: string[];
+	private _relationNamesLower: Set<string>;
 	private _groupNames: Set<string>;
 	private _errors: Array<{message: string; span: Span; code: string}> = [];
 
 	constructor(relationNames: string[], groupNames: string[]) {
-		this._relationNames = new Set(relationNames);
+		this._relationNames = relationNames;
+		this._relationNamesLower = new Set(relationNames.map(n => n.toLowerCase()));
 		this._groupNames = new Set(groupNames);
 	}
 
 	getRelationNames(): string[] {
-		return Array.from(this._relationNames);
+		return this._relationNames;
 	}
 
 	getGroupNames(): string[] {
@@ -376,7 +378,7 @@ export class ValidationContextImpl {
 	}
 
 	hasRelation(name: string): boolean {
-		return this._relationNames.has(name);
+		return this._relationNamesLower.has(name.toLowerCase());
 	}
 
 	hasGroup(name: string): boolean {
