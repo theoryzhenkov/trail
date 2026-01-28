@@ -202,13 +202,16 @@ export class RelationsTabRenderer {
 
 		new Setting(containerEl)
 			.addButton((button) => {
-				button.setButtonText("Add alias").onClick(() => {
-					relation.aliases.push({
-						key: relation.name || "key"
+				button
+					.setButtonText("Add alias")
+					.setCta()
+					.onClick(() => {
+						relation.aliases.push({
+							key: relation.name || "key"
+						});
+						void this.plugin.saveSettings();
+						this.display();
 					});
-					void this.plugin.saveSettings();
-					this.display();
-				});
 			});
 	}
 
@@ -275,14 +278,17 @@ export class RelationsTabRenderer {
 		if (options.length > 0) {
 			new Setting(containerEl)
 				.addButton((button) => {
-					button.setButtonText("Add implied relation").onClick(() => {
-						relation.impliedRelations.push({
-							targetRelation: relation.name || (options[0] ?? ""),
-							direction: "reverse"
+					button
+						.setButtonText("Add implied relation")
+						.setCta()
+						.onClick(() => {
+							relation.impliedRelations.push({
+								targetRelation: relation.name || (options[0] ?? ""),
+								direction: "reverse"
+							});
+							void this.plugin.saveSettings();
+							this.display();
 						});
-						void this.plugin.saveSettings();
-						this.display();
-					});
 				});
 		} else {
 			containerEl.createEl("p", {

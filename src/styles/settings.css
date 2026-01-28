@@ -40,6 +40,12 @@
 	/* Content container for tab panels */
 }
 
+/* Main tab headings */
+.trail-settings-content .setting-item-heading .setting-item-name {
+	font-size: var(--font-ui-large);
+	font-weight: var(--font-semibold);
+}
+
 /* Relation sections */
 .trail-relation-section {
 	margin: 12px 0;
@@ -89,8 +95,7 @@
 }
 
 .trail-relation-name {
-	font-weight: 600;
-	font-size: 1.1em;
+	font-weight: var(--font-semibold);
 }
 
 .trail-relation-name-empty {
@@ -127,24 +132,13 @@
 
 /* Items list container (for aliases, implied relations) */
 .trail-items-list {
-	margin: 8px 0;
-	padding: 8px 12px;
-	background: var(--background-primary);
-	border-radius: var(--trail-radius);
-	border: 1px solid var(--trail-border);
+	margin: 0 0 4px;
+	padding-left: 16px;
 }
 
 .trail-items-list .setting-item {
-	padding: 6px 0;
+	padding: 4px 0;
 	border-top: none;
-}
-
-.trail-items-list .setting-item:first-child {
-	padding-top: 0;
-}
-
-.trail-items-list .setting-item:last-child {
-	padding-bottom: 0;
 }
 
 .trail-items-list .trail-empty-state {
