@@ -8,7 +8,7 @@ import {
 import {parse, TQLError} from "../../query";
 import {migrateGroup} from "../../query/migration";
 import {createTQLEditor} from "../../query/codemirror";
-import {hasLegacyGroups, EditorMode} from "../index";
+import {hasLegacyGroups, EditorMode, getRelationDisplayName} from "../index";
 import {isVisualEditable, parseToVisual, visualToQuery, VisualCondition, VisualQuery} from "../visual-editor";
 import {
 	createSectionDetails,
@@ -224,7 +224,7 @@ export class GroupsTabRenderer {
 				this.validateQuery(value, errorContainer, nameSpan);
 				void this.plugin.saveSettings();
 			},
-			getRelationNames: () => this.plugin.settings.relations.map(r => r.name),
+			getRelationNames: () => this.plugin.settings.relations.map(r => r.id),
 			minHeight: "120px",
 		});
 
@@ -271,7 +271,8 @@ export class GroupsTabRenderer {
 			new Setting(relEl)
 				.addDropdown((dropdown) => {
 					for (const r of this.plugin.settings.relations) {
-						dropdown.addOption(r.name, r.name);
+						// Value is the id (used in TQL), label is display name (shown in UI)
+						dropdown.addOption(r.id, getRelationDisplayName(r));
 					}
 					dropdown
 						.setValue(rel.name)
@@ -562,7 +563,7 @@ export class GroupsTabRenderer {
 						}
 
 						const newIndex = this.plugin.settings.tqlGroups.length;
-						const defaultRelation = this.plugin.settings.relations[0]?.name ?? "up";
+						const defaultRelation = this.plugin.settings.relations[0]?.id ?? "up";
 						this.plugin.settings.tqlGroups.push({
 							query: `group "${trimmed}"\nfrom ${defaultRelation}`,
 							enabled: true,

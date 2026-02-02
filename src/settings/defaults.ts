@@ -6,15 +6,15 @@ import {
 } from "../types";
 
 export function createDefaultRelations(): RelationDefinition[] {
-	const base: Array<{name: string; visualDirection: RelationDefinition["visualDirection"]}> = [
-		{name: "up", visualDirection: "ascending"},
-		{name: "down", visualDirection: "descending"},
-		{name: "next", visualDirection: "sequential"},
-		{name: "prev", visualDirection: "sequential"}
+	const base: Array<{id: string; visualDirection: RelationDefinition["visualDirection"]}> = [
+		{id: "up", visualDirection: "ascending"},
+		{id: "down", visualDirection: "descending"},
+		{id: "next", visualDirection: "sequential"},
+		{id: "prev", visualDirection: "sequential"}
 	];
-	const relations = base.map(({name, visualDirection}) => ({
-		name,
-		aliases: createDefaultAliases(name),
+	const relations = base.map(({id, visualDirection}) => ({
+		id,
+		aliases: createDefaultAliases(id),
 		impliedRelations: [] as ImpliedRelation[],
 		visualDirection
 	}));
@@ -27,7 +27,7 @@ export function createDefaultRelations(): RelationDefinition[] {
 	];
 
 	for (const [from, to] of impliedPairs) {
-		const relation = relations.find((item) => item.name === from);
+		const relation = relations.find((item) => item.id === from);
 		if (!relation) {
 			continue;
 		}

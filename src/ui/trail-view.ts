@@ -9,6 +9,7 @@ import {
 } from "./renderers";
 import {parse, execute, createValidationContext, TQLError, getCache} from "../query";
 import type {QueryResult, QueryResultNode} from "../query";
+import {getRelationDisplayName} from "../settings";
 
 export const TRAIL_VIEW_TYPE = "trail-view";
 
@@ -240,7 +241,7 @@ export class TrailView extends ItemView {
 		}
 
 		const ast = parse(query);
-		const relationNames = this.plugin.settings.relations.map(r => r.name);
+		const relationIds = this.plugin.settings.relations.map(r => r.id);
 		const groupNames = this.plugin.settings.tqlGroups
 			.map(g => {
 				try {
@@ -251,7 +252,7 @@ export class TrailView extends ItemView {
 			})
 			.filter((n): n is string => n !== null);
 
-		const validationCtx = createValidationContext(relationNames, groupNames);
+		const validationCtx = createValidationContext(relationIds, groupNames);
 		ast.validate(validationCtx);
 
 		const queryCtx = this.createQueryContext(filePath);
@@ -311,15 +312,15 @@ export class TrailView extends ItemView {
 					backlinks,
 				};
 			},
-			getRelationNames: () => settings.relations.map(r => r.name),
+			getRelationNames: () => settings.relations.map(r => r.id),
 			getVisualDirection: (relation: string) => {
-				const def = settings.relations.find(r => r.name === relation);
+				const def = settings.relations.find(r => r.id === relation);
 				return def?.visualDirection ?? "descending";
 			},
 			getSequentialRelations: () => new Set(
 				settings.relations
 					.filter(r => r.visualDirection === "sequential")
-					.map(r => r.name)
+					.map(r => r.id)
 			),
 			resolveGroupQuery: (name: string) => {
 				const group = settings.tqlGroups.find(g => {
@@ -332,13 +333,13 @@ export class TrailView extends ItemView {
 				if (!group) return undefined;
 				try {
 					const ast = parse(group.query);
-					const relationNames = settings.relations.map(r => r.name);
+					const relationIds = settings.relations.map(r => r.id);
 					const groupNames = settings.tqlGroups
 						.map(g => {
 							try { return parse(g.query).group; } catch { return null; }
 						})
 						.filter((n): n is string => n !== null);
-					ast.validate(createValidationContext(relationNames, groupNames));
+					ast.validate(createValidationContext(relationIds, groupNames));
 					return ast;
 				} catch {
 					return undefined;
@@ -482,20 +483,21 @@ export class TrailView extends ItemView {
 		return `${key}: ${value as string | number | boolean}`;
 	}
 
-	private getRelationDefinition(relationName: string): RelationDefinition | undefined {
-		return this.plugin.settings.relations.find(r => r.name === relationName);
+	private getRelationDefinition(relationId: string): RelationDefinition | undefined {
+		return this.plugin.settings.relations.find(r => r.id === relationId);
 	}
 
-	private renderRelationTag(containerEl: HTMLElement, relationName: string, implied: boolean): void {
+	private renderRelationTag(containerEl: HTMLElement, relationId: string, implied: boolean): void {
 		const relationEl = containerEl.createSpan({cls: "trail-relation-tag"});
-		const relationDef = this.getRelationDefinition(relationName);
+		const relationDef = this.getRelationDefinition(relationId);
+		const displayName = relationDef ? getRelationDisplayName(relationDef) : relationId;
 
 		if (relationDef?.icon) {
 			setIcon(relationEl, relationDef.icon);
-			relationEl.setAttribute("aria-label", relationName);
+			relationEl.setAttribute("aria-label", displayName);
 			relationEl.addClass("has-icon");
 		} else {
-			relationEl.setText(relationName);
+			relationEl.setText(displayName);
 		}
 
 		if (implied) {

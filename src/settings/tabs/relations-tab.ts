@@ -9,6 +9,7 @@ import type {
 import {isValidRelationName, normalizeRelationName} from "../validation";
 import {createSectionDetails, IconSuggest, setupDragReorder} from "../components";
 import {createDefaultAliases} from "../defaults";
+import {getRelationDisplayName} from "../index";
 
 export class RelationsTabRenderer {
 	private plugin: TrailPlugin;
@@ -56,14 +57,15 @@ export class RelationsTabRenderer {
 		);
 
 		const wasOpen = openSections.has(index);
-		const isNew = !relation.name;
+		const isNew = !relation.id;
 		details.open = wasOpen || isNew;
 
+		const displayName = getRelationDisplayName(relation);
 		const nameSpan = summaryContent.createEl("span", {
 			cls: "trail-relation-name",
-			text: relation.name || "(unnamed)"
+			text: displayName || "(unnamed)"
 		});
-		if (!relation.name) {
+		if (!relation.id) {
 			nameSpan.addClass("trail-relation-name-empty");
 		}
 
@@ -83,31 +85,46 @@ export class RelationsTabRenderer {
 		});
 
 		new Setting(content)
-			.setName("Name")
-			.setDesc("Unique identifier for this relation type.")
+			.setName("ID")
+			.setDesc("Unique lowercase identifier used in frontmatter and inline syntax (e.g., up, parent).")
 			.addText((text) => {
 				text
 					.setPlaceholder("E.g., up, parent, contains")
-					.setValue(relation.name)
+					.setValue(relation.id)
 					.onChange((value) => {
 						const normalized = normalizeRelationName(value);
 						if (value && !isValidRelationName(normalized)) {
-							new Notice("Relation names must use letters, numbers, underscore, or dash.");
-							text.setValue(relation.name);
+							new Notice("Relation IDs must use lowercase letters, numbers, underscore, or dash.");
+							text.setValue(relation.id);
 							return;
 						}
-						if (normalized && this.isDuplicateRelationName(normalized, index)) {
-							new Notice("Relation name already exists.");
-							text.setValue(relation.name);
+						if (normalized && this.isDuplicateRelationId(normalized, index)) {
+							new Notice("Relation ID already exists.");
+							text.setValue(relation.id);
 							return;
 						}
-						const previousName = relation.name;
-						relation.name = normalized;
-						this.updateImpliedRelationTargets(previousName, normalized);
-						this.updateGroupMemberRelations(previousName, normalized);
+						const previousId = relation.id;
+						relation.id = normalized;
+						this.updateImpliedRelationTargets(previousId, normalized);
+						this.updateGroupMemberRelations(previousId, normalized);
 						void this.plugin.saveSettings();
-						nameSpan.textContent = normalized || "(unnamed)";
+						nameSpan.textContent = getRelationDisplayName(relation) || "(unnamed)";
 						nameSpan.toggleClass("trail-relation-name-empty", !normalized);
+					});
+			});
+
+		new Setting(content)
+			.setName("Display name")
+			.setDesc("Optional custom name shown in the UI. If empty, the ID is used.")
+			.addText((text) => {
+				text
+					.setPlaceholder(relation.id || "Same as ID")
+					.setValue(relation.displayName ?? "")
+					.onChange((value) => {
+						const trimmed = value.trim();
+						relation.displayName = trimmed || undefined;
+						void this.plugin.saveSettings();
+						nameSpan.textContent = getRelationDisplayName(relation) || "(unnamed)";
 					});
 			});
 
@@ -138,8 +155,8 @@ export class RelationsTabRenderer {
 					.setWarning()
 					.onClick(() => {
 						this.plugin.settings.relations.splice(index, 1);
-						this.removeImpliedRelationTargets(relation.name);
-						this.removeGroupMemberRelations(relation.name);
+						this.removeImpliedRelationTargets(relation.id);
+						this.removeGroupMemberRelations(relation.id);
 						void this.plugin.saveSettings();
 						this.display();
 					});
@@ -207,7 +224,7 @@ export class RelationsTabRenderer {
 					.setCta()
 					.onClick(() => {
 						relation.aliases.push({
-							key: relation.name || "key"
+							key: relation.id || "key"
 						});
 						void this.plugin.saveSettings();
 						this.display();
@@ -224,7 +241,7 @@ export class RelationsTabRenderer {
 		new Setting(containerEl)
 			.addText((text) => {
 				text
-					.setPlaceholder(relation.name || "key")
+					.setPlaceholder(relation.id || "key")
 					.setValue(alias.key);
 
 				let currentValue = alias.key;
@@ -283,7 +300,7 @@ export class RelationsTabRenderer {
 						.setCta()
 						.onClick(() => {
 							relation.impliedRelations.push({
-								targetRelation: relation.name || (options[0] ?? ""),
+								targetRelation: relation.id || (options[0] ?? ""),
 								direction: "reverse"
 							});
 							void this.plugin.saveSettings();
@@ -345,53 +362,53 @@ export class RelationsTabRenderer {
 
 	private getRelationOptions(): string[] {
 		return this.plugin.settings.relations
-			.map((r) => r.name)
-			.filter((name) => name.length > 0);
+			.map((r) => r.id)
+			.filter((id) => id.length > 0);
 	}
 
-	private isDuplicateRelationName(name: string, currentIndex: number): boolean {
-		return this.plugin.settings.relations.some((r, i) => i !== currentIndex && r.name === name);
+	private isDuplicateRelationId(id: string, currentIndex: number): boolean {
+		return this.plugin.settings.relations.some((r, i) => i !== currentIndex && r.id === id);
 	}
 
-	private updateImpliedRelationTargets(oldName: string, newName: string) {
-		if (!oldName || oldName === newName) {
+	private updateImpliedRelationTargets(oldId: string, newId: string) {
+		if (!oldId || oldId === newId) {
 			return;
 		}
 		for (const rel of this.plugin.settings.relations) {
 			for (const implied of rel.impliedRelations) {
-				if (implied.targetRelation === oldName) {
-					implied.targetRelation = newName;
+				if (implied.targetRelation === oldId) {
+					implied.targetRelation = newId;
 				}
 			}
 		}
 	}
 
-	private removeImpliedRelationTargets(targetName: string) {
+	private removeImpliedRelationTargets(targetId: string) {
 		for (const rel of this.plugin.settings.relations) {
 			rel.impliedRelations = rel.impliedRelations.filter(
-				(implied) => implied.targetRelation !== targetName
+				(implied) => implied.targetRelation !== targetId
 			);
 		}
 	}
 
-	private updateGroupMemberRelations(oldName: string, newName: string) {
-		if (!oldName || oldName === newName) {
+	private updateGroupMemberRelations(oldId: string, newId: string) {
+		if (!oldId || oldId === newId) {
 			return;
 		}
 		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for legacy migration support
 		for (const group of this.plugin.settings.groups) {
 			for (const member of group.members) {
-				if (member.relation === oldName) {
-					member.relation = newName;
+				if (member.relation === oldId) {
+					member.relation = newId;
 				}
 			}
 		}
 	}
 
-	private removeGroupMemberRelations(targetName: string) {
+	private removeGroupMemberRelations(targetId: string) {
 		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for legacy migration support
 		for (const group of this.plugin.settings.groups) {
-			group.members = group.members.filter((member) => member.relation !== targetName);
+			group.members = group.members.filter((member) => member.relation !== targetId);
 		}
 	}
 
@@ -400,14 +417,14 @@ export class RelationsTabRenderer {
 			.setName("Add new relation")
 			.setDesc("Create a relation type with standard aliases.");
 
-		let newRelationName = "";
+		let newRelationId = "";
 
 		setting
 			.addText((text) => {
 				text
 					.setPlaceholder("E.g., parent, cites, related-to")
 					.onChange((value) => {
-						newRelationName = value;
+						newRelationId = value;
 					});
 			})
 			.addButton((button) => {
@@ -415,26 +432,26 @@ export class RelationsTabRenderer {
 					.setButtonText("Create")
 					.setCta()
 					.onClick(() => {
-						const normalized = normalizeRelationName(newRelationName);
+						const normalized = normalizeRelationName(newRelationId);
 						
 						if (!normalized) {
-							new Notice("Relation name cannot be empty.");
+							new Notice("Relation ID cannot be empty.");
 							return;
 						}
 						
 						if (!isValidRelationName(normalized)) {
-							new Notice("Relation names must use letters, numbers, underscore, or dash.");
+							new Notice("Relation IDs must use lowercase letters, numbers, underscore, or dash.");
 							return;
 						}
 						
-						if (this.isDuplicateRelationName(normalized, -1)) {
-							new Notice("Relation name already exists.");
+						if (this.isDuplicateRelationId(normalized, -1)) {
+							new Notice("Relation ID already exists.");
 							return;
 						}
 
 						const newIndex = this.plugin.settings.relations.length;
 						this.plugin.settings.relations.push({
-							name: normalized,
+							id: normalized,
 							aliases: createDefaultAliases(normalized),
 							impliedRelations: []
 						});

@@ -70,6 +70,9 @@ export function buildSettings(savedData: Partial<TrailSettings> | null): TrailSe
 	// Auto-migrate legacy alias format
 	migrateRelationAliases(relations);
 
+	// Auto-migrate relation name → id format
+	migrateRelationIds(relations);
+
 	return {
 		relations,
 		tqlGroups,
@@ -110,10 +113,13 @@ export function savedDataNeedsMigration(savedData: Partial<TrailSettings> | null
 		}
 	}
 
-	// Check for legacy alias format
+	// Check for legacy alias format or legacy name field
 	if (Array.isArray(savedData.relations)) {
 		for (const relation of savedData.relations) {
 			if (needsAliasMigration(relation.aliases)) {
+				return true;
+			}
+			if (needsIdMigration(relation)) {
 				return true;
 			}
 		}
@@ -177,4 +183,62 @@ function migrateSingleAlias(alias: LegacyRelationAlias): string {
 			// Unknown type: treat as direct property
 			return alias.key;
 	}
+}
+
+/** @deprecated Legacy relation format with name instead of id */
+interface LegacyRelationDefinition {
+	name?: string;
+	id?: string;
+	displayName?: string;
+}
+
+/**
+ * Check if relation needs migration from name to id
+ */
+function needsIdMigration(relation: unknown): boolean {
+	if (!relation || typeof relation !== "object") return false;
+	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration check
+	const r = relation as LegacyRelationDefinition;
+	// Needs migration if has name but no id
+	return "name" in r && !("id" in r);
+}
+
+/**
+ * Migrate relations from legacy name field to id/displayName format.
+ * Old format: {name: string, ...}
+ * New format: {id: string (lowercase), displayName?: string, ...}
+ */
+function migrateRelationIds(relations: RelationDefinition[]): void {
+	for (const relation of relations) {
+		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
+		const legacy = relation as unknown as LegacyRelationDefinition;
+		if (legacy.name !== undefined && legacy.id === undefined) {
+			// Migrate: id is lowercase, displayName preserves original if different
+			const normalizedId = legacy.name.toLowerCase();
+			relation.id = normalizedId;
+			// Only set displayName if it differs from id (preserves custom casing)
+			if (legacy.name !== normalizedId) {
+				relation.displayName = legacy.name;
+			}
+			// Clean up old field
+			// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
+			delete (relation as unknown as LegacyRelationDefinition).name;
+		}
+	}
+}
+
+/**
+ * Get the display name for a relation.
+ * Returns displayName if set, otherwise falls back to id.
+ */
+export function getRelationDisplayName(relation: RelationDefinition): string {
+	return relation.displayName ?? relation.id;
+}
+
+/**
+ * Find a relation by id (case-insensitive lookup).
+ */
+export function findRelationById(relations: RelationDefinition[], id: string): RelationDefinition | undefined {
+	const normalizedId = id.toLowerCase();
+	return relations.find((r) => r.id === normalizedId);
 }

@@ -173,9 +173,9 @@ export class GraphStore {
 		const seen = new Set<string>();
 		
 		for (const relation of this.settings.relations) {
-			if (relation.name && !seen.has(relation.name)) {
-				orderedTypes.push(relation.name);
-				seen.add(relation.name);
+			if (relation.id && !seen.has(relation.id)) {
+				orderedTypes.push(relation.id);
+				seen.add(relation.id);
 			}
 		}
 		
@@ -247,8 +247,8 @@ export class GraphStore {
 		const content = await this.app.vault.read(file);
 		const allowedRelations = new Set(
 			this.settings.relations
-				.map((relation) => relation.name)
-				.filter((name) => name.length > 0)
+				.map((relation) => relation.id)
+				.filter((id) => id.length > 0)
 		);
 		const inlineRelations = parseInlineRelations(content, allowedRelations);
 		const cache = this.app.metadataCache.getFileCache(file);

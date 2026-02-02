@@ -24,10 +24,10 @@ function edge(
  * Helper to create a relation definition for testing
  */
 function relation(
-	name: string,
+	id: string,
 	impliedRelations: RelationDefinition["impliedRelations"] = []
 ): RelationDefinition {
-	return {name, aliases: [], impliedRelations};
+	return {id, aliases: [], impliedRelations};
 }
 
 /**
@@ -553,15 +553,15 @@ describe("applyImpliedRules", () => {
 	});
 
 	describe("case handling", () => {
-		it("should normalize implied relation names to lowercase", () => {
+		it("should match with lowercase id (relation.id is lowercase by contract)", () => {
 			const edges = [edge("A.md", "B.md", "up")];
+			// relation.id is lowercase by contract - uppercase would not be valid
 			const relations = [
-				relation("UP", [{targetRelation: "DOWN", direction: "reverse"}])
+				relation("up", [{targetRelation: "down", direction: "reverse"}])
 			];
 			const result = applyImpliedRules(edges, relations);
 
 			expect(result).toHaveLength(2);
-			// The implied relation should be normalized to lowercase
 			expect(hasEdge(result, "B.md", "A.md", "down")).toBe(true);
 		});
 

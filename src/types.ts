@@ -78,7 +78,10 @@ export interface GroupDefinition {
 }
 
 export interface RelationDefinition {
-	name: RelationName;
+	/** Lowercase identifier used for matching and logic (e.g., "up", "down") */
+	id: RelationName;
+	/** Optional display name for UI (defaults to id if not set) */
+	displayName?: string;
 	aliases: RelationAlias[];
 	impliedRelations: ImpliedRelation[];
 	visualDirection?: VisualDirection;

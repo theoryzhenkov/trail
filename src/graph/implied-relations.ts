@@ -206,8 +206,8 @@ function buildImpliedRules(relations: RelationDefinition[]): Map<string, Implied
 	const map = new Map<string, ImpliedRule[]>();
 
 	for (const relation of relations) {
-		const baseRelation = relation.name.trim().toLowerCase();
-		if (!baseRelation) {
+		// relation.id is already lowercase by contract
+		if (!relation.id) {
 			continue;
 		}
 		for (const implied of relation.impliedRelations) {
@@ -215,13 +215,13 @@ function buildImpliedRules(relations: RelationDefinition[]): Map<string, Implied
 			if (!impliedRelation) {
 				continue;
 			}
-			const list = map.get(baseRelation) ?? [];
+			const list = map.get(relation.id) ?? [];
 			list.push({
-				baseRelation,
+				baseRelation: relation.id,
 				impliedRelation,
 				direction: implied.direction
 			});
-			map.set(baseRelation, list);
+			map.set(relation.id, list);
 		}
 	}
 
