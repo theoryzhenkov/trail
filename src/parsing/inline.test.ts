@@ -389,5 +389,16 @@ some text
 			
 			expect(result).toHaveLength(2);
 		});
+
+		it("should not deduplicate different sources with same target", () => {
+			const content = "[[C]]::up::[[A]] and [[D]]::up::[[A]]";
+			const result = parseInlineRelations(content);
+			
+			expect(result).toHaveLength(2);
+			expect(result[0]?.source).toBe("C");
+			expect(result[0]?.target).toBe("A");
+			expect(result[1]?.source).toBe("D");
+			expect(result[1]?.target).toBe("A");
+		});
 	});
 });

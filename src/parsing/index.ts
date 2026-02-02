@@ -30,7 +30,7 @@ export function dedupeRelations(relations: ParsedRelation[]): ParsedRelation[] {
 	const seen = new Set<string>();
 	const deduped: ParsedRelation[] = [];
 	for (const relation of relations) {
-		const key = `${relation.relation}::${relation.target}`;
+		const key = `${relation.source ?? ""}::${relation.relation}::${relation.target}`;
 		if (seen.has(key)) {
 			continue;
 		}
