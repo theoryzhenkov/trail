@@ -98,11 +98,10 @@ export interface RelationEdge {
 
 export interface ParsedRelation {
 	relation: RelationName;
-	target: string;
-	/** Optional explicit source (for external edge declarations like [[A]]::rel::[[B]]) */
+	/** Target of the edge. undefined = current file */
+	target?: string;
+	/** Source of the edge. undefined = current file */
 	source?: string;
-	/** If true, target is the current file (for suffix syntax [[A]]::rel where A -> currentFile) */
-	targetIsCurrentFile?: boolean;
 }
 
 /**

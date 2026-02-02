@@ -115,8 +115,8 @@ export function parseInlineRelations(content: string, allowedRelations?: Set<str
 				);
 				
 				if (!hasFollowingContinuation) {
-					// No continuation, create edge to currentFile
-					relations.push({relation, target: source, targetIsCurrentFile: true});
+					// No continuation, create edge to currentFile (target undefined = currentFile)
+					relations.push({relation, source});
 				}
 				
 				context = {source, relation, lastTarget: null};

@@ -45,15 +45,14 @@ describe("parseInlineRelations", () => {
 	});
 
 	describe("suffix syntax ([[A]]::rel)", () => {
-		it("should parse basic suffix relation with targetIsCurrentFile", () => {
+		it("should parse basic suffix relation (source -> currentFile)", () => {
 			const content = "[[Note A]]::next";
 			const result = parseInlineRelations(content);
 			
 			expect(result).toHaveLength(1);
 			expect(result[0]).toEqual({
 				relation: "next",
-				target: "Note A",
-				targetIsCurrentFile: true,
+				source: "Note A",
 			});
 		});
 
@@ -62,10 +61,10 @@ describe("parseInlineRelations", () => {
 			const result = parseInlineRelations(content);
 			
 			expect(result).toHaveLength(2);
-			expect(result[0]?.target).toBe("Parent");
-			expect(result[0]?.targetIsCurrentFile).toBe(true);
-			expect(result[1]?.target).toBe("Child");
-			expect(result[1]?.targetIsCurrentFile).toBe(true);
+			expect(result[0]?.source).toBe("Parent");
+			expect(result[0]?.target).toBeUndefined();
+			expect(result[1]?.source).toBe("Child");
+			expect(result[1]?.target).toBeUndefined();
 		});
 	});
 
@@ -226,16 +225,15 @@ describe("parseInlineRelations", () => {
 			
 			expect(result).toHaveLength(3);
 			
-			// Prefix: currentFile -> A
+			// Prefix: currentFile -> A (source undefined, target = A)
 			const prefix = result.find(r => r.target === "A");
 			expect(prefix?.relation).toBe("next");
 			expect(prefix?.source).toBeUndefined();
-			expect(prefix?.targetIsCurrentFile).toBeUndefined();
 			
-			// Suffix: B -> currentFile
-			const suffix = result.find(r => r.target === "B");
+			// Suffix: B -> currentFile (source = B, target undefined)
+			const suffix = result.find(r => r.source === "B");
 			expect(suffix?.relation).toBe("prev");
-			expect(suffix?.targetIsCurrentFile).toBe(true);
+			expect(suffix?.target).toBeUndefined();
 			
 			// Triple: C -> D
 			const triple = result.find(r => r.target === "D");
@@ -327,7 +325,7 @@ Some text here
 			const result = parseInlineRelations(content);
 			
 			expect(result).toHaveLength(1);
-			expect(result[0]).toEqual({ relation: "next", target: "A", targetIsCurrentFile: true });
+			expect(result[0]).toEqual({ relation: "next", source: "A" });
 		});
 
 		it("should use context for chain continuation", () => {
@@ -369,9 +367,9 @@ some text
 			
 			// [[A]]::next sets context but lastTarget is null (currentFile)
 			// ::-::[[B]] needs lastTarget, so it should be ignored
-			// Actually, [[A]]::next should create A -> currentFile since no :: continuation follows
+			// [[A]]::next creates A -> currentFile since no :: continuation follows
 			expect(result).toHaveLength(1);
-			expect(result[0]).toEqual({ relation: "next", target: "A", targetIsCurrentFile: true });
+			expect(result[0]).toEqual({ relation: "next", source: "A" });
 		});
 	});
 
