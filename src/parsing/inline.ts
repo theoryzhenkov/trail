@@ -23,9 +23,9 @@ import {dedupeRelations, extractLinkTarget, isValidRelationName, normalizeRelati
 
 /** Context state for tracking across the file */
 interface ParserContext {
-	source: string | null;  // null means currentFile
+	source: string | undefined;  // undefined = currentFile (matches ParsedRelation)
 	relation: string;
-	lastTarget: string | null;  // null means currentFile
+	lastTarget: string | undefined;  // undefined = currentFile (matches ParsedRelation)
 }
 
 /** A match with its position and type */
@@ -77,8 +77,8 @@ export function parseInlineRelations(content: string, allowedRelations?: Set<str
 		switch (match.type) {
 			case "triple": {
 				// [[A]]::rel::[[B]] - creates A->B, sets context
-				const source = match.source ? extractLinkTarget(match.source) : null;
-				const target = match.target ? extractLinkTarget(match.target) : null;
+				const source = match.source ? extractLinkTarget(match.source) : undefined;
+				const target = match.target ? extractLinkTarget(match.target) : undefined;
 				if (!source || !target || !relation) continue;
 				
 				relations.push({relation, target, source});
@@ -88,18 +88,18 @@ export function parseInlineRelations(content: string, allowedRelations?: Set<str
 			
 			case "prefix": {
 				// rel::[[A]] - creates currentFile->A, sets context
-				const target = match.target ? extractLinkTarget(match.target) : null;
+				const target = match.target ? extractLinkTarget(match.target) : undefined;
 				if (!target || !relation) continue;
 				
 				relations.push({relation, target});
-				context = {source: null, relation, lastTarget: target};
+				context = {source: undefined, relation, lastTarget: target};
 				break;
 			}
 			
 			case "suffix": {
 				// [[A]]::rel - creates A->currentFile, sets context
 				// But if continuation follows, don't create edge to currentFile
-				const source = match.source ? extractLinkTarget(match.source) : null;
+				const source = match.source ? extractLinkTarget(match.source) : undefined;
 				if (!source || !relation) continue;
 				
 				// Check if fan-out continuation follows this match
@@ -115,35 +115,35 @@ export function parseInlineRelations(content: string, allowedRelations?: Set<str
 				);
 				
 				if (!hasFollowingContinuation) {
-					// No continuation, create edge to currentFile (target undefined = currentFile)
+					// No continuation, create edge A -> currentFile
 					relations.push({relation, source});
 				}
 				
-				context = {source, relation, lastTarget: null};
+				// lastTarget = undefined because A -> currentFile, and currentFile is the target
+				context = {source, relation, lastTarget: undefined};
 				break;
 			}
 			
 			case "continuation": {
 				// ::[[B]] - uses context source -> B
 				if (!context) continue;
-				const target = match.target ? extractLinkTarget(match.target) : null;
+				const target = match.target ? extractLinkTarget(match.target) : undefined;
 				if (!target) continue;
 				
-				if (context.source) {
-					relations.push({relation: context.relation, target, source: context.source});
-				} else {
-					relations.push({relation: context.relation, target});
-				}
+				// source passes through directly (undefined = currentFile)
+				relations.push({relation: context.relation, target, source: context.source});
 				context.lastTarget = target;
 				break;
 			}
 			
 			case "chain": {
 				// ::-::[[B]] - chains from lastTarget -> B
-				if (!context || !context.lastTarget) continue;
-				const target = match.target ? extractLinkTarget(match.target) : null;
+				// lastTarget undefined means currentFile - that's valid for chaining
+				if (!context) continue;
+				const target = match.target ? extractLinkTarget(match.target) : undefined;
 				if (!target) continue;
 				
+				// lastTarget passes through directly (undefined = currentFile)
 				relations.push({relation: context.relation, target, source: context.lastTarget});
 				context.lastTarget = target;
 				break;

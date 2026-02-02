@@ -360,16 +360,16 @@ some text
 			expect(result).toHaveLength(0);
 		});
 
-		it("should ignore chain continuation with no lastTarget", () => {
+		it("should chain from currentFile when lastTarget is null", () => {
 			const content = `[[A]]::next
 ::-::[[B]]`;
 			const result = parseInlineRelations(content);
 			
-			// [[A]]::next sets context but lastTarget is null (currentFile)
-			// ::-::[[B]] needs lastTarget, so it should be ignored
-			// [[A]]::next creates A -> currentFile since no :: continuation follows
-			expect(result).toHaveLength(1);
+			// [[A]]::next creates A -> currentFile, sets lastTarget = null (currentFile)
+			// ::-::[[B]] chains from currentFile -> B
+			expect(result).toHaveLength(2);
 			expect(result[0]).toEqual({ relation: "next", source: "A" });
+			expect(result[1]).toEqual({ relation: "next", target: "B" }); // source undefined = currentFile
 		});
 	});
 
