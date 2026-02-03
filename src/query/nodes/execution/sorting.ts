@@ -6,17 +6,22 @@
  */
 
 import type {ExecutorContext} from "../context";
-import type {QueryResultNode, Value} from "../types";
+import type {QueryResultNode, SortInfo, Value} from "../types";
 import type {SortKeyNode} from "../clauses/SortKeyNode";
 import type {RelationEdge} from "../../../types";
 import {buildChainStructure, getBasename, type ChainStructure} from "../../chain-sort";
 
+/** Marker value for disconnected nodes in partition key values */
+export const DISCONNECTED_MARKER = "__disconnected__";
+
 /**
- * Node with pre-computed sort values
+ * Node with pre-computed sort values and chain metadata
  */
 interface SortableNode {
 	node: QueryResultNode;
 	values: Value[];
+	/** Chain ID (head path) if in a chain, null if disconnected */
+	chainId: string | null;
 }
 
 /**
@@ -28,28 +33,43 @@ export function sortNodes(
 	ctx: ExecutorContext
 ): QueryResultNode[] {
 	if (nodes.length <= 1) {
-		// Still need to sort children
+		// Still need to sort children and attach sortInfo (no chain, no partition keys)
+		const hasChainKey = keys.some((k) => k.key === "chain");
 		return nodes.map((node) => ({
 			...node,
+			sortInfo: {
+				partitionKeyValues: [],
+				isChained: false,
+				hasChainSort: hasChainKey,
+			},
 			children: sortNodes(node.children, keys, ctx),
 		}));
 	}
 
-	// Pre-compute sort values for all nodes using evaluate()
-	const sortables = prepareSortables(nodes, keys, ctx);
-
 	// Check if chain sorting is needed
 	const hasChainKey = keys.some((k) => k.key === "chain");
+	const chainKeyIndex = keys.findIndex((k) => k.key === "chain");
 
-	let sorted: SortableNode[];
+	// Build chain structure if needed (used for both sorting and sortInfo)
+	let chainStructure: ChainStructure | null = null;
+	let chainIdByPath: Map<string, string | null> = new Map();
 
 	if (hasChainKey) {
-		// Build chain structure for these siblings
 		const sequentialRelations = ctx.getSequentialRelations();
 		const nodePaths = new Set(nodes.map((n) => n.path));
 		const edgesBySource = buildEdgeMapForNodes(nodes, ctx);
-		const chainStructure = buildChainStructure(nodePaths, edgesBySource, sequentialRelations);
+		chainStructure = buildChainStructure(nodePaths, edgesBySource, sequentialRelations);
 
+		// Build chainId lookup: path -> chain head (or null if disconnected)
+		chainIdByPath = buildChainIdMap(chainStructure);
+	}
+
+	// Pre-compute sort values for all nodes using evaluate()
+	const sortables = prepareSortables(nodes, keys, ctx, chainIdByPath);
+
+	let sorted: SortableNode[];
+
+	if (hasChainKey && chainStructure) {
 		// Sort with chain awareness
 		sorted = sortWithChains(sortables, keys, chainStructure);
 	} else {
@@ -57,11 +77,89 @@ export function sortNodes(
 		sorted = [...sortables].sort((a, b) => compareSortables(a, b, keys));
 	}
 
-	// Extract nodes and recursively sort children
-	return sorted.map((s) => ({
-		...s.node,
-		children: sortNodes(s.node.children, keys, ctx),
-	}));
+	// Extract nodes, attach sortInfo, and recursively sort children
+	return sorted.map((s) => {
+		const isChained = s.chainId !== null;
+		const partitionKeyValues = computePartitionKeyValues(
+			s.values,
+			keys,
+			chainKeyIndex,
+			s.chainId,
+			isChained
+		);
+
+		return {
+			...s.node,
+			sortInfo: {
+				partitionKeyValues,
+				isChained,
+				hasChainSort: hasChainKey,
+			},
+			children: sortNodes(s.node.children, keys, ctx),
+		};
+	});
+}
+
+/**
+ * Build a map from path to chainId (head path) for all nodes
+ */
+function buildChainIdMap(structure: ChainStructure): Map<string, string | null> {
+	const chainIdByPath = new Map<string, string | null>();
+
+	// For each chain, all members get the head as their chainId
+	for (const [head, chain] of structure.chains) {
+		for (const path of chain) {
+			chainIdByPath.set(path, head);
+		}
+	}
+
+	// Disconnected nodes have null chainId
+	for (const path of structure.disconnected) {
+		chainIdByPath.set(path, null);
+	}
+
+	return chainIdByPath;
+}
+
+/**
+ * Compute partition key values for a node based on sort keys and chain status.
+ *
+ * For chained nodes: include keys before :chain, then chainId, then STOP
+ * For disconnected nodes: include keys before :chain, then DISCONNECTED_MARKER, then continue with remaining keys
+ */
+function computePartitionKeyValues(
+	values: Value[],
+	keys: SortKeyNode[],
+	chainKeyIndex: number,
+	chainId: string | null,
+	isChained: boolean
+): Value[] {
+	// No chain sort - all property values contribute to partition
+	if (chainKeyIndex === -1) {
+		return [...values];
+	}
+
+	const partitionKeyValues: Value[] = [];
+
+	for (let i = 0; i < keys.length; i++) {
+		const key = keys[i]!;
+
+		if (key.key === "chain") {
+			// Add chainId or disconnected marker
+			partitionKeyValues.push(isChained ? (chainId as string) : DISCONNECTED_MARKER);
+
+			if (isChained) {
+				// Chained nodes: stop here, chain position determines rest
+				break;
+			}
+			// Disconnected nodes: continue with remaining keys
+			continue;
+		}
+
+		partitionKeyValues.push(values[i] ?? null);
+	}
+
+	return partitionKeyValues;
 }
 
 /**
@@ -71,7 +169,8 @@ export function sortNodes(
 function prepareSortables(
 	nodes: QueryResultNode[],
 	keys: SortKeyNode[],
-	ctx: ExecutorContext
+	ctx: ExecutorContext,
+	chainIdByPath: Map<string, string | null>
 ): SortableNode[] {
 	return nodes.map((node) => {
 		// Set context to this node's file (standard pattern)
@@ -83,7 +182,10 @@ function prepareSortables(
 			return key.key.evaluate(ctx);
 		});
 
-		return {node, values};
+		// Get chainId from lookup (null if not in chainIdByPath or if disconnected)
+		const chainId = chainIdByPath.get(node.path) ?? null;
+
+		return {node, values, chainId};
 	});
 }
 

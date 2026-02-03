@@ -1,44 +1,195 @@
-import type {QueryResultNode} from "../query/nodes/types";
+import type {QueryResultNode, Value} from "../query/nodes/types";
 import type {DisplayGroup, GroupMember} from "../types";
 
 /**
  * Converts a tree of QueryResultNode into nested DisplayGroups.
- * Only groups nodes together if they have the same relation AND identical subtrees.
- * Nodes with different children become separate groups.
+ *
+ * Uses sort-key-aware grouping:
+ * 1. Partition nodes into CONSECUTIVE RUNS with equal partition key values
+ * 2. Within each partition:
+ *    - Chained nodes (hasChainSort + isChained): consecutive-only grouping
+ *    - Disconnected or no chain: full grouping (can group non-adjacent nodes)
  */
 export function tqlTreeToGroups(nodes: QueryResultNode[]): DisplayGroup[] {
 	if (nodes.length === 0) return [];
-	
-	// Partition nodes into groups: same relation AND identical subtrees
+
+	// Partition nodes into consecutive runs with equal partition key values
+	const partitions = partitionByKeyValues(nodes);
+
+	const groups: DisplayGroup[] = [];
+
+	for (const partition of partitions) {
+		// Check if this partition contains chained nodes
+		const isChainedPartition = partition.some(
+			(n) => n.sortInfo?.hasChainSort && n.sortInfo?.isChained
+		);
+
+		if (isChainedPartition) {
+			// Chained: consecutive-only grouping (chain position matters)
+			groups.push(...groupConsecutive(partition));
+		} else {
+			// Disconnected or no :chain: full grouping
+			groups.push(...groupFull(partition));
+		}
+	}
+
+	return groups;
+}
+
+/**
+ * Partition nodes into CONSECUTIVE RUNS with equal partition key values.
+ * Preserves sort order - no reordering.
+ */
+function partitionByKeyValues(nodes: QueryResultNode[]): QueryResultNode[][] {
+	const partitions: QueryResultNode[][] = [];
+	let current: QueryResultNode[] = [];
+
+	for (const node of nodes) {
+		if (
+			current.length === 0 ||
+			partitionKeysEqual(
+				current[0]?.sortInfo?.partitionKeyValues,
+				node.sortInfo?.partitionKeyValues
+			)
+		) {
+			current.push(node);
+		} else {
+			partitions.push(current);
+			current = [node];
+		}
+	}
+
+	if (current.length > 0) {
+		partitions.push(current);
+	}
+
+	return partitions;
+}
+
+/**
+ * Compare two partition key value arrays for equality.
+ */
+function partitionKeysEqual(a: Value[] | undefined, b: Value[] | undefined): boolean {
+	// No sortInfo means all nodes have same partition (backward compatible)
+	if (!a && !b) return true;
+	if (!a || !b) return false;
+	if (a.length !== b.length) return false;
+
+	for (let i = 0; i < a.length; i++) {
+		const aVal = a[i];
+		const bVal = b[i];
+		// Type guard: i < a.length && i < b.length (since lengths are equal)
+		if (aVal === undefined || bVal === undefined) return false;
+		if (!valuesEqual(aVal, bVal)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Compare two values for equality.
+ */
+function valuesEqual(a: Value, b: Value): boolean {
+	if (a === b) return true;
+	if (a === null || b === null) return a === b;
+
+	if (a instanceof Date && b instanceof Date) {
+		return a.getTime() === b.getTime();
+	}
+
+	if (Array.isArray(a) && Array.isArray(b)) {
+		if (a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) {
+			const aItem = a[i];
+			const bItem = b[i];
+			// Type guard: i < a.length && i < b.length (since lengths are equal)
+			if (aItem === undefined || bItem === undefined) return false;
+			if (!valuesEqual(aItem, bItem)) return false;
+		}
+		return true;
+	}
+
+	return a === b;
+}
+
+/**
+ * Consecutive-only grouping: only group adjacent nodes with same relation and subtrees.
+ * Preserves chain order - does not pull later items forward.
+ */
+function groupConsecutive(nodes: QueryResultNode[]): DisplayGroup[] {
+	if (nodes.length === 0) return [];
+
+	const groups: DisplayGroup[] = [];
+	let currentGroup: QueryResultNode[] = [];
+
+	for (const node of nodes) {
+		if (currentGroup.length === 0) {
+			currentGroup.push(node);
+			continue;
+		}
+
+		const first = currentGroup[0]!;
+		// Check if this node can be grouped with current group
+		if (
+			node.relation === first.relation &&
+			tqlSubtreesEqual(node.children, first.children)
+		) {
+			currentGroup.push(node);
+		} else {
+			// Finalize current group and start new one
+			groups.push(createTqlGroupFromIdenticalNodes(currentGroup));
+			currentGroup = [node];
+		}
+	}
+
+	// Finalize last group
+	if (currentGroup.length > 0) {
+		groups.push(createTqlGroupFromIdenticalNodes(currentGroup));
+	}
+
+	return groups;
+}
+
+/**
+ * Full grouping: can group any nodes with same relation and subtrees (original behavior).
+ * Used for property-sorted partitions where ties are arbitrary.
+ */
+function groupFull(nodes: QueryResultNode[]): DisplayGroup[] {
+	if (nodes.length === 0) return [];
+
 	const groups: DisplayGroup[] = [];
 	const used = new Set<number>();
-	
+
 	for (let i = 0; i < nodes.length; i++) {
 		if (used.has(i)) continue;
-		
+
 		const node = nodes[i];
 		if (!node) continue;
-		
+
 		const matchingNodes: QueryResultNode[] = [node];
 		used.add(i);
-		
+
 		// Find other nodes with same relation AND identical subtrees
 		for (let j = i + 1; j < nodes.length; j++) {
 			if (used.has(j)) continue;
 			const other = nodes[j];
 			if (!other) continue;
-			
-			if (other.relation === node.relation && 
-			    tqlSubtreesEqual(node.children, other.children)) {
+
+			if (
+				other.relation === node.relation &&
+				tqlSubtreesEqual(node.children, other.children)
+			) {
 				matchingNodes.push(other);
 				used.add(j);
 			}
 		}
-		
+
 		// Create group from nodes with identical subtrees
 		groups.push(createTqlGroupFromIdenticalNodes(matchingNodes));
 	}
-	
+
 	return groups;
 }
 
