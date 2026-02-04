@@ -11,7 +11,7 @@ export interface ImpliedRelation {
 	direction: ImpliedDirection;
 }
 
-export type VisualDirection = "descending" | "ascending" | "sequential";
+export type VisualDirection = "descending" | "ascending";
 
 export interface RelationGroupMember {
 	relation: RelationName;

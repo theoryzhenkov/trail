@@ -31,7 +31,7 @@ export const highlighting = styleTags({
 	"extend all": t.typeName,
 	
 	// Option identifiers (clause-specific options)
-	":depth :flatten :asc :desc :chain": t.typeName,
+	":depth :flatten :asc :desc": t.typeName,
 	
 	// Logical operators (keywords)
 	"and or not in": t.operatorKeyword,

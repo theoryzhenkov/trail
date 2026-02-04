@@ -92,18 +92,6 @@ export interface DisplayProperty {
 }
 
 /**
- * Sort metadata attached to query result nodes for grouping decisions
- */
-export interface SortInfo {
-	/** Computed partition key values based on sort clause */
-	partitionKeyValues: Value[];
-	/** True if node is part of a chain, false if disconnected */
-	isChained: boolean;
-	/** Whether :chain was present in the sort keys */
-	hasChainSort: boolean;
-}
-
-/**
  * Query result node structure
  */
 export interface QueryResultNode {
@@ -119,8 +107,6 @@ export interface QueryResultNode {
 	visualDirection: VisualDirection;
 	hasFilteredAncestor: boolean;
 	children: QueryResultNode[];
-	/** Sort metadata for grouping decisions (populated during sort phase) */
-	sortInfo?: SortInfo;
 }
 
 /**
@@ -150,7 +136,6 @@ export interface QueryContext {
 	getFileMetadata(path: string): FileMetadata | undefined;
 	getRelationNames(): string[];
 	getVisualDirection(relation: string): VisualDirection;
-	getSequentialRelations(): Set<string>;
 	resolveGroupQuery(name: string): unknown; // Will be QueryNode after refactor
 	activeFilePath: string;
 	activeFileProperties: FileProperties;

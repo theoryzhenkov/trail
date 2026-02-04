@@ -43,7 +43,7 @@ Sort { kw<"sort"> SortKey ("," SortKey)* }
 
 SortKey { SortKeyExpr SortDirection? }
 
-SortKeyExpr { BuiltinPropertyAccess | PropertyAccess | ":chain" }
+SortKeyExpr { BuiltinPropertyAccess | PropertyAccess }
 
 SortDirection { ":asc" | ":desc" }
 

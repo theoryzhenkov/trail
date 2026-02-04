@@ -159,10 +159,6 @@ export class ExecutorContext {
 		return this._queryCtx.getVisualDirection(relation);
 	}
 
-	getSequentialRelations(): Set<string> {
-		return this._queryCtx.getSequentialRelations();
-	}
-
 	resolveGroupQuery(name: string): unknown {
 		return this._queryCtx.resolveGroupQuery(name);
 	}

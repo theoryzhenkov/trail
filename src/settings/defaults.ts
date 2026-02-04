@@ -9,8 +9,8 @@ export function createDefaultRelations(): RelationDefinition[] {
 	const base: Array<{id: string; visualDirection: RelationDefinition["visualDirection"]}> = [
 		{id: "up", visualDirection: "ascending"},
 		{id: "down", visualDirection: "descending"},
-		{id: "next", visualDirection: "sequential"},
-		{id: "prev", visualDirection: "sequential"}
+		{id: "next", visualDirection: "descending"},
+		{id: "prev", visualDirection: "descending"}
 	];
 	const relations = base.map(({id, visualDirection}) => ({
 		id,

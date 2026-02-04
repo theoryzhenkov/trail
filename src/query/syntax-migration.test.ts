@@ -111,31 +111,6 @@ describe("TQL Syntax Migration (3.x → 4.x)", () => {
 		});
 	});
 
-	describe("chain → :chain", () => {
-		it("should add colon prefix to chain in sort", () => {
-			const old = `group "Test" from up sort chain`;
-			const expected = `group "Test" from up sort :chain`;
-			expect(migrateTqlSyntax(old)).toBe(expected);
-		});
-
-		it("should handle chain with other sort keys", () => {
-			const old = `group "Test" from up sort by chain, date desc`;
-			const expected = `group "Test" from up sort :chain, date :desc`;
-			expect(migrateTqlSyntax(old)).toBe(expected);
-		});
-
-		it("should handle chain as secondary sort key", () => {
-			const old = `group "Test" from up sort by priority asc, chain`;
-			const expected = `group "Test" from up sort priority :asc, :chain`;
-			expect(migrateTqlSyntax(old)).toBe(expected);
-		});
-
-		it("should not double-prefix already migrated chain", () => {
-			const old = `group "Test" from up sort :chain`;
-			expect(migrateTqlSyntax(old)).toBe(old);
-		});
-	});
-
 	describe("file.* → $file.*", () => {
 		it("should add $ prefix to file.name", () => {
 			const old = `group "Test" from up where file.name = "test"`;
@@ -236,12 +211,12 @@ describe("TQL Syntax Migration (3.x → 4.x)", () => {
 			const old = `group "Test"
 from up depth unlimited
 where file.name = "test" and traversal.depth < 5
-sort by chain, file.modified desc
+sort by file.modified desc
 display file.name, status`;
 			const expected = `group "Test"
 from up
 where $file.name = "test" and $traversal.depth < 5
-sort :chain, $file.modified :desc
+sort $file.modified :desc
 display $file.name, status`;
 			expect(migrateTqlSyntax(old)).toBe(expected);
 		});
@@ -256,7 +231,7 @@ display $file.name, status`;
 			const modern = `group "Test"
 from up
 where $file.name = "test"
-sort :chain, date :desc`;
+sort date :desc`;
 			expect(migrateTqlSyntax(modern)).toBe(modern);
 		});
 
@@ -298,10 +273,6 @@ from next :depth 1, prev :depth 1`;
 			expect(needsSyntaxMigration(`sort date asc`)).toBe(true);
 		});
 
-		it("should detect unprefixed chain in sort", () => {
-			expect(needsSyntaxMigration(`sort chain`)).toBe(true);
-		});
-
 		it("should detect unprefixed file.*", () => {
 			expect(needsSyntaxMigration(`file.name`)).toBe(true);
 		});
@@ -315,7 +286,7 @@ from next :depth 1, prev :depth 1`;
 		});
 
 		it("should return false for modern syntax", () => {
-			expect(needsSyntaxMigration(`from up :depth 3 sort :chain, $file.name :desc`)).toBe(false);
+			expect(needsSyntaxMigration(`from up :depth 3 sort $file.name :desc`)).toBe(false);
 		});
 
 		it("should return false for already migrated groups", () => {
@@ -343,7 +314,7 @@ from up`)).toBe(false);
 
 		it("should return migrated=false when nothing to migrate", () => {
 			const groups = [
-				{query: `group "A" from up sort :chain`, enabled: true},
+				{query: `group "A" from up sort date :asc`, enabled: true},
 			];
 
 			const result = migrateAllTqlSyntax(groups);

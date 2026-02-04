@@ -256,30 +256,22 @@ function convertSortKey(node: SyntaxNode, source: string): SortKeyNode {
 	const keyExprNode = child(node, Terms.SortKeyExpr);
 	if (!keyExprNode) throw new Error("Missing sort key expression");
 	
-	let key: "chain" | PropertyNode;
+	const builtinProp = child(keyExprNode, Terms.BuiltinPropertyAccess);
+	const propAccess = child(keyExprNode, Terms.PropertyAccess);
 	
-	// Check text content for :chain since it's an anonymous literal token
-	const keyText = text(keyExprNode, source).trim();
-	if (keyText === ":chain") {
-		key = "chain";
+	let key: PropertyNode;
+	if (builtinProp) {
+		key = convertBuiltinPropertyAccess(builtinProp, source);
+	} else if (propAccess) {
+		key = convertPropertyAccess(propAccess, source);
 	} else {
-		// Look inside SortKeyExpr for the property access nodes
-		const builtinProp = child(keyExprNode, Terms.BuiltinPropertyAccess);
-		const propAccess = child(keyExprNode, Terms.PropertyAccess);
-		
-		if (builtinProp) {
-			key = convertBuiltinPropertyAccess(builtinProp, source);
-		} else if (propAccess) {
-			key = convertPropertyAccess(propAccess, source);
-		} else {
-			throw new Error(`Invalid sort key expression: ${keyText}`);
-		}
+		const keyText = text(keyExprNode, source).trim();
+		throw new Error(`Invalid sort key expression: ${keyText}`);
 	}
 	
 	let direction: "asc" | "desc" = "asc";
 	const directionNode = child(node, Terms.SortDirection);
 	if (directionNode) {
-		// Check text content for direction since they're anonymous literals
 		const dirText = text(directionNode, source).trim();
 		if (dirText === ":asc") {
 			direction = "asc";

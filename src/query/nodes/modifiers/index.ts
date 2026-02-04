@@ -9,7 +9,6 @@
 // Sort direction modifiers
 export * from "./AscModifier";
 export * from "./DescModifier";
-export * from "./ChainModifier";
 
 // Relation modifiers
 export * from "./DepthModifier";

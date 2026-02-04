@@ -1,6 +1,6 @@
 /**
  * Tree Transforms Tests
- * Tests for grouping, inversion, and flattening of tree structures
+ * Tests for grouping and inversion of tree structures
  */
 
 import { describe, it, expect } from "vitest";
@@ -8,11 +8,9 @@ import {
 	tqlTreeToGroups,
 	tqlSubtreesEqual,
 	invertDisplayGroups,
-	flattenTqlTree,
 } from "./tree-transforms";
-import type { QueryResultNode, Value } from "../query/nodes/types";
+import type { QueryResultNode } from "../query/nodes/types";
 import type { DisplayGroup } from "../types";
-import { DISCONNECTED_MARKER } from "../query/nodes/execution/sorting";
 
 /**
  * Helper to create a QueryResultNode for testing
@@ -141,6 +139,23 @@ describe("tqlTreeToGroups", () => {
 			// Second group: C (different subtree)
 			expect(result[1]?.members).toHaveLength(1);
 			expect(result[1]?.members[0]?.path).toBe("C.md");
+		});
+
+		it("should allow non-adjacent nodes to group", () => {
+			const shared = tqlNode("Shared.md", "parent");
+			const nodes = [
+				tqlNode("A.md", "parent", [shared]),         // Same subtree
+				tqlNode("B.md", "parent", [tqlNode("Different.md", "parent")]),  // Different subtree
+				tqlNode("C.md", "parent", [{ ...shared }]), // Same subtree as A
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			// A and C should group together (non-adjacent but same subtree)
+			expect(result).toHaveLength(2);
+			expect(result[0]?.members).toHaveLength(2);
+			expect(result[0]?.members.map(m => m.path)).toContain("A.md");
+			expect(result[0]?.members.map(m => m.path)).toContain("C.md");
+			expect(result[1]?.members[0]?.path).toBe("B.md");
 		});
 	});
 
@@ -363,70 +378,6 @@ describe("invertDisplayGroups", () => {
 	});
 });
 
-describe("flattenTqlTree", () => {
-	it("should return empty array for empty input", () => {
-		const result = flattenTqlTree([]);
-		expect(result).toEqual([]);
-	});
-
-	it("should return single node without children", () => {
-		const nodes = [tqlNode("A.md", "next")];
-		const result = flattenTqlTree(nodes);
-
-		expect(result).toHaveLength(1);
-		expect(result[0]?.path).toBe("A.md");
-		expect(result[0]?.children).toHaveLength(0);
-	});
-
-	it("should flatten nested nodes into siblings", () => {
-		const nodes = [
-			tqlNode("A.md", "next", [
-				tqlNode("B.md", "next", [
-					tqlNode("C.md", "next"),
-				]),
-			]),
-		];
-		const result = flattenTqlTree(nodes);
-
-		expect(result).toHaveLength(3);
-		expect(result[0]?.path).toBe("A.md");
-		expect(result[1]?.path).toBe("B.md");
-		expect(result[2]?.path).toBe("C.md");
-		// All should have empty children
-		expect(result.every(n => n.children.length === 0)).toBe(true);
-	});
-
-	it("should preserve order: parent before children", () => {
-		const nodes = [
-			tqlNode("First.md", "next", [
-				tqlNode("Second.md", "next", [
-					tqlNode("Third.md", "next"),
-				]),
-			]),
-		];
-		const result = flattenTqlTree(nodes);
-
-		expect(result.map(n => n.path)).toEqual([
-			"First.md",
-			"Second.md",
-			"Third.md",
-		]);
-	});
-
-	it("should handle multiple root nodes", () => {
-		const nodes = [
-			tqlNode("A.md", "next", [tqlNode("A1.md", "next")]),
-			tqlNode("B.md", "next", [tqlNode("B1.md", "next")]),
-		];
-		const result = flattenTqlTree(nodes);
-
-		expect(result).toHaveLength(4);
-		expect(result.map(n => n.path)).toEqual([
-			"A.md", "A1.md", "B.md", "B1.md"
-		]);
-	});
-});
-
 describe("edge cases", () => {
 	it("should handle very deep nesting", () => {
 		// Create a chain of 10 nodes
@@ -487,366 +438,5 @@ describe("edge cases", () => {
 		// B and C have identical subtrees, should be grouped
 		expect(result).toHaveLength(1);
 		expect(result[0]?.members).toHaveLength(2);
-	});
-});
-
-/**
- * Helper to create a node with sortInfo for sort-aware grouping tests
- */
-function tqlNodeWithSortInfo(
-	path: string,
-	relation: string,
-	children: QueryResultNode[] = [],
-	sortInfo: {
-		partitionKeyValues: Value[];
-		isChained: boolean;
-		hasChainSort: boolean;
-	},
-	options: Partial<QueryResultNode> = {}
-): QueryResultNode {
-	return {
-		...tqlNode(path, relation, children, options),
-		sortInfo,
-	};
-}
-
-describe("sort-aware grouping", () => {
-	describe("no sortInfo (backward compatible)", () => {
-		it("should use full grouping when nodes have no sortInfo", () => {
-			// Original behavior: nodes with same relation/subtrees group regardless of position
-			const nodes = [
-				tqlNode("A.md", "parent"),
-				tqlNode("B.md", "parent"),
-				tqlNode("C.md", "parent"),
-			];
-			const result = tqlTreeToGroups(nodes);
-
-			// All should be grouped together (same relation, empty subtrees)
-			expect(result).toHaveLength(1);
-			expect(result[0]?.members).toHaveLength(3);
-		});
-
-		it("should allow non-adjacent nodes to group when no sortInfo", () => {
-			const shared = tqlNode("Shared.md", "parent");
-			const nodes = [
-				tqlNode("A.md", "parent", [shared]),         // Same subtree
-				tqlNode("B.md", "parent", [tqlNode("Different.md", "parent")]),  // Different subtree
-				tqlNode("C.md", "parent", [{ ...shared }]), // Same subtree as A
-			];
-			const result = tqlTreeToGroups(nodes);
-
-			// A and C should group together (non-adjacent but same subtree)
-			expect(result).toHaveLength(2);
-			expect(result[0]?.members).toHaveLength(2);
-			expect(result[0]?.members.map(m => m.path)).toContain("A.md");
-			expect(result[0]?.members.map(m => m.path)).toContain("C.md");
-			expect(result[1]?.members[0]?.path).toBe("B.md");
-		});
-	});
-
-	describe("sort :chain (chained nodes use consecutive-only grouping)", () => {
-		it("should not group non-adjacent chained nodes with same subtree", () => {
-			// Chain: 1→2→3→4. Nodes 1,2,4 have subtree A; node 3 has subtree B
-			// With chain sort, 4 cannot group with 1,2 because 3 is between them
-			const subtreeA = tqlNode("SubA.md", "parent");
-			const subtreeB = tqlNode("SubB.md", "parent");
-
-			const nodes = [
-				tqlNodeWithSortInfo("1.md", "parent", [subtreeA], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("2.md", "parent", [{ ...subtreeA }], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("3.md", "parent", [subtreeB], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("4.md", "parent", [{ ...subtreeA }], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-			];
-
-			const result = tqlTreeToGroups(nodes);
-
-			// Should be: group(1,2), 3, 4 - NOT group(1,2,4), 3
-			expect(result).toHaveLength(3);
-			expect(result[0]?.members).toHaveLength(2);
-			expect(result[0]?.members.map(m => m.path)).toEqual(["1.md", "2.md"]);
-			expect(result[1]?.members).toHaveLength(1);
-			expect(result[1]?.members[0]?.path).toBe("3.md");
-			expect(result[2]?.members).toHaveLength(1);
-			expect(result[2]?.members[0]?.path).toBe("4.md");
-		});
-
-		it("should group consecutive chained nodes with same subtree", () => {
-			const subtree = tqlNode("Sub.md", "parent");
-			const nodes = [
-				tqlNodeWithSortInfo("1.md", "parent", [subtree], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("2.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("3.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-			];
-
-			const result = tqlTreeToGroups(nodes);
-
-			// All consecutive with same subtree - should be one group
-			expect(result).toHaveLength(1);
-			expect(result[0]?.members).toHaveLength(3);
-		});
-	});
-
-	describe("sort :chain with multiple chains", () => {
-		it("should partition by chainId and apply consecutive grouping within each", () => {
-			const subtree = tqlNode("Sub.md", "parent");
-			const nodes = [
-				// Chain A
-				tqlNodeWithSortInfo("A1.md", "parent", [subtree], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("A2.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				// Chain B
-				tqlNodeWithSortInfo("B1.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["chainB"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("B2.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["chainB"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-			];
-
-			const result = tqlTreeToGroups(nodes);
-
-			// Two partitions, each forms one group
-			expect(result).toHaveLength(2);
-			expect(result[0]?.members.map(m => m.path)).toEqual(["A1.md", "A2.md"]);
-			expect(result[1]?.members.map(m => m.path)).toEqual(["B1.md", "B2.md"]);
-		});
-	});
-
-	describe("sort :chain with disconnected nodes", () => {
-		it("should use full grouping for disconnected nodes", () => {
-			const subtree = tqlNode("Sub.md", "parent");
-			const different = tqlNode("Different.md", "parent");
-			const nodes = [
-				// Disconnected nodes with same partition key
-				tqlNodeWithSortInfo("D1.md", "parent", [subtree], {
-					partitionKeyValues: [DISCONNECTED_MARKER],
-					isChained: false,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("D2.md", "parent", [different], {
-					partitionKeyValues: [DISCONNECTED_MARKER],
-					isChained: false,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("D3.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: [DISCONNECTED_MARKER],
-					isChained: false,
-					hasChainSort: true,
-				}),
-			];
-
-			const result = tqlTreeToGroups(nodes);
-
-			// D1 and D3 should group (non-adjacent but same subtree), D2 separate
-			expect(result).toHaveLength(2);
-			expect(result[0]?.members.map(m => m.path)).toContain("D1.md");
-			expect(result[0]?.members.map(m => m.path)).toContain("D3.md");
-			expect(result[1]?.members[0]?.path).toBe("D2.md");
-		});
-	});
-
-	describe("sort type (property-based, no chain)", () => {
-		it("should partition by property value and use full grouping within", () => {
-			const subtree = tqlNode("Sub.md", "parent");
-			const different = tqlNode("Different.md", "parent");
-			const nodes = [
-				// Type "foo" partition
-				tqlNodeWithSortInfo("A.md", "parent", [subtree], {
-					partitionKeyValues: ["foo"],
-					isChained: false,
-					hasChainSort: false,
-				}),
-				tqlNodeWithSortInfo("B.md", "parent", [different], {
-					partitionKeyValues: ["foo"],
-					isChained: false,
-					hasChainSort: false,
-				}),
-				tqlNodeWithSortInfo("C.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["foo"],
-					isChained: false,
-					hasChainSort: false,
-				}),
-				// Type "bar" partition
-				tqlNodeWithSortInfo("D.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["bar"],
-					isChained: false,
-					hasChainSort: false,
-				}),
-				tqlNodeWithSortInfo("E.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["bar"],
-					isChained: false,
-					hasChainSort: false,
-				}),
-			];
-
-			const result = tqlTreeToGroups(nodes);
-
-			// Partition 1 (foo): A,C group, B separate
-			// Partition 2 (bar): D,E group
-			expect(result).toHaveLength(3);
-			// First group: A and C (same subtree in foo partition)
-			expect(result[0]?.members.map(m => m.path)).toContain("A.md");
-			expect(result[0]?.members.map(m => m.path)).toContain("C.md");
-			// Second group: B (different subtree in foo partition)
-			expect(result[1]?.members[0]?.path).toBe("B.md");
-			// Third group: D and E (same subtree in bar partition)
-			expect(result[2]?.members.map(m => m.path)).toContain("D.md");
-			expect(result[2]?.members.map(m => m.path)).toContain("E.md");
-		});
-	});
-
-	describe("sort type, :chain (property then chain)", () => {
-		it("should partition by (type, chainId) and apply consecutive grouping within", () => {
-			const subtree = tqlNode("Sub.md", "parent");
-			const nodes = [
-				// Type "foo", Chain A
-				tqlNodeWithSortInfo("1.md", "parent", [subtree], {
-					partitionKeyValues: ["foo", "chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("2.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["foo", "chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				// Type "foo", Chain B (new partition)
-				tqlNodeWithSortInfo("3.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["foo", "chainB"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-			];
-
-			const result = tqlTreeToGroups(nodes);
-
-			// Two partitions, consecutive grouping in each
-			expect(result).toHaveLength(2);
-			expect(result[0]?.members.map(m => m.path)).toEqual(["1.md", "2.md"]);
-			expect(result[1]?.members.map(m => m.path)).toEqual(["3.md"]);
-		});
-	});
-
-	describe("sort type, :chain, status (chain in middle)", () => {
-		it("should partition chained by (type, chainId), disconnected by (type, disc, status)", () => {
-			const subtree = tqlNode("Sub.md", "parent");
-			const nodes = [
-				// Chained: partition by (type, chainId) - status ignored
-				tqlNodeWithSortInfo("C1.md", "parent", [subtree], {
-					partitionKeyValues: ["typeX", "chainA"],  // Stopped at chainId
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("C2.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["typeX", "chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				// Disconnected: partition by (type, "disc", status) - status included
-				tqlNodeWithSortInfo("D1.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["typeX", DISCONNECTED_MARKER, "statusA"],
-					isChained: false,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("D2.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["typeX", DISCONNECTED_MARKER, "statusA"],
-					isChained: false,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("D3.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["typeX", DISCONNECTED_MARKER, "statusB"],  // Different status
-					isChained: false,
-					hasChainSort: true,
-				}),
-			];
-
-			const result = tqlTreeToGroups(nodes);
-
-			// 3 partitions:
-			// - Chained (typeX, chainA): consecutive grouping -> group(C1,C2)
-			// - Disconnected (typeX, disc, statusA): full grouping -> group(D1,D2)
-			// - Disconnected (typeX, disc, statusB): full grouping -> D3
-			expect(result).toHaveLength(3);
-			expect(result[0]?.members.map(m => m.path)).toEqual(["C1.md", "C2.md"]);
-			expect(result[1]?.members.map(m => m.path)).toContain("D1.md");
-			expect(result[1]?.members.map(m => m.path)).toContain("D2.md");
-			expect(result[2]?.members[0]?.path).toBe("D3.md");
-		});
-	});
-
-	describe("preserves sort order", () => {
-		it("should never reorder nodes, only group them", () => {
-			// Sorted order: 1, 2, 3, 4
-			const subtree = tqlNode("Sub.md", "parent");
-			const nodes = [
-				tqlNodeWithSortInfo("1.md", "parent", [subtree], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("2.md", "parent", [tqlNode("Different.md", "parent")], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("3.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-				tqlNodeWithSortInfo("4.md", "parent", [{ ...subtree }], {
-					partitionKeyValues: ["chainA"],
-					isChained: true,
-					hasChainSort: true,
-				}),
-			];
-
-			const result = tqlTreeToGroups(nodes);
-
-			// Order should be preserved: 1, 2, then 3,4 grouped
-			expect(result).toHaveLength(3);
-			expect(result[0]?.members[0]?.path).toBe("1.md");
-			expect(result[1]?.members[0]?.path).toBe("2.md");
-			expect(result[2]?.members.map(m => m.path)).toEqual(["3.md", "4.md"]);
-		});
 	});
 });

@@ -68,7 +68,7 @@ function canVisualizeQuery(ast: QueryNode): boolean {
 	if (ast.where && !isSimpleCondition(ast.where.expression)) return false;
 
 	// SORT must be simple (single key or missing)
-	if (ast.sort && (ast.sort.keys.length > 1 || ast.sort.keys[0]?.key === "chain")) return false;
+	if (ast.sort && ast.sort.keys.length > 1) return false;
 
 	// DISPLAY must be simple (no "all", just property list)
 	if (ast.display?.all) return false;
@@ -193,7 +193,7 @@ function parseConditionClause(expr?: ExprNode): VisualCondition | undefined {
 function parseSortClause(ast: QueryNode): VisualSortKey | undefined {
 	if (!ast.sort || ast.sort.keys.length === 0) return undefined;
 	const key = ast.sort.keys[0];
-	if (!key || key.key === "chain") return undefined;
+	if (!key) return undefined;
 
 	return {
 		property: key.key.path.join("."),

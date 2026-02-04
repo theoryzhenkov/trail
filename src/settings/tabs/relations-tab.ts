@@ -130,12 +130,11 @@ export class RelationsTabRenderer {
 
 		new Setting(content)
 			.setName("Visual direction")
-			.setDesc("How items are displayed: descending (indent increases), ascending (indent decreases), or sequential (flat, sorted).")
+			.setDesc("How items are displayed: descending (indent increases) or ascending (indent decreases).")
 			.addDropdown((dropdown) => {
 				dropdown
 					.addOption("descending", "Descending (children)")
 					.addOption("ascending", "Ascending (ancestors)")
-					.addOption("sequential", "Sequential (flat)")
 					.setValue(relation.visualDirection ?? "descending")
 					.onChange((value) => {
 						relation.visualDirection = value as VisualDirection;

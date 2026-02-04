@@ -1,7 +1,7 @@
 import {ItemView, Menu, TFile, WorkspaceLeaf, setIcon} from "obsidian";
 import TrailPlugin from "../main";
 import type {DisplayGroup, GroupDefinition, GroupMember, RelationDefinition} from "../types";
-import {tqlTreeToGroups, flattenTqlTree, invertDisplayGroups} from "./tree-transforms";
+import {tqlTreeToGroups, invertDisplayGroups} from "./tree-transforms";
 import {
 	renderEmptyState,
 	renderFileLink,
@@ -317,11 +317,6 @@ export class TrailView extends ItemView {
 				const def = settings.relations.find(r => r.id === relation);
 				return def?.visualDirection ?? "descending";
 			},
-			getSequentialRelations: () => new Set(
-				settings.relations
-					.filter(r => r.visualDirection === "sequential")
-					.map(r => r.id)
-			),
 			resolveGroupQuery: (name: string) => {
 				const group = settings.tqlGroups.find(g => {
 					try {
@@ -357,12 +352,6 @@ export class TrailView extends ItemView {
 		}
 		
 		const direction = nodes[0]?.visualDirection ?? "descending";
-		
-		if (direction === "sequential") {
-			// Flatten first, then convert to groups
-			const flattened = flattenTqlTree(nodes);
-			return tqlTreeToGroups(flattened);
-		}
 		
 		// Convert to groups
 		const groups = tqlTreeToGroups(nodes);

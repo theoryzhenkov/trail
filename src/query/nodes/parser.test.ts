@@ -126,11 +126,6 @@ describe("TQL Parser", () => {
 			expect(query.sort?.keys[0]?.direction).toBe("desc");
 		});
 
-		it("should parse sort :chain", () => {
-			const query = parse('group "Test" from up sort :chain');
-			expect(query.sort?.keys[0]?.key).toBe("chain");
-		});
-		
 		it("should parse sort with builtin property", () => {
 			const query = parse('group "Test" from up sort $file.name :desc');
 			expect(query.sort?.keys[0]?.key).toBeInstanceOf(PropertyNode);

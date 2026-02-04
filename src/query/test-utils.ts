@@ -138,18 +138,10 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 		},
 
 		getVisualDirection(relation: string): VisualDirection {
-			if (relation === "next" || relation === "prev") {
-				return "sequential";
-			}
-			if (relation === "down") {
+			if (relation === "down" || relation === "next") {
 				return "descending";
 			}
 			return "ascending";
-		},
-
-		getSequentialRelations(): Set<string> {
-			const relations = graph.relations ?? ["up", "down", "next", "prev"];
-			return new Set(relations.filter((r) => r === "next" || r === "prev"));
 		},
 
 		resolveGroupQuery(name: string): QueryNode | undefined {

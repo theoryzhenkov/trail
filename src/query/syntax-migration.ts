@@ -8,10 +8,9 @@
  * 4. `sort by X` → `sort X` (remove "by" keyword)
  * 5. `asc` → `:asc` (colon prefix for sort direction)
  * 6. `desc` → `:desc` (colon prefix for sort direction)
- * 7. `chain` → `:chain` (colon prefix in sort context)
- * 8. `file.name` → `$file.name` ($ prefix for builtins)
- * 9. `traversal.depth` → `$traversal.depth` ($ prefix for builtins)
- * 10. `group("Name")` → `@"Name"` (@ prefix for group references)
+ * 7. `file.name` → `$file.name` ($ prefix for builtins)
+ * 8. `traversal.depth` → `$traversal.depth` ($ prefix for builtins)
+ * 9. `group("Name")` → `@"Name"` (@ prefix for group references)
  */
 
 /**
@@ -35,16 +34,16 @@ export function migrateTqlSyntax(query: string): string {
 	// 4. Remove "by" from "sort by" (case insensitive)
 	result = result.replace(/\bsort\s+by\b/gi, "sort");
 
-	// 5-7. Handle sort clause: convert asc/desc/chain to :asc/:desc/:chain
+	// 5-6. Handle sort clause: convert asc/desc to :asc/:desc
 	result = migrateSortClause(result);
 
-	// 8. Add $ prefix to file.* builtins (when not already prefixed)
+	// 7. Add $ prefix to file.* builtins (when not already prefixed)
 	result = result.replace(/(?<!\$)\bfile\.(name|path|folder|ext|modified|created|size|tags|aliases)\b/g, "\\$file.$1");
 
-	// 9. Add $ prefix to traversal.* builtins (when not already prefixed)
+	// 8. Add $ prefix to traversal.* builtins (when not already prefixed)
 	result = result.replace(/(?<!\$)\btraversal\.(depth|relation)\b/g, "\\$traversal.$1");
 
-	// 10. Convert group("Name") → @"Name"
+	// 9. Convert group("Name") → @"Name"
 	result = result.replace(/\bgroup\s*\(\s*"([^"\\]*(?:\\.[^"\\]*)*)"\s*\)/g, '@"$1"');
 
 	// Clean up any double spaces that might have been introduced
@@ -60,7 +59,7 @@ export function migrateTqlSyntax(query: string): string {
 }
 
 /**
- * Migrate sort clause: convert asc/desc/chain to :asc/:desc/:chain
+ * Migrate sort clause: convert asc/desc to :asc/:desc
  */
 function migrateSortClause(query: string): string {
 	// Find sort clauses and process them
@@ -69,9 +68,6 @@ function migrateSortClause(query: string): string {
 
 	return query.replace(sortPattern, (match, sortContent: string) => {
 		let content = sortContent;
-
-		// Convert standalone "chain" to ":chain" (not if already prefixed)
-		content = content.replace(/(?<!:)\bchain\b/g, ":chain");
 
 		// Convert standalone "asc" to ":asc" (not if already prefixed)
 		content = content.replace(/(?<!:)\basc\b/gi, ":asc");
@@ -94,7 +90,6 @@ export function needsSyntaxMigration(query: string): boolean {
 		/(?<!:)\bflatten\b/i, // "flatten" without colon
 		/\bsort\s+by\b/i, // "sort by"
 		/\bsort\s+[^:]*(?<!:)\b(asc|desc)\b/i, // asc/desc without colon in sort
-		/\bsort\s+[^:]*(?<!:)\bchain\b/i, // chain without colon in sort
 		/(?<!\$)\bfile\.(name|path|folder|ext|modified|created|size|tags|aliases)\b/, // file.* without $
 		/(?<!\$)\btraversal\.(depth|relation)\b/, // traversal.* without $
 		/\bgroup\s*\(\s*"[^"]*"\s*\)/, // group("Name") syntax
