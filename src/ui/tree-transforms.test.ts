@@ -1,6 +1,6 @@
 /**
  * Tree Transforms Tests
- * Tests for grouping and inversion of tree structures
+ * Tests for merging, grouping, and inversion of tree structures
  */
 
 import { describe, it, expect } from "vitest";
@@ -65,7 +65,7 @@ describe("tqlTreeToGroups", () => {
 			expect(result).toHaveLength(1);
 			expect(result[0]?.members).toHaveLength(1);
 			expect(result[0]?.members[0]?.path).toBe("A.md");
-			expect(result[0]?.relation).toBe("parent");
+			expect(result[0]?.relations).toEqual(["parent"]);
 		});
 
 		it("should group nodes with same relation and no children", () => {
@@ -96,11 +96,10 @@ describe("tqlTreeToGroups", () => {
 
 	describe("grouping with identical subtrees", () => {
 		it("should group nodes with same relation AND identical children", () => {
-			// Dad and Mom both have the same child (Grandma)
 			const grandma = tqlNode("Grandma.md", "parent");
 			const nodes = [
 				tqlNode("Dad.md", "parent", [grandma]),
-				tqlNode("Mom.md", "parent", [{ ...grandma }]), // Same structure
+				tqlNode("Mom.md", "parent", [{ ...grandma }]),
 			];
 			const result = tqlTreeToGroups(nodes);
 
@@ -126,17 +125,15 @@ describe("tqlTreeToGroups", () => {
 			const sharedChild = tqlNode("Shared.md", "parent");
 			const nodes = [
 				tqlNode("A.md", "parent", [sharedChild]),
-				tqlNode("B.md", "parent", [{ ...sharedChild }]), // Groups with A
-				tqlNode("C.md", "parent", [tqlNode("Different.md", "parent")]), // Separate
+				tqlNode("B.md", "parent", [{ ...sharedChild }]),
+				tqlNode("C.md", "parent", [tqlNode("Different.md", "parent")]),
 			];
 			const result = tqlTreeToGroups(nodes);
 
 			expect(result).toHaveLength(2);
-			// First group: A and B (identical subtrees)
 			expect(result[0]?.members).toHaveLength(2);
 			expect(result[0]?.members.map(m => m.path)).toContain("A.md");
 			expect(result[0]?.members.map(m => m.path)).toContain("B.md");
-			// Second group: C (different subtree)
 			expect(result[1]?.members).toHaveLength(1);
 			expect(result[1]?.members[0]?.path).toBe("C.md");
 		});
@@ -144,17 +141,136 @@ describe("tqlTreeToGroups", () => {
 		it("should allow non-adjacent nodes to group", () => {
 			const shared = tqlNode("Shared.md", "parent");
 			const nodes = [
-				tqlNode("A.md", "parent", [shared]),         // Same subtree
-				tqlNode("B.md", "parent", [tqlNode("Different.md", "parent")]),  // Different subtree
-				tqlNode("C.md", "parent", [{ ...shared }]), // Same subtree as A
+				tqlNode("A.md", "parent", [shared]),
+				tqlNode("B.md", "parent", [tqlNode("Different.md", "parent")]),
+				tqlNode("C.md", "parent", [{ ...shared }]),
 			];
 			const result = tqlTreeToGroups(nodes);
 
-			// A and C should group together (non-adjacent but same subtree)
 			expect(result).toHaveLength(2);
 			expect(result[0]?.members).toHaveLength(2);
 			expect(result[0]?.members.map(m => m.path)).toContain("A.md");
 			expect(result[0]?.members.map(m => m.path)).toContain("C.md");
+			expect(result[1]?.members[0]?.path).toBe("B.md");
+		});
+	});
+
+	describe("multi-relation merging", () => {
+		it("should merge same path reached via different relations", () => {
+			const nodes = [
+				tqlNode("B.md", "next"),
+				tqlNode("B.md", "down"),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			// B should appear once with both relations
+			expect(result).toHaveLength(1);
+			expect(result[0]?.members).toHaveLength(1);
+			expect(result[0]?.members[0]?.path).toBe("B.md");
+			expect(result[0]?.members[0]?.relations).toEqual(["down", "next"]);
+			expect(result[0]?.relations).toEqual(["down", "next"]);
+		});
+
+		it("should merge children from different relation traversals", () => {
+			// B via next has child C; B via down has no children
+			const nodes = [
+				tqlNode("B.md", "next", [tqlNode("C.md", "next")]),
+				tqlNode("B.md", "down"),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]?.members[0]?.path).toBe("B.md");
+			expect(result[0]?.members[0]?.relations).toEqual(["down", "next"]);
+			// Children should include C from the next traversal
+			expect(result[0]?.subgroups).toHaveLength(1);
+			expect(result[0]?.subgroups[0]?.members[0]?.path).toBe("C.md");
+		});
+
+		it("should recursively merge children that share the same path", () => {
+			// B via next has child C(next); B via down has child C(down)
+			const nodes = [
+				tqlNode("B.md", "next", [tqlNode("C.md", "next")]),
+				tqlNode("B.md", "down", [tqlNode("C.md", "down")]),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]?.members[0]?.path).toBe("B.md");
+			expect(result[0]?.members[0]?.relations).toEqual(["down", "next"]);
+			// C should be merged with both relations
+			expect(result[0]?.subgroups).toHaveLength(1);
+			expect(result[0]?.subgroups[0]?.members[0]?.relations).toEqual(["down", "next"]);
+		});
+
+		it("should group merged nodes only if relation sets match", () => {
+			// B reached by both next and down; D reached only by down
+			const nodes = [
+				tqlNode("B.md", "next"),
+				tqlNode("B.md", "down"),
+				tqlNode("D.md", "down"),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			// B has relations [down, next], D has relations [down] — different sets, separate groups
+			expect(result).toHaveLength(2);
+			expect(result[0]?.members[0]?.path).toBe("B.md");
+			expect(result[0]?.members[0]?.relations).toEqual(["down", "next"]);
+			expect(result[1]?.members[0]?.path).toBe("D.md");
+			expect(result[1]?.members[0]?.relations).toEqual(["down"]);
+		});
+
+		it("should group merged nodes when relation sets AND subtrees match", () => {
+			// B and D both reached by next and down, both with no children
+			const nodes = [
+				tqlNode("B.md", "next"),
+				tqlNode("B.md", "down"),
+				tqlNode("D.md", "next"),
+				tqlNode("D.md", "down"),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			// B and D have same relation set and same subtrees — grouped together
+			expect(result).toHaveLength(1);
+			expect(result[0]?.members).toHaveLength(2);
+			expect(result[0]?.members.map(m => m.path)).toContain("B.md");
+			expect(result[0]?.members.map(m => m.path)).toContain("D.md");
+			expect(result[0]?.relations).toEqual(["down", "next"]);
+		});
+
+		it("should take implied=false when any instance is explicit", () => {
+			const nodes = [
+				tqlNode("B.md", "next", [], { implied: true, impliedFrom: "prev" }),
+				tqlNode("B.md", "down", [], { implied: false }),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			expect(result[0]?.members[0]?.implied).toBe(false);
+			expect(result[0]?.members[0]?.impliedFrom).toBeUndefined();
+		});
+
+		it("should preserve implied=true when all instances are implied", () => {
+			const nodes = [
+				tqlNode("B.md", "next", [], { implied: true, impliedFrom: "prev" }),
+				tqlNode("B.md", "down", [], { implied: true, impliedFrom: "up" }),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			expect(result[0]?.members[0]?.implied).toBe(true);
+		});
+
+		it("should preserve order of first appearance when merging", () => {
+			const nodes = [
+				tqlNode("A.md", "next"),
+				tqlNode("B.md", "down"),
+				tqlNode("A.md", "down"),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			// A appeared first, B appeared second
+			// A has [down, next], B has [down] — different sets, separate groups
+			expect(result).toHaveLength(2);
+			expect(result[0]?.members[0]?.path).toBe("A.md");
 			expect(result[1]?.members[0]?.path).toBe("B.md");
 		});
 	});
@@ -190,8 +306,6 @@ describe("tqlTreeToGroups", () => {
 
 	describe("family tree scenario", () => {
 		it("should correctly group shared grandparents", () => {
-			// Child -> [Dad, Mom] -> [Grandmother, Grandfather]
-			// Both Dad and Mom have the same parents (Grandmother, Grandfather)
 			const grandparents = [
 				tqlNode("Grandmother.md", "parent"),
 				tqlNode("Grandfather.md", "parent"),
@@ -202,17 +316,13 @@ describe("tqlTreeToGroups", () => {
 			];
 			const result = tqlTreeToGroups(nodes);
 
-			// Dad and Mom should be grouped together (same children)
 			expect(result).toHaveLength(1);
 			expect(result[0]?.members).toHaveLength(2);
-			
-			// Grandparents should also be grouped
 			expect(result[0]?.subgroups).toHaveLength(1);
 			expect(result[0]?.subgroups[0]?.members).toHaveLength(2);
 		});
 
 		it("should split when parents have different grandparents", () => {
-			// More realistic: Dad's parents vs Mom's parents
 			const nodes = [
 				tqlNode("Dad.md", "parent", [
 					tqlNode("DadsMom.md", "parent"),
@@ -225,7 +335,6 @@ describe("tqlTreeToGroups", () => {
 			];
 			const result = tqlTreeToGroups(nodes);
 
-			// Dad and Mom should NOT be grouped (different children)
 			expect(result).toHaveLength(2);
 			expect(result[0]?.members[0]?.path).toBe("Dad.md");
 			expect(result[1]?.members[0]?.path).toBe("Mom.md");
@@ -295,8 +404,8 @@ describe("invertDisplayGroups", () => {
 
 	it("should invert single-level group (no subgroups)", () => {
 		const groups: DisplayGroup[] = [{
-			relation: "parent",
-			members: [{ path: "A.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
+			relations: ["parent"],
+			members: [{ path: "A.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
 			subgroups: [],
 		}];
 		const result = invertDisplayGroups(groups);
@@ -307,19 +416,17 @@ describe("invertDisplayGroups", () => {
 	});
 
 	it("should invert two-level hierarchy", () => {
-		// Parent -> Child becomes Child -> Parent
 		const groups: DisplayGroup[] = [{
-			relation: "parent",
-			members: [{ path: "Parent.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
+			relations: ["parent"],
+			members: [{ path: "Parent.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
 			subgroups: [{
-				relation: "parent",
-				members: [{ path: "Grandparent.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
+				relations: ["parent"],
+				members: [{ path: "Grandparent.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
 				subgroups: [],
 			}],
 		}];
 		const result = invertDisplayGroups(groups);
 
-		// Grandparent should now be root, with Parent as child
 		expect(result).toHaveLength(1);
 		expect(result[0]?.members[0]?.path).toBe("Grandparent.md");
 		expect(result[0]?.subgroups).toHaveLength(1);
@@ -327,26 +434,24 @@ describe("invertDisplayGroups", () => {
 	});
 
 	it("should handle multiple leaf nodes creating multiple roots", () => {
-		// A -> [B, C] becomes B -> A and C -> A (two roots)
 		const groups: DisplayGroup[] = [{
-			relation: "parent",
-			members: [{ path: "A.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
+			relations: ["parent"],
+			members: [{ path: "A.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
 			subgroups: [
 				{
-					relation: "parent",
-					members: [{ path: "B.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
+					relations: ["parent"],
+					members: [{ path: "B.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
 					subgroups: [],
 				},
 				{
-					relation: "parent",
-					members: [{ path: "C.md", relation: "parent", implied: false, properties: {}, displayProperties: [] }],
+					relations: ["parent"],
+					members: [{ path: "C.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
 					subgroups: [],
 				},
 			],
 		}];
 		const result = invertDisplayGroups(groups);
 
-		// Two roots: B and C, each with A as child
 		expect(result).toHaveLength(2);
 		expect(collectGroupPaths(result)).toContain("B.md");
 		expect(collectGroupPaths(result)).toContain("C.md");
@@ -354,16 +459,16 @@ describe("invertDisplayGroups", () => {
 
 	it("should preserve all members through inversion", () => {
 		const groups: DisplayGroup[] = [{
-			relation: "parent",
+			relations: ["parent"],
 			members: [
-				{ path: "Dad.md", relation: "parent", implied: false, properties: {}, displayProperties: [] },
-				{ path: "Mom.md", relation: "parent", implied: false, properties: {}, displayProperties: [] },
+				{ path: "Dad.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] },
+				{ path: "Mom.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] },
 			],
 			subgroups: [{
-				relation: "parent",
+				relations: ["parent"],
 				members: [
-					{ path: "Grandma.md", relation: "parent", implied: false, properties: {}, displayProperties: [] },
-					{ path: "Grandpa.md", relation: "parent", implied: false, properties: {}, displayProperties: [] },
+					{ path: "Grandma.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] },
+					{ path: "Grandpa.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] },
 				],
 				subgroups: [],
 			}],
@@ -380,14 +485,12 @@ describe("invertDisplayGroups", () => {
 
 describe("edge cases", () => {
 	it("should handle very deep nesting", () => {
-		// Create a chain of 10 nodes
 		let current = tqlNode("Node10.md", "parent");
 		for (let i = 9; i >= 1; i--) {
 			current = tqlNode(`Node${i}.md`, "parent", [current]);
 		}
 		const result = tqlTreeToGroups([current]);
 
-		// Should have 10 levels
 		let level = result[0];
 		let depth = 0;
 		while (level) {
@@ -413,11 +516,9 @@ describe("edge cases", () => {
 		];
 		const result = tqlTreeToGroups(nodes);
 
-		// Same relation, same subtrees (both empty) -> grouped together
 		expect(result).toHaveLength(1);
 		expect(result[0]?.members).toHaveLength(2);
-		
-		// Check implied status preserved
+
 		const explicit = result[0]?.members.find(m => m.path === "Explicit.md");
 		const implied = result[0]?.members.find(m => m.path === "Implied.md");
 		expect(explicit?.implied).toBe(false);
@@ -426,8 +527,6 @@ describe("edge cases", () => {
 	});
 
 	it("should handle diamond dependency pattern", () => {
-		// A is reached via B and C (both lead to same A)
-		// This creates separate groups because B and C are different paths
 		const sharedChild = tqlNode("A.md", "parent");
 		const nodes = [
 			tqlNode("B.md", "parent", [sharedChild]),
@@ -435,7 +534,6 @@ describe("edge cases", () => {
 		];
 		const result = tqlTreeToGroups(nodes);
 
-		// B and C have identical subtrees, should be grouped
 		expect(result).toHaveLength(1);
 		expect(result[0]?.members).toHaveLength(2);
 	});

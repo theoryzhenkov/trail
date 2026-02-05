@@ -113,11 +113,13 @@ export interface DisplayProperty {
 }
 
 /**
- * A member within a display group (single file entry)
+ * A member within a display group (single file entry).
+ * A member may be reached via multiple relations (e.g., both "down" and "next"),
+ * in which case all relations are listed.
  */
 export interface GroupMember {
 	path: string;
-	relation: string;
+	relations: string[];
 	implied: boolean;
 	impliedFrom?: string;
 	properties: FileProperties;
@@ -131,8 +133,8 @@ export interface GroupMember {
 export interface DisplayGroup {
 	/** Context label (e.g., "Dad's parents", "Children") */
 	label?: string;
-	/** Relation connecting this group to parent context */
-	relation: string;
+	/** Relations connecting this group to parent context */
+	relations: string[];
 	/** Files directly in this group */
 	members: GroupMember[];
 	/** Nested subgroups (when members have divergent downstream content) */

@@ -392,10 +392,12 @@ export class TrailView extends ItemView {
 		if (group.members.length > 0) {
 			const membersEl = groupEl.createDiv({cls: "trail-group-members"});
 			
-			// Relation tag at the start of members row
+			// Relation tags at the start of members row
 			const firstMember = group.members[0];
 			if (firstMember) {
-				this.renderRelationTag(membersEl, firstMember.relation, firstMember.implied);
+				for (const rel of firstMember.relations) {
+					this.renderRelationTag(membersEl, rel, firstMember.implied);
+				}
 			}
 			
 			// Optional label (for split subgroups)
