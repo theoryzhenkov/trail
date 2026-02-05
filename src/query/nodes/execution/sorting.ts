@@ -9,6 +9,7 @@ import {EvalContext} from "../context";
 import type {QueryEnv} from "../context";
 import type {QueryResultNode, Value} from "../types";
 import type {SortKeyNode} from "../clauses/SortKeyNode";
+import {compare} from "../value-ops";
 
 /**
  * Node with pre-computed sort values
@@ -70,7 +71,7 @@ function compareSortables(a: SortableNode, b: SortableNode, keys: SortKeyNode[])
 		const key = keys[i]!;
 		const aVal = a.values[i] ?? null;
 		const bVal = b.values[i] ?? null;
-		let cmp = compareValues(aVal, bVal);
+		let cmp = compare(aVal, bVal);
 
 		if (key.direction === "desc") {
 			cmp = -cmp;
@@ -83,27 +84,6 @@ function compareSortables(a: SortableNode, b: SortableNode, keys: SortKeyNode[])
 
 	// Fallback: alphabetical by basename
 	return getBasename(a.node.path).localeCompare(getBasename(b.node.path));
-}
-
-/**
- * Compare two values for sorting
- */
-function compareValues(a: Value, b: Value): number {
-	if (a === null && b === null) return 0;
-	if (a === null) return 1;
-	if (b === null) return -1;
-
-	if (typeof a === "number" && typeof b === "number") {
-		return a - b;
-	}
-	if (typeof a === "string" && typeof b === "string") {
-		return a.localeCompare(b);
-	}
-	if (a instanceof Date && b instanceof Date) {
-		return a.getTime() - b.getTime();
-	}
-
-	return String(a).localeCompare(String(b));
 }
 
 /**

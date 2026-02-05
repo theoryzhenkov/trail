@@ -6,6 +6,7 @@ import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import type {EvalContext} from "../context";
 import {register} from "../registry";
+import {equals} from "../value-ops";
 
 @register("InExprNode", {expr: true})
 export class InExprNode extends ExprNode {
@@ -46,7 +47,7 @@ export class InExprNode extends ExprNode {
 
 		// Array membership
 		if (Array.isArray(collection)) {
-			return collection.some((item) => ctx.env.equals(value, item));
+			return collection.some((item) => equals(value, item));
 		}
 
 		// String substring

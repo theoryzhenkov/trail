@@ -7,6 +7,7 @@ import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, CompletionContext, Completable} from "../types";
 import type {EvalContext} from "../context";
 import {register} from "../registry";
+import {isTruthy} from "../value-ops";
 
 @register("NotExprNode", {expr: true})
 export class NotExprNode extends UnaryNode {
@@ -34,6 +35,6 @@ export class NotExprNode extends UnaryNode {
 
 	evaluate(ctx: EvalContext): Value {
 		const operand = this.operand.evaluate(ctx);
-		return !ctx.env.isTruthy(operand);
+		return !isTruthy(operand);
 	}
 }

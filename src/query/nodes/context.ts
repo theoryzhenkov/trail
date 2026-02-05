@@ -118,46 +118,6 @@ export class QueryEnv {
 	// Pure Utility Methods
 	// =========================================================================
 
-	isTruthy(value: Value): boolean {
-		if (value === null) return false;
-		if (value === false) return false;
-		if (value === 0) return false;
-		if (value === "") return false;
-		if (Array.isArray(value) && value.length === 0) return false;
-		return true;
-	}
-
-	compare(a: Value, b: Value): number {
-		if (a === b) return 0;
-		if (a === null) return 1;
-		if (b === null) return -1;
-
-		if (typeof a === "number" && typeof b === "number") {
-			return a - b;
-		}
-		if (typeof a === "string" && typeof b === "string") {
-			return a.localeCompare(b);
-		}
-		if (a instanceof Date && b instanceof Date) {
-			return a.getTime() - b.getTime();
-		}
-
-		return String(a).localeCompare(String(b));
-	}
-
-	equals(a: Value, b: Value): boolean {
-		if (a === b) return true;
-		if (a === null || b === null) return false;
-		if (a instanceof Date && b instanceof Date) {
-			return a.getTime() === b.getTime();
-		}
-		if (Array.isArray(a) && Array.isArray(b)) {
-			if (a.length !== b.length) return false;
-			return a.every((v, i) => this.equals(v, b[i] ?? null));
-		}
-		return a === b;
-	}
-
 	durationToMs(value: number, unit: "d" | "w" | "m" | "y"): number {
 		const day = 24 * 60 * 60 * 1000;
 		switch (unit) {

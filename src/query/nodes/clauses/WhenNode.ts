@@ -11,6 +11,7 @@ import type {ExprNode} from "../base/ExprNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import type {EvalContext} from "../context";
 import {register} from "../registry";
+import {isTruthy} from "../value-ops";
 
 @register("WhenNode", {clause: true})
 export class WhenNode extends ClauseNode {
@@ -48,6 +49,6 @@ export class WhenNode extends ClauseNode {
 	 */
 	test(ctx: EvalContext): boolean {
 		const result = this.expression.evaluate(ctx);
-		return ctx.env.isTruthy(result);
+		return isTruthy(result);
 	}
 }

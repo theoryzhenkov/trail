@@ -9,6 +9,7 @@ import type {Span, Value, NodeDoc, ValidationContext, QueryResultNode} from "../
 import {type EvalContext, type QueryEnv, evalContextFromNode} from "../context";
 import {traverse, INCLUDE_ALL, type TraversalConfig} from "../execution/traversal";
 import {register} from "../registry";
+import {compare, isTruthy} from "../value-ops";
 
 export type AggregateFunc = "count" | "sum" | "avg" | "min" | "max" | "any" | "all";
 
@@ -208,7 +209,7 @@ export class AggregateNode extends ExprNode {
 		for (const node of nodes) {
 			const val = this.getPropertyValue(node, env);
 			if (val === null) continue;
-			if (min === null || env.compare(val, min) < 0) {
+			if (min === null || compare(val, min) < 0) {
 				min = val;
 			}
 		}
@@ -220,7 +221,7 @@ export class AggregateNode extends ExprNode {
 		for (const node of nodes) {
 			const val = this.getPropertyValue(node, env);
 			if (val === null) continue;
-			if (max === null || env.compare(val, max) > 0) {
+			if (max === null || compare(val, max) > 0) {
 				max = val;
 			}
 		}
@@ -231,7 +232,7 @@ export class AggregateNode extends ExprNode {
 		for (const node of nodes) {
 			const nodeCtx = evalContextFromNode(env, node);
 			const result = this.condition!.evaluate(nodeCtx);
-			if (env.isTruthy(result)) {
+			if (isTruthy(result)) {
 				return true;
 			}
 		}
@@ -245,7 +246,7 @@ export class AggregateNode extends ExprNode {
 		for (const node of nodes) {
 			const nodeCtx = evalContextFromNode(env, node);
 			const result = this.condition!.evaluate(nodeCtx);
-			if (!env.isTruthy(result)) {
+			if (!isTruthy(result)) {
 				return false;
 			}
 		}

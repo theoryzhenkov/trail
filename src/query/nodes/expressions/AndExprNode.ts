@@ -7,6 +7,7 @@ import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, Completable, CompletionContext} from "../types";
 import type {EvalContext} from "../context";
 import {register} from "../registry";
+import {isTruthy} from "../value-ops";
 
 @register("AndExprNode", {expr: true})
 export class AndExprNode extends BinaryNode {
@@ -34,7 +35,7 @@ export class AndExprNode extends BinaryNode {
 
 	evaluate(ctx: EvalContext): Value {
 		// Short-circuit: if left is false, don't evaluate right
-		if (!ctx.env.isTruthy(this.left.evaluate(ctx))) return false;
-		return ctx.env.isTruthy(this.right.evaluate(ctx));
+		if (!isTruthy(this.left.evaluate(ctx))) return false;
+		return isTruthy(this.right.evaluate(ctx));
 	}
 }

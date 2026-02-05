@@ -7,6 +7,7 @@ import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, CompletionContext} from "../types";
 import type {EvalContext} from "../context";
 import {register} from "../registry";
+import {compare, equals} from "../value-ops";
 
 export type CompareOp = "=" | "!=" | "<" | ">" | "<=" | ">=" | "=?" | "!=?";
 
@@ -37,11 +38,11 @@ export class CompareExprNode extends BinaryNode {
 		// Null-safe operators
 		if (this.op === "=?") {
 			if (left === null) return false;
-			return ctx.env.equals(left, right);
+			return equals(left, right);
 		}
 		if (this.op === "!=?") {
 			if (left === null) return true;
-			return !ctx.env.equals(left, right);
+			return !equals(left, right);
 		}
 
 		// Equality with null
@@ -52,7 +53,7 @@ export class CompareExprNode extends BinaryNode {
 			if (left === null) {
 				return this.op === "=" ? right === null : right !== null;
 			}
-			return this.op === "=" ? ctx.env.equals(left, right) : !ctx.env.equals(left, right);
+			return this.op === "=" ? equals(left, right) : !equals(left, right);
 		}
 
 		// Standard comparison - null propagates
@@ -62,13 +63,13 @@ export class CompareExprNode extends BinaryNode {
 
 		switch (this.op) {
 			case "<":
-				return ctx.env.compare(left, right) < 0;
+				return compare(left, right) < 0;
 			case ">":
-				return ctx.env.compare(left, right) > 0;
+				return compare(left, right) > 0;
 			case "<=":
-				return ctx.env.compare(left, right) <= 0;
+				return compare(left, right) <= 0;
 			case ">=":
-				return ctx.env.compare(left, right) >= 0;
+				return compare(left, right) >= 0;
 		}
 		// Exhaustive check - should never reach here
 		return null;

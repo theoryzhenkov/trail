@@ -10,6 +10,7 @@ import type {NodeFilter, FilterDecision, NodeContext} from "./types";
 import type {QueryEnv} from "../../context";
 import {EvalContext} from "../../context";
 import type {ExprNode} from "../../base/ExprNode";
+import {isTruthy} from "../../value-ops";
 
 // =============================================================================
 // Filter Combinators
@@ -66,7 +67,7 @@ export function createPruneFilter(expr: ExprNode, env: QueryEnv): NodeFilter {
 		evaluate(nodeCtx: NodeContext): FilterDecision {
 			const evalCtx = new EvalContext(env, nodeCtx.path, nodeCtx.properties, nodeCtx.traversalCtx);
 			const result = expr.evaluate(evalCtx);
-			const shouldPrune = env.isTruthy(result);
+			const shouldPrune = isTruthy(result);
 
 			if (shouldPrune) {
 				return {include: false, traverse: false};
@@ -97,7 +98,7 @@ export function createWhereFilter(expr: ExprNode, env: QueryEnv): NodeFilter {
 		evaluate(nodeCtx: NodeContext): FilterDecision {
 			const evalCtx = new EvalContext(env, nodeCtx.path, nodeCtx.properties, nodeCtx.traversalCtx);
 			const result = expr.evaluate(evalCtx);
-			const shouldInclude = env.isTruthy(result);
+			const shouldInclude = isTruthy(result);
 
 			return {
 				include: shouldInclude,

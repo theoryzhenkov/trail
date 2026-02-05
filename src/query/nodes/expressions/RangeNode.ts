@@ -6,6 +6,7 @@ import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {EvalContext} from "../context";
 import {register} from "../registry";
+import {compare} from "../value-ops";
 
 @register("RangeNode", {expr: true})
 export class RangeNode extends ExprNode {
@@ -38,7 +39,7 @@ export class RangeNode extends ExprNode {
 			return null;
 		}
 
-		return ctx.env.compare(value, lower) >= 0 && ctx.env.compare(value, upper) <= 0;
+		return compare(value, lower) >= 0 && compare(value, upper) <= 0;
 	}
 
 	validate(ctx: ValidationContext): void {
