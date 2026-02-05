@@ -4,7 +4,7 @@
 
 import {FunctionExprNode} from "../../base/FunctionExprNode";
 import type {Value, NodeDoc, Span} from "../../types";
-import type {ExecutorContext} from "../../context";
+import type {EvalContext} from "../../context";
 import type {ExprNode} from "../../base/ExprNode";
 import {register} from "../../registry";
 
@@ -24,8 +24,8 @@ export class BacklinksFunction extends FunctionExprNode {
 		super(args, span);
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
-		const metadata = ctx.getFileMetadata(ctx.filePath);
+	evaluate(ctx: EvalContext): Value {
+		const metadata = ctx.env.getFileMetadata(ctx.filePath);
 		if (!metadata) return [];
 		return metadata.backlinks;
 	}

@@ -9,7 +9,7 @@
 export * from "./types";
 
 // Context
-export {ExecutorContext, ValidationContextImpl, createValidationContext} from "./context";
+export {QueryEnv, EvalContext, evalContextFromNode, evalContextForActiveFile, ValidationContextImpl, createValidationContext} from "./context";
 
 // Registry
 export {register, registry, getNodeClass, getTokenClass, getAllTokenClasses, isTokenKeyword} from "./registry";
@@ -40,14 +40,14 @@ export {parse, ParseError} from "./parser";
 
 import type {QueryContext, QueryResult} from "./types";
 import {QueryNode} from "./clauses/QueryNode";
-import {ExecutorContext, createValidationContext} from "./context";
+import {QueryEnv, createValidationContext} from "./context";
 import {parse} from "./parser";
 
 /**
  * TQL Pipeline API
  * 
  * Usage:
- *   const result = TQL.parse(input).validate(ctx).execute(ctx);
+ *   const result = TQL.parse(input).validate(ctx).execute(env);
  * 
  * Or for quick execution:
  *   const result = TQL.run(input, queryCtx);
@@ -73,8 +73,8 @@ export const TQL = {
 		const validationCtx = createValidationContext(relationNames, groupNames);
 		query.validate(validationCtx);
 		
-		const executorCtx = new ExecutorContext(queryCtx);
-		return query.execute(executorCtx);
+		const env = new QueryEnv(queryCtx);
+		return query.execute(env);
 	},
 };
 

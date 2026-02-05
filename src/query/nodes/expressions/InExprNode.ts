@@ -4,7 +4,7 @@
 
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 import {register} from "../registry";
 
 @register("InExprNode", {expr: true})
@@ -36,7 +36,7 @@ export class InExprNode extends ExprNode {
 		this.collection = collection;
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
+	evaluate(ctx: EvalContext): Value {
 		const value = this.value.evaluate(ctx);
 		const collection = this.collection.evaluate(ctx);
 
@@ -46,7 +46,7 @@ export class InExprNode extends ExprNode {
 
 		// Array membership
 		if (Array.isArray(collection)) {
-			return collection.some((item) => ctx.equals(value, item));
+			return collection.some((item) => ctx.env.equals(value, item));
 		}
 
 		// String substring

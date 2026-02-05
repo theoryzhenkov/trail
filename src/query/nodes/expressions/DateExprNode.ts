@@ -4,7 +4,7 @@
 
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 import {register} from "../registry";
 
 /**
@@ -55,11 +55,11 @@ export class DateExprNode extends ExprNode {
 		this.offset = offset;
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
+	evaluate(ctx: EvalContext): Value {
 		let baseDate: Value;
 
 		if (this.base.type === "relativeDate") {
-			baseDate = ctx.resolveRelativeDate(this.base.kind);
+			baseDate = ctx.env.resolveRelativeDate(this.base.kind);
 		} else if (this.base.type === "dateLiteral") {
 			baseDate = this.base.value;
 		} else if (this.base.type === "property") {
@@ -74,7 +74,7 @@ export class DateExprNode extends ExprNode {
 		}
 
 		// Apply offset
-		const durationMs = ctx.durationToMs(this.offset.value, this.offset.unit);
+		const durationMs = ctx.env.durationToMs(this.offset.value, this.offset.unit);
 		const ms = this.offset.op === "+" ? baseDate.getTime() + durationMs : baseDate.getTime() - durationMs;
 		return new Date(ms);
 	}

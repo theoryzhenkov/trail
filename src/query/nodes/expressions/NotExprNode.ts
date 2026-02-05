@@ -5,7 +5,7 @@
 import {UnaryNode} from "../base/UnaryNode";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, CompletionContext, Completable} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 import {register} from "../registry";
 
 @register("NotExprNode", {expr: true})
@@ -32,8 +32,8 @@ export class NotExprNode extends UnaryNode {
 		super(operand, span);
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
+	evaluate(ctx: EvalContext): Value {
 		const operand = this.operand.evaluate(ctx);
-		return !ctx.isTruthy(operand);
+		return !ctx.env.isTruthy(operand);
 	}
 }

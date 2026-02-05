@@ -6,7 +6,7 @@
 
 import {Node} from "./Node";
 import type {Span, Value} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 
 /**
  * Abstract base class for expression nodes
@@ -18,7 +18,7 @@ export abstract class ExprNode extends Node {
 
 	/**
 	 * Evaluate this expression in the given context.
-	 * Returns null on error after calling ctx.addError().
+	 * Returns null on error after calling ctx.env.addError().
 	 */
-	abstract evaluate(ctx: ExecutorContext): Value;
+	abstract evaluate(ctx: EvalContext): Value;
 }

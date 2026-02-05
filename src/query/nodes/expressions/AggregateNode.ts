@@ -6,7 +6,7 @@ import {ExprNode} from "../base/ExprNode";
 import {PropertyNode} from "./PropertyNode";
 import {InlineQueryNode} from "./InlineQueryNode";
 import type {Span, Value, NodeDoc, ValidationContext, QueryResultNode} from "../types";
-import type {ExecutorContext} from "../context";
+import {type EvalContext, type QueryEnv, evalContextFromNode} from "../context";
 import {traverse, INCLUDE_ALL, type TraversalConfig} from "../execution/traversal";
 import {register} from "../registry";
 
@@ -78,9 +78,11 @@ export class AggregateNode extends ExprNode {
 		this.condition = condition;
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
+	evaluate(ctx: EvalContext): Value {
+		const env = ctx.env;
+
 		// Execute subquery from current file
-		const results = this.executeSubquery(ctx);
+		const results = this.executeSubquery(env, ctx.filePath);
 
 		// Flatten tree for aggregation
 		const allNodes = this.flattenTree(results);
@@ -91,33 +93,32 @@ export class AggregateNode extends ExprNode {
 				return allNodes.length;
 
 			case "sum":
-				return this.computeSum(allNodes, ctx);
+				return this.computeSum(allNodes, env);
 
 			case "avg":
-				return this.computeAvg(allNodes, ctx);
+				return this.computeAvg(allNodes, env);
 
 			case "min":
-				return this.computeMin(allNodes, ctx);
+				return this.computeMin(allNodes, env);
 
 			case "max":
-				return this.computeMax(allNodes, ctx);
+				return this.computeMax(allNodes, env);
 
 			case "any":
-				return this.computeAny(allNodes, ctx);
+				return this.computeAny(allNodes, env);
 
 			case "all":
-				return this.computeAll(allNodes, ctx);
+				return this.computeAll(allNodes, env);
 		}
 	}
 
-	private executeSubquery(ctx: ExecutorContext): QueryResultNode[] {
+	private executeSubquery(env: QueryEnv, fromPath: string): QueryResultNode[] {
 		// Handle InlineQueryNode source - delegate to its executeQuery
 		if (this.source.type === "inlineQuery") {
-			return this.source.node.executeQuery(ctx);
+			return this.source.node.executeQuery(env, fromPath);
 		}
 
-		const fromPath = ctx.filePath;
-		const relations = this.resolveSourceRelations(ctx);
+		const relations = this.resolveSourceRelations(env);
 		const results: QueryResultNode[] = [];
 
 		for (const rel of relations) {
@@ -131,7 +132,7 @@ export class AggregateNode extends ExprNode {
 				},
 			};
 
-			const result = traverse(ctx, config);
+			const result = traverse(env, config);
 			results.push(...result.nodes);
 		}
 
@@ -139,17 +140,17 @@ export class AggregateNode extends ExprNode {
 	}
 
 	private resolveSourceRelations(
-		ctx: ExecutorContext
+		env: QueryEnv
 	): Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: number | true}> {
 		if (this.source.type === "groupRef") {
 			// Explicit group reference
-			const groupQuery = ctx.resolveGroupQuery(this.source.name) as
+			const groupQuery = env.resolveGroupQuery(this.source.name) as
 				| {from: {relations: Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: number | true}>}}
 				| undefined;
 			return groupQuery?.from.relations ?? [];
 		} else if (this.source.type === "bareIdentifier") {
 			// Bare identifier - resolve to group or relation
-			const groupQuery = ctx.resolveGroupQuery(this.source.name) as
+			const groupQuery = env.resolveGroupQuery(this.source.name) as
 				| {from: {relations: Array<{name: string; depth: number | "unlimited"; extend?: string; flatten?: number | true}>}}
 				| undefined;
 			if (groupQuery) {
@@ -178,10 +179,10 @@ export class AggregateNode extends ExprNode {
 		return result;
 	}
 
-	private computeSum(nodes: QueryResultNode[], ctx: ExecutorContext): number {
+	private computeSum(nodes: QueryResultNode[], env: QueryEnv): number {
 		let sum = 0;
 		for (const node of nodes) {
-			const val = this.getPropertyValue(node, ctx);
+			const val = this.getPropertyValue(node, env);
 			if (typeof val === "number") {
 				sum += val;
 			}
@@ -189,11 +190,11 @@ export class AggregateNode extends ExprNode {
 		return sum;
 	}
 
-	private computeAvg(nodes: QueryResultNode[], ctx: ExecutorContext): number | null {
+	private computeAvg(nodes: QueryResultNode[], env: QueryEnv): number | null {
 		let sum = 0;
 		let count = 0;
 		for (const node of nodes) {
-			const val = this.getPropertyValue(node, ctx);
+			const val = this.getPropertyValue(node, env);
 			if (typeof val === "number") {
 				sum += val;
 				count++;
@@ -202,89 +203,67 @@ export class AggregateNode extends ExprNode {
 		return count > 0 ? sum / count : null;
 	}
 
-	private computeMin(nodes: QueryResultNode[], ctx: ExecutorContext): Value {
+	private computeMin(nodes: QueryResultNode[], env: QueryEnv): Value {
 		let min: Value = null;
 		for (const node of nodes) {
-			const val = this.getPropertyValue(node, ctx);
+			const val = this.getPropertyValue(node, env);
 			if (val === null) continue;
-			if (min === null || ctx.compare(val, min) < 0) {
+			if (min === null || env.compare(val, min) < 0) {
 				min = val;
 			}
 		}
 		return min;
 	}
 
-	private computeMax(nodes: QueryResultNode[], ctx: ExecutorContext): Value {
+	private computeMax(nodes: QueryResultNode[], env: QueryEnv): Value {
 		let max: Value = null;
 		for (const node of nodes) {
-			const val = this.getPropertyValue(node, ctx);
+			const val = this.getPropertyValue(node, env);
 			if (val === null) continue;
-			if (max === null || ctx.compare(val, max) > 0) {
+			if (max === null || env.compare(val, max) > 0) {
 				max = val;
 			}
 		}
 		return max;
 	}
 
-	private computeAny(nodes: QueryResultNode[], ctx: ExecutorContext): boolean {
+	private computeAny(nodes: QueryResultNode[], env: QueryEnv): boolean {
 		for (const node of nodes) {
-			ctx.setCurrentFile(node.path, node.properties);
-			ctx.setTraversal({
-				depth: node.depth,
-				relation: node.relation,
-				isImplied: node.implied,
-				parent: node.parent,
-				path: node.traversalPath,
-			});
-			const result = this.condition!.evaluate(ctx);
-			if (ctx.isTruthy(result)) {
+			const nodeCtx = evalContextFromNode(env, node);
+			const result = this.condition!.evaluate(nodeCtx);
+			if (env.isTruthy(result)) {
 				return true;
 			}
 		}
 		return false;
 	}
 
-	private computeAll(nodes: QueryResultNode[], ctx: ExecutorContext): boolean {
+	private computeAll(nodes: QueryResultNode[], env: QueryEnv): boolean {
 		if (nodes.length === 0) {
 			return true; // vacuously true
 		}
 		for (const node of nodes) {
-			ctx.setCurrentFile(node.path, node.properties);
-			ctx.setTraversal({
-				depth: node.depth,
-				relation: node.relation,
-				isImplied: node.implied,
-				parent: node.parent,
-				path: node.traversalPath,
-			});
-			const result = this.condition!.evaluate(ctx);
-			if (!ctx.isTruthy(result)) {
+			const nodeCtx = evalContextFromNode(env, node);
+			const result = this.condition!.evaluate(nodeCtx);
+			if (!env.isTruthy(result)) {
 				return false;
 			}
 		}
 		return true;
 	}
 
-	private getPropertyValue(node: QueryResultNode, ctx: ExecutorContext): Value {
+	private getPropertyValue(node: QueryResultNode, env: QueryEnv): Value {
 		if (!this.property) return null;
 
-		// Set context to this node
-		ctx.setCurrentFile(node.path, node.properties);
-		ctx.setTraversal({
-			depth: node.depth,
-			relation: node.relation,
-			isImplied: node.implied,
-			parent: node.parent,
-			path: node.traversalPath,
-		});
+		const nodeCtx = evalContextFromNode(env, node);
 
 		// If property is a PropertyNode, use the simple path access
 		if (this.property instanceof PropertyNode) {
-			return ctx.getPropertyValue(this.property.path.join("."));
+			return nodeCtx.getPropertyValue(this.property.path.join("."));
 		}
 
 		// Otherwise evaluate the expression
-		return this.property.evaluate(ctx);
+		return this.property.evaluate(nodeCtx);
 	}
 
 	validate(ctx: ValidationContext): void {

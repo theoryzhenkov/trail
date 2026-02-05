@@ -7,7 +7,8 @@
  */
 
 import type {NodeFilter, FilterDecision, NodeContext} from "./types";
-import type {ExecutorContext} from "../../context";
+import type {QueryEnv} from "../../context";
+import {EvalContext} from "../../context";
 import type {ExprNode} from "../../base/ExprNode";
 
 // =============================================================================
@@ -60,14 +61,12 @@ export function combineFilters(...filters: NodeFilter[]): NodeFilter {
  * - include: false (don't include in output)
  * - traverse: false (don't visit children)
  */
-export function createPruneFilter(expr: ExprNode, ctx: ExecutorContext): NodeFilter {
+export function createPruneFilter(expr: ExprNode, env: QueryEnv): NodeFilter {
 	return {
 		evaluate(nodeCtx: NodeContext): FilterDecision {
-			ctx.setCurrentFile(nodeCtx.path, nodeCtx.properties);
-			ctx.setTraversal(nodeCtx.traversalCtx);
-
-			const result = expr.evaluate(ctx);
-			const shouldPrune = ctx.isTruthy(result);
+			const evalCtx = new EvalContext(env, nodeCtx.path, nodeCtx.properties, nodeCtx.traversalCtx);
+			const result = expr.evaluate(evalCtx);
+			const shouldPrune = env.isTruthy(result);
 
 			if (shouldPrune) {
 				return {include: false, traverse: false};
@@ -93,14 +92,12 @@ export function createPruneFilter(expr: ExprNode, ctx: ExecutorContext): NodeFil
  * This filter is provided for future integration where WHERE could be applied
  * during traversal for better performance.
  */
-export function createWhereFilter(expr: ExprNode, ctx: ExecutorContext): NodeFilter {
+export function createWhereFilter(expr: ExprNode, env: QueryEnv): NodeFilter {
 	return {
 		evaluate(nodeCtx: NodeContext): FilterDecision {
-			ctx.setCurrentFile(nodeCtx.path, nodeCtx.properties);
-			ctx.setTraversal(nodeCtx.traversalCtx);
-
-			const result = expr.evaluate(ctx);
-			const shouldInclude = ctx.isTruthy(result);
+			const evalCtx = new EvalContext(env, nodeCtx.path, nodeCtx.properties, nodeCtx.traversalCtx);
+			const result = expr.evaluate(evalCtx);
+			const shouldInclude = env.isTruthy(result);
 
 			return {
 				include: shouldInclude,
@@ -129,17 +126,17 @@ export interface FilterBuildOptions {
  *
  * The executor calls this to create a single filter from all applicable clauses.
  */
-export function buildFilter(ctx: ExecutorContext, options: FilterBuildOptions): NodeFilter {
+export function buildFilter(env: QueryEnv, options: FilterBuildOptions): NodeFilter {
 	const filters: NodeFilter[] = [];
 
 	if (options.pruneExpr) {
-		filters.push(createPruneFilter(options.pruneExpr, ctx));
+		filters.push(createPruneFilter(options.pruneExpr, env));
 	}
 
 	// Note: WHERE is currently applied post-traversal to maintain ancestor paths.
 	// Uncomment below if integrating WHERE into traversal:
 	// if (options.whereExpr) {
-	//   filters.push(createWhereFilter(options.whereExpr, ctx));
+	//   filters.push(createWhereFilter(options.whereExpr, env));
 	// }
 
 	return combineFilters(...filters);

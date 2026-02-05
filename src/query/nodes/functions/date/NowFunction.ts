@@ -4,7 +4,7 @@
 
 import {FunctionExprNode} from "../../base/FunctionExprNode";
 import type {Value, NodeDoc, Span} from "../../types";
-import type {ExecutorContext} from "../../context";
+import type {EvalContext} from "../../context";
 import type {ExprNode} from "../../base/ExprNode";
 import {register} from "../../registry";
 
@@ -24,7 +24,7 @@ export class NowFunction extends FunctionExprNode {
 		super(args, span);
 	}
 
-	evaluate(_ctx: ExecutorContext): Value {
+	evaluate(_ctx: EvalContext): Value {
 		return new Date();
 	}
 }

@@ -10,7 +10,7 @@
  * @see docs/concepts/traversal.md
  */
 
-import type {ExecutorContext} from "../../context";
+import type {QueryEnv} from "../../context";
 import type {QueryResultNode, TraversalContext} from "../../types";
 import type {TraversalConfig, TraversalResult, NodeContext} from "./types";
 import {TraversalState, BfsTraversalState} from "./state";
@@ -21,16 +21,16 @@ import {TraversalState, BfsTraversalState} from "./state";
  * This is the main entry point for traversal. It dispatches to either
  * DFS (for tree and partial flatten) or BFS (for full flatten).
  */
-export function traverse(ctx: ExecutorContext, config: TraversalConfig): TraversalResult {
+export function traverse(env: QueryEnv, config: TraversalConfig): TraversalResult {
 	const {flattenFrom} = config.output;
 
 	if (flattenFrom === true) {
 		// Full flatten uses BFS for global deduplication
-		return traverseBfs(ctx, config);
+		return traverseBfs(env, config);
 	}
 
 	// Tree and partial flatten use DFS
-	return traverseDfs(ctx, config);
+	return traverseDfs(env, config);
 }
 
 // =============================================================================
@@ -40,9 +40,9 @@ export function traverse(ctx: ExecutorContext, config: TraversalConfig): Travers
 /**
  * DFS traversal for tree and partial flatten modes
  */
-function traverseDfs(ctx: ExecutorContext, config: TraversalConfig): TraversalResult {
+function traverseDfs(env: QueryEnv, config: TraversalConfig): TraversalResult {
 	const state = new TraversalState(config);
-	const nodes = visitChildren(ctx, config, state, 1);
+	const nodes = visitChildren(env, config, state, 1);
 	return state.getResult(nodes);
 }
 
@@ -50,7 +50,7 @@ function traverseDfs(ctx: ExecutorContext, config: TraversalConfig): TraversalRe
  * Visit children of the current node
  */
 function visitChildren(
-	ctx: ExecutorContext,
+	env: QueryEnv,
 	config: TraversalConfig,
 	state: TraversalState,
 	depth: number
@@ -60,7 +60,7 @@ function visitChildren(
 	}
 
 	const sourcePath = state.currentPath();
-	const edges = ctx.getOutgoingEdges(sourcePath, config.relation);
+	const edges = env.getOutgoingEdges(sourcePath, config.relation);
 	const results: QueryResultNode[] = [];
 
 	for (const edge of edges) {
@@ -69,7 +69,7 @@ function visitChildren(
 			continue;
 		}
 
-		const result = visitNode(ctx, config, state, edge, depth);
+		const result = visitNode(env, config, state, edge, depth);
 		if (result) {
 			results.push(result);
 		}
@@ -77,7 +77,7 @@ function visitChildren(
 
 	// Handle leaf nodes (no edges found) for chain processing
 	if (edges.length === 0 && config.onLeaf && state.getTraversalPath().length > 1) {
-		const leafResults = handleLeaf(ctx, config, state, depth);
+		const leafResults = handleLeaf(env, config, state, depth);
 		results.push(...leafResults);
 	}
 
@@ -88,14 +88,14 @@ function visitChildren(
  * Visit a single node
  */
 function visitNode(
-	ctx: ExecutorContext,
+	env: QueryEnv,
 	config: TraversalConfig,
 	state: TraversalState,
 	edge: import("../../../../types").RelationEdge,
 	depth: number
 ): QueryResultNode | null {
-	const properties = ctx.getProperties(edge.toPath);
-	const visualDirection = ctx.getVisualDirection(edge.relation);
+	const properties = env.getProperties(edge.toPath);
+	const visualDirection = env.getVisualDirection(edge.relation);
 	const nodeCtx = state.buildNodeContext(edge, depth, properties, visualDirection);
 
 	// Apply filter
@@ -112,7 +112,7 @@ function visitNode(
 	// Traverse children if allowed
 	let children: QueryResultNode[] = [];
 	if (decision.traverse && depth < config.maxDepth) {
-		children = visitChildren(ctx, config, state, depth + 1);
+		children = visitChildren(env, config, state, depth + 1);
 	}
 
 	// Handle leaf nodes (at depth limit or no children)
@@ -138,7 +138,7 @@ function visitNode(
  * Handle leaf node when no edges found (for chain processing)
  */
 function handleLeaf(
-	ctx: ExecutorContext,
+	env: QueryEnv,
 	config: TraversalConfig,
 	state: TraversalState,
 	depth: number
@@ -149,8 +149,8 @@ function handleLeaf(
 
 	// Build a synthetic context for the leaf
 	const sourcePath = state.currentPath();
-	const properties = ctx.getProperties(sourcePath);
-	const visualDirection = ctx.getVisualDirection(config.relation);
+	const properties = env.getProperties(sourcePath);
+	const visualDirection = env.getVisualDirection(config.relation);
 
 	const traversalCtx: TraversalContext = {
 		depth,
@@ -189,7 +189,7 @@ function handleLeaf(
  * Uses BFS to ensure global deduplication - each node appears exactly once
  * regardless of how many paths lead to it.
  */
-function traverseBfs(ctx: ExecutorContext, config: TraversalConfig): TraversalResult {
+function traverseBfs(env: QueryEnv, config: TraversalConfig): TraversalResult {
 	const state = new BfsTraversalState(config.startPath);
 
 	// BFS queue: [path, actualDepth, parentPath, traversalPath]
@@ -205,7 +205,7 @@ function traverseBfs(ctx: ExecutorContext, config: TraversalConfig): TraversalRe
 	const leafNodes: NodeContext[] = [];
 
 	// Initialize with direct neighbors
-	const initialEdges = ctx.getOutgoingEdges(config.startPath, config.relation);
+	const initialEdges = env.getOutgoingEdges(config.startPath, config.relation);
 	for (const edge of initialEdges) {
 		if (!state.hasVisited(edge.toPath)) {
 			state.markVisited(edge.toPath);
@@ -222,10 +222,10 @@ function traverseBfs(ctx: ExecutorContext, config: TraversalConfig): TraversalRe
 		const item = queue.shift()!;
 		const {path, depth, parent, traversalPath} = item;
 
-		const properties = ctx.getProperties(path);
+		const properties = env.getProperties(path);
 
 		// Get edge for implied status
-		const edges = ctx.getOutgoingEdges(parent, config.relation);
+		const edges = env.getOutgoingEdges(parent, config.relation);
 		const edge = edges.find((e) => e.toPath === path) ?? {
 			fromPath: parent,
 			toPath: path,
@@ -233,7 +233,7 @@ function traverseBfs(ctx: ExecutorContext, config: TraversalConfig): TraversalRe
 			implied: false,
 		};
 
-		const visualDirection = ctx.getVisualDirection(config.relation);
+		const visualDirection = env.getVisualDirection(config.relation);
 
 		// Build node context
 		const traversalCtx: TraversalContext = {
@@ -284,7 +284,7 @@ function traverseBfs(ctx: ExecutorContext, config: TraversalConfig): TraversalRe
 		// Continue BFS if allowed and within depth
 		let hasMoreEdges = false;
 		if (decision.traverse && depth < config.maxDepth) {
-			const nextEdges = ctx.getOutgoingEdges(path, config.relation);
+			const nextEdges = env.getOutgoingEdges(path, config.relation);
 			for (const nextEdge of nextEdges) {
 				if (!state.hasVisited(nextEdge.toPath)) {
 					hasMoreEdges = true;

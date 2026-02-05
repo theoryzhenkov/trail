@@ -4,7 +4,7 @@
 
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 import {register} from "../registry";
 
 export type DurationUnit = "d" | "w" | "m" | "y";
@@ -32,8 +32,8 @@ export class DurationNode extends ExprNode {
 	/**
 	 * Durations evaluate to milliseconds for arithmetic
 	 */
-	evaluate(ctx: ExecutorContext): Value {
-		return ctx.durationToMs(this.value, this.unit);
+	evaluate(ctx: EvalContext): Value {
+		return ctx.env.durationToMs(this.value, this.unit);
 	}
 
 	validate(_ctx: ValidationContext): void {

@@ -4,7 +4,7 @@
 
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 import {register} from "../registry";
 
 export type RelativeDateKind = "today" | "yesterday" | "tomorrow" | "startOfWeek" | "endOfWeek";
@@ -27,8 +27,8 @@ export class RelativeDateNode extends ExprNode {
 		this.kind = kind;
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
-		return ctx.resolveRelativeDate(this.kind);
+	evaluate(ctx: EvalContext): Value {
+		return ctx.env.resolveRelativeDate(this.kind);
 	}
 
 	validate(_ctx: ValidationContext): void {

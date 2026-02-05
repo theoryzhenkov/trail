@@ -4,7 +4,7 @@
 
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 import {register} from "../registry";
 
 @register("PropertyNode", {expr: true})
@@ -54,7 +54,7 @@ export class PropertyNode extends ExprNode {
 		return this.isBuiltin && this.path[0] === "file" && this.path[1] !== "properties";
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
+	evaluate(ctx: EvalContext): Value {
 		if (this.isBuiltin) {
 			// Handle $traversal.* properties
 			if (this.path[0] === "traversal" && this.path[1]) {

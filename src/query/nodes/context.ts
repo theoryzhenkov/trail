@@ -1,12 +1,9 @@
 /**
- * ExecutorContext - Mutable context for expression evaluation
- * 
- * Provides access to:
- * - Current file path and properties
- * - Traversal context
- * - Query context (graph access, settings)
- * - Error collection
- * - Helper methods (isTruthy, compare, equals)
+ * Query execution context types
+ *
+ * Split into two concerns:
+ * - QueryEnv: Read-only per-query environment (graph access, error collection, utilities)
+ * - EvalContext: Per-node evaluation context constructed fresh for each evaluate() call
  */
 
 import type {
@@ -17,60 +14,32 @@ import type {
 	TraversalContext,
 	FileMetadata,
 	QueryWarning,
+	QueryResultNode,
 } from "./types";
 import type {FileProperties, RelationEdge, VisualDirection} from "../../types";
 
+// =============================================================================
+// QueryEnv - Read-only per-query environment
+// =============================================================================
+
 /**
- * Mutable execution context for TQL evaluation
+ * Read-only query environment shared across the entire query execution.
+ *
+ * Provides graph access, error collection, and pure utility methods.
+ * Does NOT hold mutable per-node state.
  */
-export class ExecutorContext {
-	private _filePath: string;
-	private _properties: FileProperties;
-	private _traversal?: TraversalContext;
+export class QueryEnv {
 	private _queryCtx: QueryContext;
 	private _errors: RuntimeError[] = [];
 	private _warnings: QueryWarning[] = [];
 
 	constructor(queryCtx: QueryContext) {
 		this._queryCtx = queryCtx;
-		this._filePath = queryCtx.activeFilePath;
-		this._properties = queryCtx.activeFileProperties;
 	}
 
 	// =========================================================================
-	// Mutable State
+	// Active File (immutable per query)
 	// =========================================================================
-
-	/**
-	 * Set the current file being evaluated
-	 */
-	setCurrentFile(path: string, props: FileProperties): void {
-		this._filePath = path;
-		this._properties = props;
-	}
-
-	/**
-	 * Set the traversal context
-	 */
-	setTraversal(traversal: TraversalContext | undefined): void {
-		this._traversal = traversal;
-	}
-
-	// =========================================================================
-	// Getters
-	// =========================================================================
-
-	get filePath(): string {
-		return this._filePath;
-	}
-
-	get properties(): FileProperties {
-		return this._properties;
-	}
-
-	get traversal(): TraversalContext | undefined {
-		return this._traversal;
-	}
 
 	get activeFilePath(): string {
 		return this._queryCtx.activeFilePath;
@@ -84,9 +53,6 @@ export class ExecutorContext {
 	// Error Collection
 	// =========================================================================
 
-	/**
-	 * Add a runtime error
-	 */
 	addError(message: string, span: Span): void {
 		this._errors.push({
 			name: "RuntimeError",
@@ -95,44 +61,29 @@ export class ExecutorContext {
 		} as RuntimeError);
 	}
 
-	/**
-	 * Add a warning (non-fatal)
-	 */
 	addWarning(message: string): void {
 		this._warnings.push({message});
 	}
 
-	/**
-	 * Check if any errors have been collected
-	 */
 	hasErrors(): boolean {
 		return this._errors.length > 0;
 	}
 
-	/**
-	 * Get all collected errors
-	 */
 	getErrors(): RuntimeError[] {
 		return this._errors;
 	}
 
-	/**
-	 * Get all collected warnings
-	 */
 	getWarnings(): QueryWarning[] {
 		return this._warnings;
 	}
 
-	/**
-	 * Clear errors and warnings
-	 */
 	clearErrors(): void {
 		this._errors = [];
 		this._warnings = [];
 	}
 
 	// =========================================================================
-	// Query Context Delegation
+	// Graph Access (delegated to QueryContext)
 	// =========================================================================
 
 	getOutgoingEdges(path: string, relation?: string): RelationEdge[] {
@@ -164,12 +115,9 @@ export class ExecutorContext {
 	}
 
 	// =========================================================================
-	// Helper Methods
+	// Pure Utility Methods
 	// =========================================================================
 
-	/**
-	 * Check if a value is truthy (TQL semantics)
-	 */
 	isTruthy(value: Value): boolean {
 		if (value === null) return false;
 		if (value === false) return false;
@@ -179,9 +127,6 @@ export class ExecutorContext {
 		return true;
 	}
 
-	/**
-	 * Compare two values (returns -1, 0, or 1)
-	 */
 	compare(a: Value, b: Value): number {
 		if (a === b) return 0;
 		if (a === null) return 1;
@@ -200,9 +145,6 @@ export class ExecutorContext {
 		return String(a).localeCompare(String(b));
 	}
 
-	/**
-	 * Check if two values are equal (TQL semantics)
-	 */
 	equals(a: Value, b: Value): boolean {
 		if (a === b) return true;
 		if (a === null || b === null) return false;
@@ -216,9 +158,6 @@ export class ExecutorContext {
 		return a === b;
 	}
 
-	/**
-	 * Convert duration to milliseconds
-	 */
 	durationToMs(value: number, unit: "d" | "w" | "m" | "y"): number {
 		const day = 24 * 60 * 60 * 1000;
 		switch (unit) {
@@ -233,19 +172,69 @@ export class ExecutorContext {
 		}
 	}
 
+	resolveRelativeDate(kind: string): Date {
+		const now = new Date();
+		const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+		switch (kind) {
+			case "today":
+				return today;
+			case "yesterday":
+				return new Date(today.getTime() - 24 * 60 * 60 * 1000);
+			case "tomorrow":
+				return new Date(today.getTime() + 24 * 60 * 60 * 1000);
+			case "startOfWeek": {
+				const day = today.getDay();
+				return new Date(today.getTime() - day * 24 * 60 * 60 * 1000);
+			}
+			case "endOfWeek": {
+				const day = today.getDay();
+				return new Date(today.getTime() + (6 - day) * 24 * 60 * 60 * 1000);
+			}
+			default:
+				return today;
+		}
+	}
+}
+
+// =============================================================================
+// EvalContext - Per-node evaluation context
+// =============================================================================
+
+/**
+ * Per-node evaluation context constructed fresh for each evaluate() call.
+ *
+ * Holds the current file path, properties, and optional traversal context.
+ * Provides convenience methods that read from per-node state.
+ */
+export class EvalContext {
+	readonly filePath: string;
+	readonly properties: FileProperties;
+	readonly traversal: TraversalContext | undefined;
+	readonly env: QueryEnv;
+
+	constructor(
+		env: QueryEnv,
+		filePath: string,
+		properties: FileProperties,
+		traversal?: TraversalContext
+	) {
+		this.env = env;
+		this.filePath = filePath;
+		this.properties = properties;
+		this.traversal = traversal;
+	}
+
 	/**
 	 * Get a property value from the current file.
 	 * Supports nested YAML properties via dot notation.
 	 * If nested traversal fails, tries the flat key as fallback.
-	 * 
-	 * Example: "obsidian.icon" will first try properties.obsidian.icon (nested),
-	 * then fall back to properties["obsidian.icon"] (flat key).
 	 */
 	getPropertyValue(path: string): Value {
 		const parts = path.split(".");
-		
+
 		// First try nested traversal (prioritized for nested YAML)
-		let current: unknown = this._properties;
+		let current: unknown = this.properties;
 		for (const part of parts) {
 			if (current === null || current === undefined) {
 				break;
@@ -264,7 +253,7 @@ export class ExecutorContext {
 
 		// Fallback: try flat key if nested traversal failed
 		if (parts.length > 1) {
-			const flatValue = this._properties[path];
+			const flatValue = this.properties[path];
 			if (flatValue !== undefined) {
 				return flatValue as Value;
 			}
@@ -277,7 +266,7 @@ export class ExecutorContext {
 	 * Get a file.* property
 	 */
 	getFileProperty(property: string): Value {
-		const metadata = this._queryCtx.getFileMetadata(this._filePath);
+		const metadata = this.env.getFileMetadata(this.filePath);
 		if (!metadata) return null;
 
 		switch (property) {
@@ -304,51 +293,52 @@ export class ExecutorContext {
 	 * Get a traversal.* property
 	 */
 	getTraversalProperty(property: string): Value {
-		if (!this._traversal) return null;
+		if (!this.traversal) return null;
 
 		switch (property) {
 			case "depth":
-				return this._traversal.depth;
+				return this.traversal.depth;
 			case "relation":
-				return this._traversal.relation;
+				return this.traversal.relation;
 			case "isImplied":
-				return this._traversal.isImplied;
+				return this.traversal.isImplied;
 			case "parent":
-				return this._traversal.parent;
+				return this.traversal.parent;
 			case "path":
-				return this._traversal.path;
+				return this.traversal.path;
 			default:
 				return null;
 		}
 	}
-
-	/**
-	 * Resolve a relative date to an absolute Date
-	 */
-	resolveRelativeDate(kind: string): Date {
-		const now = new Date();
-		const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-		switch (kind) {
-			case "today":
-				return today;
-			case "yesterday":
-				return new Date(today.getTime() - 24 * 60 * 60 * 1000);
-			case "tomorrow":
-				return new Date(today.getTime() + 24 * 60 * 60 * 1000);
-			case "startOfWeek": {
-				const day = today.getDay();
-				return new Date(today.getTime() - day * 24 * 60 * 60 * 1000);
-			}
-			case "endOfWeek": {
-				const day = today.getDay();
-				return new Date(today.getTime() + (6 - day) * 24 * 60 * 60 * 1000);
-			}
-			default:
-				return today;
-		}
-	}
 }
+
+// =============================================================================
+// Factory Functions
+// =============================================================================
+
+/**
+ * Create an EvalContext from a QueryResultNode
+ */
+export function evalContextFromNode(env: QueryEnv, node: QueryResultNode): EvalContext {
+	return new EvalContext(env, node.path, node.properties, {
+		depth: node.depth,
+		relation: node.relation,
+		isImplied: node.implied,
+		parent: node.parent,
+		path: node.traversalPath,
+	});
+}
+
+/**
+ * Create an EvalContext for the active file (no traversal)
+ */
+export function evalContextForActiveFile(env: QueryEnv): EvalContext {
+	return new EvalContext(env, env.activeFilePath, env.activeFileProperties);
+}
+
+// =============================================================================
+// Validation Context (unchanged)
+// =============================================================================
 
 /**
  * Validation context implementation
@@ -361,7 +351,7 @@ export class ValidationContextImpl {
 
 	constructor(relationNames: string[], groupNames: string[]) {
 		this._relationNames = relationNames;
-		this._relationNamesLower = new Set(relationNames.map(n => n.toLowerCase()));
+		this._relationNamesLower = new Set(relationNames.map((n) => n.toLowerCase()));
 		this._groupNames = new Set(groupNames);
 	}
 

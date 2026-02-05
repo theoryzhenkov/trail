@@ -336,7 +336,7 @@ class NodeRegistry {
 	 * These are clauses registered with clause: true that have an 'expression' property.
 	 * Returns the Lezer grammar name (registry name without "Node" suffix).
 	 * 
-	 * Expression clauses are identified by having a 'test' method that takes ExecutorContext,
+	 * Expression clauses are identified by having a 'test' method that takes EvalContext,
 	 * which is unique to PruneNode, WhereNode, and WhenNode.
 	 */
 	getExpressionClauseLezerNames(): Set<string> {

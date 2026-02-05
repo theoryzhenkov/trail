@@ -33,7 +33,7 @@ export {parse, ParseError} from "./nodes/parser";
 // ============================================================================
 
 export {execute} from "./executor";
-export {ExecutorContext, createValidationContext} from "./nodes/context";
+export {QueryEnv, EvalContext, evalContextFromNode, evalContextForActiveFile, createValidationContext} from "./nodes/context";
 
 // ============================================================================
 // Errors

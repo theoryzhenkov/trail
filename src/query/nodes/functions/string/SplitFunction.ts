@@ -4,7 +4,7 @@
 
 import {FunctionExprNode, toString} from "../../base/FunctionExprNode";
 import type {Value, NodeDoc, Span} from "../../types";
-import type {ExecutorContext} from "../../context";
+import type {EvalContext} from "../../context";
 import type {ExprNode} from "../../base/ExprNode";
 import {register} from "../../registry";
 
@@ -24,7 +24,7 @@ export class SplitFunction extends FunctionExprNode {
 		super(args, span);
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
+	evaluate(ctx: EvalContext): Value {
 		const args = this.evaluateArgs(ctx);
 		const str = toString(args[0] ?? null);
 		const delimiter = toString(args[1] ?? null);

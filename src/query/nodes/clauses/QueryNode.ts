@@ -19,7 +19,7 @@ import type {
 	CompletionContext,
 	Completable,
 } from "../types";
-import type {ExecutorContext} from "../context";
+import {type QueryEnv, EvalContext, evalContextFromNode, evalContextForActiveFile} from "../context";
 import {executeQueryClauses} from "../execution/query-executor";
 import {register} from "../registry";
 
@@ -96,57 +96,56 @@ export class QueryNode extends ClauseNode {
 	/**
 	 * Execute the query and return results
 	 */
-	execute(ctx: ExecutorContext): QueryResult {
+	execute(env: QueryEnv): QueryResult {
 		// Evaluate WHEN clause against active file
 		if (this.when) {
-			ctx.setCurrentFile(ctx.activeFilePath, ctx.activeFileProperties);
-			if (!this.when.test(ctx)) {
+			const activeCtx = evalContextForActiveFile(env);
+			if (!this.when.test(activeCtx)) {
 				return {
 					visible: false,
 					results: [],
-					warnings: ctx.getWarnings(),
-					errors: ctx.getErrors(),
+					warnings: env.getWarnings(),
+					errors: env.getErrors(),
 				};
 			}
 		}
 
 		// Execute query clauses using shared logic
-		const results = executeQueryClauses(ctx, {
+		const results = executeQueryClauses(env, {
 			from: this.from,
 			prune: this.prune,
 			where: this.where,
 			sort: this.sort,
-			startPath: ctx.activeFilePath,
+			startPath: env.activeFilePath,
 		});
 
 		// Apply DISPLAY clause (QueryNode-specific)
-		const displayed = this.applyDisplay(results, ctx);
+		const displayed = this.applyDisplay(results, env);
 
 		return {
 			visible: true,
 			results: displayed,
-			warnings: ctx.getWarnings(),
-			errors: ctx.hasErrors() ? ctx.getErrors() : undefined,
+			warnings: env.getWarnings(),
+			errors: env.hasErrors() ? env.getErrors() : undefined,
 		};
 	}
 
 	/**
 	 * Apply DISPLAY clause by evaluating property values for each node.
-	 * Uses the standard pattern: set context, then evaluate.
+	 * Constructs a fresh EvalContext per node.
 	 */
-	private applyDisplay(nodes: QueryResultNode[], ctx: ExecutorContext): QueryResultNode[] {
+	private applyDisplay(nodes: QueryResultNode[], env: QueryEnv): QueryResultNode[] {
 		if (!this.display) {
 			return nodes;
 		}
 
 		return nodes.map((node) => {
-			// Set context to this node's file (standard pattern)
-			ctx.setCurrentFile(node.path, node.properties);
+			const nodeCtx = evalContextFromNode(env, node);
 
 			return {
 				...node,
-				displayProperties: this.evaluateDisplayProperties(node, ctx),
-				children: this.applyDisplay(node.children, ctx),
+				displayProperties: this.evaluateDisplayProperties(node, nodeCtx),
+				children: this.applyDisplay(node.children, env),
 			};
 		});
 	}
@@ -154,7 +153,7 @@ export class QueryNode extends ClauseNode {
 	/**
 	 * Evaluate display properties using PropertyNode.evaluate().
 	 */
-	private evaluateDisplayProperties(node: QueryResultNode, ctx: ExecutorContext): DisplayProperty[] {
+	private evaluateDisplayProperties(node: QueryResultNode, ctx: EvalContext): DisplayProperty[] {
 		if (!this.display) return [];
 
 		const results: DisplayProperty[] = [];

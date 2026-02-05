@@ -6,7 +6,7 @@
 
 import {ExprNode} from "./ExprNode";
 import type {Span, Value, ValidationContext} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 
 /**
  * Abstract base class for literal nodes
@@ -22,7 +22,7 @@ export abstract class LiteralNode<T extends Value> extends ExprNode {
 	/**
 	 * Literals evaluate to their value
 	 */
-	evaluate(_ctx: ExecutorContext): Value {
+	evaluate(_ctx: EvalContext): Value {
 		return this.value;
 	}
 

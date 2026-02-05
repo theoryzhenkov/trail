@@ -5,7 +5,7 @@
 import {BinaryNode} from "../base/BinaryNode";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, Completable, CompletionContext} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 import {register} from "../registry";
 
 @register("AndExprNode", {expr: true})
@@ -32,9 +32,9 @@ export class AndExprNode extends BinaryNode {
 		super(left, right, span);
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
+	evaluate(ctx: EvalContext): Value {
 		// Short-circuit: if left is false, don't evaluate right
-		if (!ctx.isTruthy(this.left.evaluate(ctx))) return false;
-		return ctx.isTruthy(this.right.evaluate(ctx));
+		if (!ctx.env.isTruthy(this.left.evaluate(ctx))) return false;
+		return ctx.env.isTruthy(this.right.evaluate(ctx));
 	}
 }

@@ -1,11 +1,12 @@
 /**
  * Sorting logic for TQL query results
  *
- * Uses the standard evaluation pattern: set context for each node,
- * then call evaluate() on sort key expressions.
+ * Constructs a fresh EvalContext per node, then calls evaluate()
+ * on sort key expressions.
  */
 
-import type {ExecutorContext} from "../context";
+import {EvalContext} from "../context";
+import type {QueryEnv} from "../context";
 import type {QueryResultNode, Value} from "../types";
 import type {SortKeyNode} from "../clauses/SortKeyNode";
 
@@ -23,17 +24,17 @@ interface SortableNode {
 export function sortNodes(
 	nodes: QueryResultNode[],
 	keys: SortKeyNode[],
-	ctx: ExecutorContext
+	env: QueryEnv
 ): QueryResultNode[] {
 	if (nodes.length <= 1) {
 		return nodes.map((node) => ({
 			...node,
-			children: sortNodes(node.children, keys, ctx),
+			children: sortNodes(node.children, keys, env),
 		}));
 	}
 
 	// Pre-compute sort values for all nodes
-	const sortables = prepareSortables(nodes, keys, ctx);
+	const sortables = prepareSortables(nodes, keys, env);
 
 	// Sort by pre-computed values
 	const sorted = [...sortables].sort((a, b) => compareSortables(a, b, keys));
@@ -41,21 +42,21 @@ export function sortNodes(
 	// Extract nodes and recursively sort children
 	return sorted.map((s) => ({
 		...s.node,
-		children: sortNodes(s.node.children, keys, ctx),
+		children: sortNodes(s.node.children, keys, env),
 	}));
 }
 
 /**
- * Pre-compute sort values for all nodes using the standard evaluation pattern.
- * Sets context for each node and calls evaluate() on sort key expressions.
+ * Pre-compute sort values for all nodes.
+ * Constructs a fresh EvalContext per node and calls evaluate() on sort key expressions.
  */
 function prepareSortables(
 	nodes: QueryResultNode[],
 	keys: SortKeyNode[],
-	ctx: ExecutorContext
+	env: QueryEnv
 ): SortableNode[] {
 	return nodes.map((node) => {
-		ctx.setCurrentFile(node.path, node.properties);
+		const ctx = new EvalContext(env, node.path, node.properties);
 		const values = keys.map((key) => key.key.evaluate(ctx));
 		return {node, values};
 	});

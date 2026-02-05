@@ -5,7 +5,7 @@
 import {BinaryNode} from "../base/BinaryNode";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, CompletionContext} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 import {register} from "../registry";
 
 @register("ArithExprNode", {expr: true})
@@ -28,7 +28,7 @@ export class ArithExprNode extends BinaryNode {
 		this.op = op;
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
+	evaluate(ctx: EvalContext): Value {
 		const left = this.left.evaluate(ctx);
 		const right = this.right.evaluate(ctx);
 
@@ -52,7 +52,7 @@ export class ArithExprNode extends BinaryNode {
 			return left + String(right);
 		}
 
-		ctx.addError(`Cannot perform ${this.op} on ${typeof left} and ${typeof right}`, this.span);
+		ctx.env.addError(`Cannot perform ${this.op} on ${typeof left} and ${typeof right}`, this.span);
 		return null;
 	}
 }

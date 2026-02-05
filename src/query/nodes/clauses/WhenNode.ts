@@ -9,7 +9,7 @@
 import {ClauseNode} from "../base/ClauseNode";
 import type {ExprNode} from "../base/ExprNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 import {register} from "../registry";
 
 @register("WhenNode", {clause: true})
@@ -46,8 +46,8 @@ export class WhenNode extends ClauseNode {
 	 * Test whether the query should be shown.
 	 * Returns true if the expression evaluates to a truthy value.
 	 */
-	test(ctx: ExecutorContext): boolean {
+	test(ctx: EvalContext): boolean {
 		const result = this.expression.evaluate(ctx);
-		return ctx.isTruthy(result);
+		return ctx.env.isTruthy(result);
 	}
 }

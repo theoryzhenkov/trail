@@ -8,7 +8,7 @@
  * Chains are specified in FROM clause: `from up >> down >> same`
  */
 
-import type {ExecutorContext} from "../../context";
+import type {QueryEnv} from "../../context";
 import type {QueryResultNode} from "../../types";
 import type {ChainTarget} from "../../clauses/FromNode";
 import type {LeafHandler, NodeContext, NodeFilter, TraversalConfig} from "./types";
@@ -39,13 +39,13 @@ export interface ChainTraversalConfig {
  * Create a leaf handler for chain processing
  */
 export function createChainHandler(
-	ctx: ExecutorContext,
+	env: QueryEnv,
 	options: ChainHandlerOptions
 ): LeafHandler {
 	return {
 		handle(nodeCtx: NodeContext): QueryResultNode[] {
 			return extendFromChain(
-				ctx,
+				env,
 				nodeCtx.path,
 				options.chain,
 				new Set(nodeCtx.traversalPath),
@@ -61,7 +61,7 @@ export function createChainHandler(
  * Extend traversal from chain targets
  */
 function extendFromChain(
-	ctx: ExecutorContext,
+	env: QueryEnv,
 	sourcePath: string,
 	chain: ChainTarget[],
 	ancestorPaths: Set<string>,
@@ -81,7 +81,7 @@ function extendFromChain(
 				filter,
 				output: {flattenFrom: target.spec.flatten},
 				onLeaf: chain.length > 1
-					? createChainHandler(ctx, {
+					? createChainHandler(env, {
 							chain: chain.slice(1),
 							filter,
 							resolveGroup,
@@ -89,7 +89,7 @@ function extendFromChain(
 					: undefined,
 			};
 
-			const result = traverse(ctx, config);
+			const result = traverse(env, config);
 			results.push(...result.nodes);
 		} else if (target.type === "group") {
 			// Continue with a group
@@ -110,7 +110,7 @@ function extendFromChain(
 					filter,
 					output: {flattenFrom: relConfig.flatten},
 					onLeaf: chain.length > 1
-						? createChainHandler(ctx, {
+						? createChainHandler(env, {
 								chain: chain.slice(1),
 								filter,
 								resolveGroup,
@@ -118,12 +118,12 @@ function extendFromChain(
 						: undefined,
 				};
 
-				const result = traverse(ctx, config);
+				const result = traverse(env, config);
 				results.push(...result.nodes);
 			}
 		} else if (target.type === "inline") {
 			// Continue with an inline query
-			const inlineResults = target.query.executeQuery(ctx);
+			const inlineResults = target.query.executeQuery(env, sourcePath);
 			results.push(...inlineResults);
 		}
 	}
@@ -138,11 +138,11 @@ function extendFromChain(
  * to chain traversal configurations.
  */
 export function createGroupResolver(
-	ctx: ExecutorContext,
+	env: QueryEnv,
 	filter: NodeFilter
 ): (name: string) => ChainTraversalConfig[] | undefined {
 	return (name: string): ChainTraversalConfig[] | undefined => {
-		const groupQuery = ctx.resolveGroupQuery(name) as
+		const groupQuery = env.resolveGroupQuery(name) as
 			| {from: {chains: Array<{first: {name: string; depth: number | "unlimited"; flatten?: number | true}; chain: ChainTarget[]}>}}
 			| undefined;
 		

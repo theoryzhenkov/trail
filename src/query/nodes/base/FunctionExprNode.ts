@@ -10,7 +10,7 @@
 
 import {ExprNode} from "./ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext, Completable} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 
 /**
  * Abstract base class for function expression nodes
@@ -55,7 +55,7 @@ export abstract class FunctionExprNode extends ExprNode {
 	 * Evaluate this function with the given context.
 	 * Subclasses should implement this to perform the actual function logic.
 	 */
-	abstract evaluate(ctx: ExecutorContext): Value;
+	abstract evaluate(ctx: EvalContext): Value;
 
 	/**
 	 * Validate this function node.
@@ -71,7 +71,7 @@ export abstract class FunctionExprNode extends ExprNode {
 	/**
 	 * Evaluate all arguments and return their values
 	 */
-	protected evaluateArgs(ctx: ExecutorContext): Value[] {
+	protected evaluateArgs(ctx: EvalContext): Value[] {
 		return this.args.map((arg) => arg.evaluate(ctx));
 	}
 }

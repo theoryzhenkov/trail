@@ -4,7 +4,7 @@
 
 import {FunctionExprNode, toString} from "../../base/FunctionExprNode";
 import type {Value, NodeDoc, Span} from "../../types";
-import type {ExecutorContext} from "../../context";
+import type {EvalContext} from "../../context";
 import type {ExprNode} from "../../base/ExprNode";
 import {register} from "../../registry";
 
@@ -24,10 +24,10 @@ export class HasTagFunction extends FunctionExprNode {
 		super(args, span);
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
+	evaluate(ctx: EvalContext): Value {
 		const args = this.evaluateArgs(ctx);
 		const tag = toString(args[0] ?? null);
-		const metadata = ctx.getFileMetadata(ctx.filePath);
+		const metadata = ctx.env.getFileMetadata(ctx.filePath);
 		if (!metadata) return false;
 
 		// Normalize tag (remove leading # if present)

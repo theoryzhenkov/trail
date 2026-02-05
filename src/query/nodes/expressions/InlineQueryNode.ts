@@ -11,7 +11,8 @@ import {SortNode} from "../clauses/SortNode";
 import {PruneNode} from "../clauses/PruneNode";
 import {WhereNode} from "../clauses/WhereNode";
 import type {Span, Value, NodeDoc, ValidationContext, QueryResultNode} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
+import type {QueryEnv} from "../context";
 import {executeQueryClauses} from "../execution/query-executor";
 import {register} from "../registry";
 
@@ -47,8 +48,8 @@ export class InlineQueryNode extends ExprNode {
 	/**
 	 * Evaluate as an expression - returns array of file paths
 	 */
-	evaluate(ctx: ExecutorContext): Value {
-		const results = this.executeQuery(ctx);
+	evaluate(ctx: EvalContext): Value {
+		const results = this.executeQuery(ctx.env, ctx.filePath);
 		return this.flattenPaths(results);
 	}
 
@@ -56,13 +57,13 @@ export class InlineQueryNode extends ExprNode {
 	 * Execute the inline query and return full result nodes.
 	 * Uses the shared query executor for full recursive functionality.
 	 */
-	executeQuery(ctx: ExecutorContext): QueryResultNode[] {
-		return executeQueryClauses(ctx, {
+	executeQuery(env: QueryEnv, startPath: string): QueryResultNode[] {
+		return executeQueryClauses(env, {
 			from: this.from,
 			prune: this.prune,
 			where: this.where,
 			sort: this.sort,
-			startPath: ctx.filePath, // Use current file, not active file
+			startPath, // Use current file, not active file
 		});
 	}
 

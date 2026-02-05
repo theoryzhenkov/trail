@@ -7,7 +7,8 @@
  */
 
 import type {QueryResultNode} from "../types";
-import type {ExecutorContext} from "../context";
+import type {QueryEnv} from "../context";
+import {evalContextFromNode} from "../context";
 import type {FromNode} from "../clauses/FromNode";
 import type {SortNode} from "../clauses/SortNode";
 import type {PruneNode} from "../clauses/PruneNode";
@@ -33,7 +34,7 @@ export interface ExecuteQueryOptions {
 	where?: WhereNode;
 	/** Optional SORT clause to order results */
 	sort?: SortNode;
-	/** Starting path for traversal (defaults to ctx.filePath) */
+	/** Starting path for traversal (defaults to env.activeFilePath) */
 	startPath?: string;
 }
 
@@ -45,19 +46,19 @@ export interface ExecuteQueryOptions {
  * (which is QueryNode-specific).
  */
 export function executeQueryClauses(
-	ctx: ExecutorContext,
+	env: QueryEnv,
 	options: ExecuteQueryOptions
 ): QueryResultNode[] {
 	const {from, prune, where, sort, startPath} = options;
 
 	// Traverse FROM clause
-	const results = traverseFrom(ctx, from, prune, startPath ?? ctx.filePath);
+	const results = traverseFrom(env, from, prune, startPath ?? env.activeFilePath);
 
 	// Apply WHERE filter (post-traversal to maintain ancestor paths)
-	const filtered = where ? applyWhereFilter(results, where, ctx) : results;
+	const filtered = where ? applyWhereFilter(results, where, env) : results;
 
 	// Sort results
-	const sorted = sort ? sortNodes(filtered, sort.keys, ctx) : filtered;
+	const sorted = sort ? sortNodes(filtered, sort.keys, env) : filtered;
 
 	return sorted;
 }
@@ -66,7 +67,7 @@ export function executeQueryClauses(
  * Traverse the FROM clause and return result nodes
  */
 function traverseFrom(
-	ctx: ExecutorContext,
+	env: QueryEnv,
 	from: FromNode,
 	prune: PruneNode | undefined,
 	startPath: string
@@ -74,12 +75,12 @@ function traverseFrom(
 	const results: QueryResultNode[] = [];
 
 	// Build filter from PRUNE clause
-	const filter = buildFilter(ctx, {
+	const filter = buildFilter(env, {
 		pruneExpr: prune?.expression,
 	});
 
 	// Build group resolver
-	const resolveGroup = createGroupResolver(ctx, filter);
+	const resolveGroup = createGroupResolver(env, filter);
 
 	// Traverse each chain in the FROM clause
 	for (const relationChain of from.chains) {
@@ -94,7 +95,7 @@ function traverseFrom(
 				flattenFrom: relationChain.first.flatten,
 			},
 			onLeaf: hasChain
-				? createChainHandler(ctx, {
+				? createChainHandler(env, {
 						chain: relationChain.chain,
 						filter,
 						resolveGroup,
@@ -102,12 +103,12 @@ function traverseFrom(
 				: undefined,
 		};
 
-		const result = traverse(ctx, config);
+		const result = traverse(env, config);
 		results.push(...result.nodes);
 
 		// Add warnings from traversal
 		for (const warning of result.warnings) {
-			ctx.addWarning(warning.message);
+			env.addWarning(warning.message);
 		}
 	}
 
@@ -124,23 +125,15 @@ function traverseFrom(
 function applyWhereFilter(
 	nodes: QueryResultNode[],
 	where: WhereNode,
-	ctx: ExecutorContext
+	env: QueryEnv
 ): QueryResultNode[] {
 	const result: QueryResultNode[] = [];
 
 	for (const node of nodes) {
-		ctx.setCurrentFile(node.path, node.properties);
-		ctx.setTraversal({
-			depth: node.depth,
-			relation: node.relation,
-			isImplied: node.implied,
-			parent: node.parent,
-			path: node.traversalPath,
-		});
+		const nodeCtx = evalContextFromNode(env, node);
+		const filteredChildren = applyWhereFilter(node.children, where, env);
 
-		const filteredChildren = applyWhereFilter(node.children, where, ctx);
-
-		if (where.test(ctx)) {
+		if (where.test(nodeCtx)) {
 			result.push({...node, children: filteredChildren});
 		} else if (filteredChildren.length > 0) {
 			result.push(...filteredChildren.map((child) => ({...child, hasFilteredAncestor: true})));

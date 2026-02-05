@@ -4,7 +4,7 @@
 
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
-import type {ExecutorContext} from "../context";
+import type {EvalContext} from "../context";
 import {register} from "../registry";
 
 @register("RangeNode", {expr: true})
@@ -29,7 +29,7 @@ export class RangeNode extends ExprNode {
 		this.upper = upper;
 	}
 
-	evaluate(ctx: ExecutorContext): Value {
+	evaluate(ctx: EvalContext): Value {
 		const value = this.value.evaluate(ctx);
 		const lower = this.lower.evaluate(ctx);
 		const upper = this.upper.evaluate(ctx);
@@ -38,7 +38,7 @@ export class RangeNode extends ExprNode {
 			return null;
 		}
 
-		return ctx.compare(value, lower) >= 0 && ctx.compare(value, upper) <= 0;
+		return ctx.env.compare(value, lower) >= 0 && ctx.env.compare(value, upper) <= 0;
 	}
 
 	validate(ctx: ValidationContext): void {
