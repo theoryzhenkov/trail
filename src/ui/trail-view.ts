@@ -13,6 +13,13 @@ import {getRelationDisplayName} from "../settings";
 
 export const TRAIL_VIEW_TYPE = "trail-view";
 
+interface ParsedGroups {
+	groupNames: string[];
+	validatedByName: Map<string, ReturnType<typeof parse>>;
+	astByQuery: Map<string, ReturnType<typeof parse>>;
+	relationIds: string[];
+}
+
 export class TrailView extends ItemView {
 	private plugin: TrailPlugin;
 	private selectedRelations: Set<string>;
@@ -161,13 +168,16 @@ export class TrailView extends ItemView {
 			return;
 		}
 
+		// Precompute parsed group ASTs and group names once for the entire refresh
+		const parsedGroups = this.parseAllGroups();
+
 		let visibleCount = 0;
 
 		for (const group of tqlGroups) {
 			if (group.enabled === false) {
 				continue;
 			}
-			const wasRendered = this.renderTqlGroup(containerEl, group, activeFile.path);
+			const wasRendered = this.renderTqlGroup(containerEl, group, activeFile.path, parsedGroups);
 			if (wasRendered) {
 				visibleCount++;
 			}
@@ -178,9 +188,54 @@ export class TrailView extends ItemView {
 		}
 	}
 
-	private renderTqlGroup(containerEl: HTMLElement, group: GroupDefinition, filePath: string): boolean {
+	/**
+	 * Parse all group queries once and return a map of group name -> validated AST.
+	 * Also returns the list of all group names for validation context.
+	 */
+	private parseAllGroups(): ParsedGroups {
+		const settings = this.plugin.settings;
+		const relationIds = settings.relations.map(r => r.id);
+		const astByQuery = new Map<string, ReturnType<typeof parse>>();
+		const groupNameByQuery = new Map<string, string>();
+		const groupNames: string[] = [];
+
+		// First pass: parse all queries and collect group names
+		for (const group of settings.tqlGroups) {
+			try {
+				const ast = parse(group.query);
+				astByQuery.set(group.query, ast);
+				groupNameByQuery.set(group.query, ast.group);
+				groupNames.push(ast.group);
+			} catch {
+				// Invalid query, skip for name collection
+			}
+		}
+
+		// Second pass: validate all parsed ASTs with full group names list
+		const validationCtx = createValidationContext(relationIds, groupNames);
+		const validatedByName = new Map<string, ReturnType<typeof parse>>();
+
+		for (const [query, ast] of astByQuery) {
+			try {
+				ast.validate(validationCtx);
+				const name = groupNameByQuery.get(query)!;
+				validatedByName.set(name, ast);
+			} catch {
+				// Validation failed, skip
+			}
+		}
+
+		return {groupNames, validatedByName, astByQuery, relationIds};
+	}
+
+	private renderTqlGroup(
+		containerEl: HTMLElement,
+		group: GroupDefinition,
+		filePath: string,
+		parsedGroups: ParsedGroups
+	): boolean {
 		try {
-			const result = this.executeTqlQuery(group.query, filePath);
+			const result = this.executeTqlQuery(group.query, filePath, parsedGroups);
 
 			if (!result.visible) {
 				return false;
@@ -191,15 +246,11 @@ export class TrailView extends ItemView {
 				return false;
 			}
 
-			// Extract group name from query
+			// Use precomputed group name or fall back to group.name
 			let groupName = group.name;
 			if (!groupName) {
-				try {
-					const ast = parse(group.query);
-					groupName = ast.group;
-				} catch {
-					groupName = "TQL Group";
-				}
+				const ast = parsedGroups.astByQuery.get(group.query);
+				groupName = ast?.group ?? "TQL Group";
 			}
 
 			const section = createCollapsibleSection(
@@ -232,7 +283,7 @@ export class TrailView extends ItemView {
 		}
 	}
 
-	private executeTqlQuery(query: string, filePath: string): QueryResult {
+	private executeTqlQuery(query: string, filePath: string, parsedGroups: ParsedGroups): QueryResult {
 		// Check cache first
 		const cache = getCache();
 		const cached = cache.getResult(query, filePath);
@@ -240,22 +291,15 @@ export class TrailView extends ItemView {
 			return cached;
 		}
 
-		const ast = parse(query);
-		const relationIds = this.plugin.settings.relations.map(r => r.id);
-		const groupNames = this.plugin.settings.tqlGroups
-			.map(g => {
-				try {
-					return parse(g.query).group;
-				} catch {
-					return null;
-				}
-			})
-			.filter((n): n is string => n !== null);
+		// Use precomputed AST if available, otherwise parse fresh
+		let ast = parsedGroups.astByQuery.get(query);
+		if (!ast) {
+			ast = parse(query);
+			const validationCtx = createValidationContext(parsedGroups.relationIds, parsedGroups.groupNames);
+			ast.validate(validationCtx);
+		}
 
-		const validationCtx = createValidationContext(relationIds, groupNames);
-		ast.validate(validationCtx);
-
-		const queryCtx = this.createQueryContext(filePath);
+		const queryCtx = this.createQueryContext(filePath, parsedGroups);
 		const result = execute(ast, queryCtx);
 
 		// Store result in cache
@@ -264,21 +308,22 @@ export class TrailView extends ItemView {
 		return result;
 	}
 
-	private createQueryContext(filePath: string) {
+	private createQueryContext(filePath: string, parsedGroups: ParsedGroups) {
 		const graph = this.plugin.graph;
 		const settings = this.plugin.settings;
 		const props = graph.getFileProperties?.(filePath) ?? {};
+
+		// Precompute backlink index once per query context
+		const backlinkIndex = this.buildBacklinkIndex();
 
 		return {
 			activeFilePath: filePath,
 			activeFileProperties: props,
 			getOutgoingEdges: (path: string, relation?: string) => {
-				const filter = relation ? new Set([relation]) : undefined;
-				return graph.getOutgoingEdges(path, filter);
+				return graph.getOutgoingEdges(path, relation);
 			},
 			getIncomingEdges: (path: string, relation?: string) => {
-				const filter = relation ? new Set([relation]) : undefined;
-				return graph.getIncomingEdges(path, filter);
+				return graph.getIncomingEdges(path, relation);
 			},
 			getProperties: (path: string) => graph.getFileProperties?.(path) ?? {},
 			getFileMetadata: (path: string) => {
@@ -290,15 +335,8 @@ export class TrailView extends ItemView {
 				// Get outgoing links from file cache
 				const links = fileCache?.links?.map(l => l.link) ?? [];
 				
-				// Get backlinks by scanning resolvedLinks
-				const backlinks: string[] = [];
-				const resolvedLinks = metadataCache.resolvedLinks;
-				for (const sourcePath in resolvedLinks) {
-					const targets = resolvedLinks[sourcePath];
-					if (targets && path in targets) {
-						backlinks.push(sourcePath);
-					}
-				}
+				// Use precomputed backlink index
+				const backlinks = backlinkIndex.get(path) ?? [];
 				
 				return {
 					name: file.basename,
@@ -318,29 +356,27 @@ export class TrailView extends ItemView {
 				return def?.visualDirection ?? "descending";
 			},
 			resolveGroupQuery: (name: string) => {
-				const group = settings.tqlGroups.find(g => {
-					try {
-						return parse(g.query).group === name;
-					} catch {
-						return false;
-					}
-				});
-				if (!group) return undefined;
-				try {
-					const ast = parse(group.query);
-					const relationIds = settings.relations.map(r => r.id);
-					const groupNames = settings.tqlGroups
-						.map(g => {
-							try { return parse(g.query).group; } catch { return null; }
-						})
-						.filter((n): n is string => n !== null);
-					ast.validate(createValidationContext(relationIds, groupNames));
-					return ast;
-				} catch {
-					return undefined;
-				}
+				return parsedGroups.validatedByName.get(name);
 			},
 		};
+	}
+
+	/**
+	 * Build a reverse index from resolvedLinks: target path -> source paths.
+	 */
+	private buildBacklinkIndex(): Map<string, string[]> {
+		const index = new Map<string, string[]>();
+		const resolvedLinks = this.plugin.app.metadataCache.resolvedLinks;
+		for (const sourcePath in resolvedLinks) {
+			const targets = resolvedLinks[sourcePath];
+			if (!targets) continue;
+			for (const targetPath in targets) {
+				const list = index.get(targetPath) ?? [];
+				list.push(sourcePath);
+				index.set(targetPath, list);
+			}
+		}
+		return index;
 	}
 
 	/**

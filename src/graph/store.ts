@@ -15,6 +15,7 @@ export class GraphStore {
 	private settings: TrailSettings;
 	private edgesBySource: Map<string, RelationEdge[]>;
 	private edgesByTarget: Map<string, RelationEdge[]>;
+	private edgesBySourceWithImplied: Map<string, RelationEdge[]>;
 	private propertiesByPath: Map<string, FileProperties>;
 	private staleFiles: Set<string>;
 	private allStale: boolean;
@@ -26,6 +27,7 @@ export class GraphStore {
 		this.settings = settings;
 		this.edgesBySource = new Map();
 		this.edgesByTarget = new Map();
+		this.edgesBySourceWithImplied = new Map();
 		this.propertiesByPath = new Map();
 		this.staleFiles = new Set();
 		this.allStale = true;
@@ -190,24 +192,20 @@ export class GraphStore {
 		return orderedTypes;
 	}
 
-	getIncomingEdges(path: string, relationFilter?: Set<string>): RelationEdge[] {
+	getIncomingEdges(path: string, relation?: string): RelationEdge[] {
 		const edges = this.edgesByTarget.get(path) ?? [];
-		if (!relationFilter || relationFilter.size === 0) {
+		if (!relation) {
 			return edges;
 		}
-		return edges.filter((edge) => relationFilter.has(edge.relation));
+		return edges.filter((edge) => edge.relation === relation);
 	}
 
-	getOutgoingEdges(path: string, relationFilter?: Set<string>): RelationEdge[] {
-		return this.getEdgesWithImplied().filter((edge) => {
-			if (edge.fromPath !== path) {
-				return false;
-			}
-			if (!relationFilter || relationFilter.size === 0) {
-				return true;
-			}
-			return relationFilter.has(edge.relation);
-		});
+	getOutgoingEdges(path: string, relation?: string): RelationEdge[] {
+		const edges = this.edgesBySourceWithImplied.get(path) ?? [];
+		if (!relation) {
+			return edges;
+		}
+		return edges.filter((edge) => edge.relation === relation);
 	}
 
 	getAncestors(path: string, relationFilter?: Set<string>): AncestorNode[] {
@@ -220,11 +218,16 @@ export class GraphStore {
 
 	private rebuildTargetIndex() {
 		this.edgesByTarget.clear();
+		this.edgesBySourceWithImplied.clear();
 		const edges = this.getEdgesWithImplied();
 		for (const edge of edges) {
-			const list = this.edgesByTarget.get(edge.toPath) ?? [];
-			list.push(edge);
-			this.edgesByTarget.set(edge.toPath, list);
+			const targetList = this.edgesByTarget.get(edge.toPath) ?? [];
+			targetList.push(edge);
+			this.edgesByTarget.set(edge.toPath, targetList);
+
+			const sourceList = this.edgesBySourceWithImplied.get(edge.fromPath) ?? [];
+			sourceList.push(edge);
+			this.edgesBySourceWithImplied.set(edge.fromPath, sourceList);
 		}
 	}
 
