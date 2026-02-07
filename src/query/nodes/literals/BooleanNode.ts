@@ -2,11 +2,12 @@
  * BooleanNode - Boolean literal
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {LiteralNode} from "../base/LiteralNode";
 import type {Span, NodeDoc} from "../types";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 
-@register("BooleanNode")
+@register("BooleanNode", {term: "Boolean"})
 export class BooleanNode extends LiteralNode<boolean> {
 	static documentation: NodeDoc = {
 		title: "Boolean Literal",
@@ -19,5 +20,10 @@ export class BooleanNode extends LiteralNode<boolean> {
 
 	constructor(value: boolean, span: Span) {
 		super(value, span);
+	}
+
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): BooleanNode {
+		const value = ctx.text(node).toLowerCase() === "true";
+		return new BooleanNode(value, ctx.span(node));
 	}
 }

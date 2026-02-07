@@ -14,7 +14,9 @@ This module implements TQL (Trail Query Language) - a query language for travers
 
 4. **WHERE is Post-Traversal**: WHERE filtering happens AFTER traversal in `query-executor.ts`, not during traversal. This maintains ancestor paths for tree structure.
 
-5. **Grammar and Nodes Must Match**: Changes to `tql.grammar` require corresponding changes to `tree-converter.ts` and potentially new node classes.
+5. **Grammar and Nodes Must Match**: Changes to `tql.grammar` require corresponding node classes with `static fromSyntax()` methods.
+
+6. **Conversion Logic Lives in Node Classes**: Each node class provides its own `static fromSyntax(node, ctx)` factory method, registered via `@register({ term: "GrammarTermName" })`. The tree-converter is a thin dispatcher.
 
 ## File Responsibilities
 
@@ -25,8 +27,8 @@ This module implements TQL (Trail Query Language) - a query language for travers
 | `errors.ts` | Error types | Adding new error codes |
 | `cache.ts` | Query caching | Changing cache invalidation |
 | `nodes/parser.ts` | Lezer → typed AST | Rarely - delegates to tree-converter |
-| `nodes/tree-converter.ts` | Syntax tree → nodes | Adding new node types, grammar changes |
-| `nodes/registry.ts` | Node registration | Adding registration categories |
+| `nodes/tree-converter.ts` | Thin dispatcher + structural converters | Rarely - only for non-1:1 grammar mappings |
+| `nodes/registry.ts` | Node registration + converter registry | Adding registration categories |
 | `nodes/context.ts` | Execution context | Adding context properties |
 | `codemirror/tql.grammar` | Lezer grammar | Syntax changes |
 | `codemirror/complete.ts` | Autocomplete | Completion behavior changes |
@@ -36,12 +38,13 @@ This module implements TQL (Trail Query Language) - a query language for travers
 
 ### Adding a New Clause
 
-1. **Define the node class** in `nodes/clauses/`:
+1. **Define the node class** in `nodes/clauses/` with a `static fromSyntax()` method:
 
 ```typescript
 // nodes/clauses/LimitNode.ts
+import type { SyntaxNode } from "@lezer/common";
 import { ClauseNode } from "../base/ClauseNode";
-import { register } from "../registry";
+import { register, type ConvertContext } from "../registry";
 import type { Span, NodeDoc, ValidationContext, Completable } from "../types";
 
 @register("LimitNode", { clause: true })
@@ -71,6 +74,13 @@ export class LimitNode extends ClauseNode {
       ctx.addError("Limit must be non-negative", this.span, "invalid-limit");
     }
   }
+
+  static fromSyntax(node: SyntaxNode, ctx: ConvertContext): LimitNode {
+    const numNode = node.getChild("Number");
+    if (!numNode) throw new Error("Missing limit count");
+    const count = parseInt(ctx.text(numNode), 10);
+    return new LimitNode(count, ctx.span(node));
+  }
 }
 ```
 
@@ -81,25 +91,9 @@ Limit { kw<"limit"> Number }
 QueryClause { Group | From | Prune | Where | When | Sort | Display | Limit }
 ```
 
-3. **Update the tree converter** in `nodes/tree-converter.ts`:
+3. **Update QueryNode** to include the new clause and call `LimitNode.fromSyntax` in its own `fromSyntax`:
 
-```typescript
-import { LimitNode } from "./clauses/LimitNode";
-
-function convertQuery(node: SyntaxNode, source: string): QueryNode {
-  // ... existing code ...
-  const limitNode = getSingleClause(node, Terms.QueryClause, Terms.Limit, "limit", false);
-  const limit = limitNode ? convertLimitClause(limitNode, source) : undefined;
-  // ... pass to QueryNode constructor
-}
-
-function convertLimitClause(node: SyntaxNode, source: string): LimitNode {
-  const numNode = child(node, Terms.Number);
-  if (!numNode) throw new Error("Missing limit count");
-  const count = parseInt(text(numNode, source), 10);
-  return new LimitNode(count, span(node));
-}
-```
+No changes needed in `tree-converter.ts` — conversion logic is in the node class.
 
 4. **Update QueryNode** to include the new clause:
 
@@ -209,20 +203,28 @@ export class LimitModifier extends ModifierNode {
 
 ### Adding a New Expression Type
 
-1. **Create the node class** in `nodes/expressions/`:
+1. **Create the node class** in `nodes/expressions/` with `fromSyntax` and `term` registration:
 
 ```typescript
-@register("TernaryExprNode", { expr: true })
+import type { SyntaxNode } from "@lezer/common";
+import { register, type ConvertContext } from "../registry";
+
+@register("TernaryExprNode", { expr: true, term: "TernaryExpr" })
 export class TernaryExprNode extends ExprNode {
   // ...
+
+  static fromSyntax(node: SyntaxNode, ctx: ConvertContext): TernaryExprNode {
+    // Conversion logic here - use ctx.expr() for recursive conversion
+    // Use node.getChild("Name") for Lezer string-based child lookup
+  }
 }
 ```
 
 2. **Update the grammar** if new syntax is needed.
 
-3. **Update tree converter** to handle the new grammar node.
+3. **Export from `nodes/expressions/index.ts`**.
 
-4. **Export from `nodes/expressions/index.ts`**.
+No changes needed in `tree-converter.ts` — the `@register({ term: "TernaryExpr" })` auto-registers the converter.
 
 ### Modifying Traversal Behavior
 
@@ -244,7 +246,9 @@ See `nodes/execution/traversal/AGENTS.md` for detailed instructions. Key points:
 
 5. **DO NOT** mutate AST nodes - they should be immutable after construction.
 
-6. **DO NOT** add new syntax without updating both grammar AND tree-converter.
+6. **DO NOT** add new syntax without a corresponding `fromSyntax` method on the node class.
+
+7. **DO NOT** add conversion logic to `tree-converter.ts` unless the grammar node doesn't map 1:1 to a node class (e.g., ParenExpr unwrapping, FunctionCall dispatch).
 
 7. **DO NOT** forget to rebuild parser after grammar changes (`bun run build`).
 

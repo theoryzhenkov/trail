@@ -2,11 +2,13 @@
  * InExprNode - Membership check expression
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import type {EvalContext} from "../context";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 import {equals} from "../value-ops";
+import {RangeNode} from "./RangeNode";
 
 @register("InExprNode", {expr: true})
 export class InExprNode extends ExprNode {
@@ -61,5 +63,47 @@ export class InExprNode extends ExprNode {
 	validate(ctx: ValidationContext): void {
 		this.value.validate(ctx);
 		this.collection.validate(ctx);
+	}
+
+	/**
+	 * Convert InExpr node - handles both "in collection" and "in lower..upper"
+	 * Called from CompareExprNode.fromSyntax when an InExpr child is found.
+	 */
+	static fromInSyntax(value: ExprNode, node: SyntaxNode, ctx: ConvertContext): ExprNode {
+		const kids = ctx.allChildren(node);
+		let collection: ExprNode | null = null;
+		let rangeExpr: SyntaxNode | null = null;
+
+		for (const kid of kids) {
+			if (kid.name === "RangeExpr") {
+				rangeExpr = kid;
+			} else if (kid.name !== "in" && ctx.isExpr(kid)) {
+				collection = ctx.expr(kid);
+			}
+		}
+
+		if (!collection) throw new Error("Missing collection in 'in' expression");
+
+		// Range expression: value in lower..upper
+		if (rangeExpr) {
+			const rangeKids = ctx.allChildren(rangeExpr);
+			let upper: ExprNode | null = null;
+			for (const kid of rangeKids) {
+				if (ctx.isExpr(kid)) {
+					upper = ctx.expr(kid);
+				}
+			}
+			if (!upper) throw new Error("Missing upper bound in range expression");
+			return new RangeNode(value, collection, upper, {
+				start: value.span.start,
+				end: upper.span.end,
+			});
+		}
+
+		// Simple in: value in collection
+		return new InExprNode(value, collection, {
+			start: value.span.start,
+			end: collection.span.end,
+		});
 	}
 }

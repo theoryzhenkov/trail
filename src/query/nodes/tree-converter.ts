@@ -1,654 +1,120 @@
 /**
  * Tree Converter - Converts Lezer syntax tree to typed AST node instances
- * 
- * This module bridges the Lezer parser output (generic SyntaxNode tree) to
- * the typed node class instances used for validation and execution.
+ *
+ * This module is a thin dispatcher that bridges the Lezer parser output
+ * to the typed node class instances. Conversion logic lives in each node
+ * class via static fromSyntax() methods, registered with the converter
+ * registry via @register({ term: "..." }).
+ *
+ * Structural converters (ParenExpr, SimpleLiteral, FunctionCall, GroupReference)
+ * are registered here since they don't map 1:1 to a node class.
  */
 
 import type {SyntaxNode, Tree} from "@lezer/common";
 import * as Terms from "../codemirror/parser.terms";
 import type {Span} from "./types";
-import {ExprNode} from "./base/ExprNode";
+import type {ExprNode} from "./base/ExprNode";
 import {FunctionExprNode} from "./base/FunctionExprNode";
-import {getFunctionClass} from "./registry";
+import {
+	registry,
+	registerConverter,
+	getFunctionClass,
+	type ConvertContext,
+	type ExprConverterFn,
+} from "./registry";
 
-// Import functions to trigger @register decorators
+// Import to trigger @register decorators (which also register converters)
 import "./functions";
-// Import builtins to trigger @register decorators
 import "./builtins";
 
-// Node classes
-import {QueryNode, FromNode, RelationSpecNode, SortNode, SortKeyNode, DisplayNode, PruneNode, WhereNode, WhenNode, type RelationChain, type ChainTarget} from "./clauses";
-import {ParseError} from "../errors";
-import {
-	OrExprNode,
-	AndExprNode,
-	CompareExprNode,
-	ArithExprNode,
-	NotExprNode,
-	InExprNode,
-	RangeNode,
-	PropertyNode,
-	AggregateNode,
-	DateExprNode,
-	InlineQueryNode,
-	type CompareOp,
-	type AggregateFunc,
-	type AggregateSource,
-	type BareIdentifierSource,
-	type GroupRefSource,
-	type InlineQuerySource,
-} from "./expressions";
-import {
-	StringNode,
-	NumberNode,
-	BooleanNode,
-	NullNode,
-	DurationNode,
-	type DurationUnit,
-	type RelativeDateKind,
-} from "./literals";
-import type {DateBase, DateOffset} from "./expressions/DateExprNode";
+// Import node classes with fromSyntax to trigger term registration
+import "./literals/StringNode";
+import "./literals/NumberNode";
+import "./literals/BooleanNode";
+import "./literals/NullNode";
+import "./literals/DurationNode";
+import "./expressions/OrExprNode";
+import "./expressions/AndExprNode";
+import "./expressions/NotExprNode";
+import "./expressions/ArithExprNode";
+import "./expressions/CompareExprNode";
+import "./expressions/PropertyNode";
+import "./expressions/DateExprNode";
+import "./expressions/InlineQueryNode";
 
-/**
- * Convert a Lezer parse tree to a QueryNode
- */
-export function convert(tree: Tree, source: string): QueryNode {
-	const top = tree.topNode;
-	return convertQuery(top, source);
+import {QueryNode} from "./clauses";
+import {AggregateNode, type AggregateFunc} from "./expressions";
+import {PropertyNode} from "./expressions/PropertyNode";
+
+// ============================================================================
+// Converter Map - built lazily from registry
+// ============================================================================
+
+let converterMap: Map<number, ExprConverterFn> | null = null;
+let exprTermIds: Set<number> | null = null;
+
+function getConverterMap(): Map<number, ExprConverterFn> {
+	if (!converterMap) {
+		converterMap = new Map();
+		const termsRecord = Terms as unknown as Record<string, number>;
+		for (const [termName, converter] of registry.getAllConvertersByTermName()) {
+			const termId = termsRecord[termName];
+			if (termId !== undefined) {
+				converterMap.set(termId, converter);
+			}
+		}
+	}
+	return converterMap;
 }
 
-/**
- * Get span from a Lezer node
- */
-function span(node: SyntaxNode): Span {
-	return {start: node.from, end: node.to};
-}
-
-/**
- * Get text content of a node
- */
-function text(node: SyntaxNode, source: string): string {
-	return source.slice(node.from, node.to);
-}
-
-/**
- * Find a child node by type
- */
-function child(node: SyntaxNode, type: number): SyntaxNode | null {
-	let cursor = node.cursor();
-	if (!cursor.firstChild()) return null;
-	do {
-		if (cursor.type.id === type) return cursor.node;
-	} while (cursor.nextSibling());
-	return null;
-}
-
-/**
- * Find all children of a specific type
- */
-function children(node: SyntaxNode, type: number): SyntaxNode[] {
-	const result: SyntaxNode[] = [];
-	let cursor = node.cursor();
-	if (!cursor.firstChild()) return result;
-	do {
-		if (cursor.type.id === type) result.push(cursor.node);
-	} while (cursor.nextSibling());
-	return result;
-}
-
-/**
- * Get all direct children of a node
- */
-function allChildren(node: SyntaxNode): SyntaxNode[] {
-	const result: SyntaxNode[] = [];
-	let cursor = node.cursor();
-	if (!cursor.firstChild()) return result;
-	do {
-		result.push(cursor.node);
-	} while (cursor.nextSibling());
-	return result;
+function getExprTermIds(): Set<number> {
+	if (!exprTermIds) {
+		exprTermIds = new Set(getConverterMap().keys());
+		// Add structural expression-like terms not in converter map
+		exprTermIds.add(Terms.InExpr);
+		exprTermIds.add(Terms.RangeExpr);
+	}
+	return exprTermIds;
 }
 
 // ============================================================================
-// Query Conversion
+// Structural Converters - for grammar nodes that don't map 1:1 to a node class
 // ============================================================================
 
-function convertQuery(node: SyntaxNode, source: string): QueryNode {
-	const groupNode = getSingleClause(node, Terms.QueryClause, Terms.Group, "group", true)!;
-	const fromNode = getSingleClause(node, Terms.QueryClause, Terms.From, "from", true)!;
-	const pruneNode = getSingleClause(node, Terms.QueryClause, Terms.Prune, "prune", false);
-	const whereNode = getSingleClause(node, Terms.QueryClause, Terms.Where, "where", false);
-	const whenNode = getSingleClause(node, Terms.QueryClause, Terms.When, "when", false);
-	const sortNode = getSingleClause(node, Terms.QueryClause, Terms.Sort, "sort", false);
-	const displayNode = getSingleClause(node, Terms.QueryClause, Terms.Display, "display", false);
-
-	const group = convertGroupClause(groupNode, source);
-	const from = convertFromClause(fromNode, source);
-	const prune = pruneNode ? convertPruneClause(pruneNode, source) : undefined;
-	const where = whereNode ? convertWhereClause(whereNode, source) : undefined;
-	const when = whenNode ? convertWhenClause(whenNode, source) : undefined;
-	const sort = sortNode ? convertSortClause(sortNode, source) : undefined;
-	const display = displayNode ? convertDisplayClause(displayNode, source) : undefined;
-
-	return new QueryNode(group, from, span(node), prune, where, when, sort, display);
-}
-
-function convertGroupClause(node: SyntaxNode, source: string): string {
-	const stringNode = child(node, Terms.String);
-	if (!stringNode) throw new Error("Missing group name string");
-	return parseStringLiteral(text(stringNode, source));
-}
-
-function convertFromClause(node: SyntaxNode, source: string): FromNode {
-	const relationChains = children(node, Terms.RelationChain);
-	const chains: RelationChain[] = [];
-	
-	for (const chainNode of relationChains) {
-		// First element is always a RelationSpec
-		const firstSpec = child(chainNode, Terms.RelationSpec);
-		if (!firstSpec) throw new Error("Missing relation spec in chain");
-		
-		// Convert the first relation spec
-		const firstRel = convertRelationSpec(firstSpec, source);
-		
-		// Process any chained targets
-		const chainTargets = children(chainNode, Terms.ChainTarget);
-		const chain: ChainTarget[] = [];
-		
-		for (const target of chainTargets) {
-			// ChainTarget can be RelationSpec, GroupReference, or InlineQuery
-			const relSpec = child(target, Terms.RelationSpec);
-			const groupRef = child(target, Terms.GroupReference);
-			const inlineQuery = child(target, Terms.InlineQuery);
-			
-			if (relSpec) {
-				// Chained relation: up >> next
-				const chainedRel = convertRelationSpec(relSpec, source);
-				chain.push({type: "relation", spec: chainedRel});
-			} else if (groupRef) {
-				// Chained group: up >> @"Children"
-				const stringNode = child(groupRef, Terms.String);
-				if (!stringNode) throw new Error("Missing string in group reference");
-				const groupName = parseStringLiteral(text(stringNode, source));
-				chain.push({type: "group", name: groupName, span: span(target)});
-			} else if (inlineQuery) {
-				// Chained inline query: up >> @(from next)
-				const inlineQueryNode = convertInlineQuery(inlineQuery, source);
-				chain.push({type: "inline", query: inlineQueryNode});
-			}
-		}
-		
-		chains.push({first: firstRel, chain});
-	}
-	
-	return new FromNode(chains, span(node));
-}
-
-function convertRelationSpec(node: SyntaxNode, source: string): RelationSpecNode {
-	const identNode = child(node, Terms.Identifier);
-	if (!identNode) throw new Error("Missing relation name");
-	const name = text(identNode, source);
-
-	let depth: number | "unlimited" = "unlimited";
-	let flatten: number | true | undefined;
-
-	const options = children(node, Terms.RelationOption);
-	for (const opt of options) {
-		// Check the full text of the option to determine its type
-		// Anonymous literal tokens don't have names, so we check text content
-		const optText = text(opt, source).trim();
-		if (optText.startsWith(":depth")) {
-			const numNode = child(opt, Terms.Number);
-			if (numNode) {
-				depth = parseInt(text(numNode, source), 10);
-			}
-		} else if (optText.startsWith(":flatten")) {
-			const numNode = child(opt, Terms.Number);
-			if (numNode) {
-				flatten = parseInt(text(numNode, source), 10);
-			} else {
-				flatten = true;
-			}
-		}
-	}
-
-	return new RelationSpecNode(name, depth, span(node), flatten);
-}
-
-function convertPruneClause(node: SyntaxNode, source: string): PruneNode {
-	const expr = convertExpressionFromClause(node, source);
-	return new PruneNode(expr, span(node));
-}
-
-function convertWhereClause(node: SyntaxNode, source: string): WhereNode {
-	const expr = convertExpressionFromClause(node, source);
-	return new WhereNode(expr, span(node));
-}
-
-function convertWhenClause(node: SyntaxNode, source: string): WhenNode {
-	const expr = convertExpressionFromClause(node, source);
-	return new WhenNode(expr, span(node));
-}
-
-/**
- * Extract and convert the expression from a clause node (Prune, Where, When)
- */
-function convertExpressionFromClause(node: SyntaxNode, source: string): ExprNode {
-	// Find the expression child (OrExpr is the top-level expression type)
-	const kids = allChildren(node);
-	// Skip the keyword (first child) and get the expression
+registerConverter("ParenExpr", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
+	const kids = ctx.allChildren(node);
 	for (const kid of kids) {
-		if (isExpressionNode(kid)) {
-			return convertExpression(kid, source);
-		}
-	}
-	throw new Error(`Missing expression in clause: ${node.name}`);
-}
-
-function convertSortClause(node: SyntaxNode, source: string): SortNode {
-	const keyNodes = children(node, Terms.SortKey);
-	const keys = keyNodes.map((k) => convertSortKey(k, source));
-	return new SortNode(keys, span(node));
-}
-
-function convertSortKey(node: SyntaxNode, source: string): SortKeyNode {
-	const keyExprNode = child(node, Terms.SortKeyExpr);
-	if (!keyExprNode) throw new Error("Missing sort key expression");
-	
-	const builtinProp = child(keyExprNode, Terms.BuiltinPropertyAccess);
-	const propAccess = child(keyExprNode, Terms.PropertyAccess);
-	
-	let key: PropertyNode;
-	if (builtinProp) {
-		key = convertBuiltinPropertyAccess(builtinProp, source);
-	} else if (propAccess) {
-		key = convertPropertyAccess(propAccess, source);
-	} else {
-		const keyText = text(keyExprNode, source).trim();
-		throw new Error(`Invalid sort key expression: ${keyText}`);
-	}
-	
-	let direction: "asc" | "desc" = "asc";
-	const directionNode = child(node, Terms.SortDirection);
-	if (directionNode) {
-		const dirText = text(directionNode, source).trim();
-		if (dirText === ":asc") {
-			direction = "asc";
-		} else if (dirText === ":desc") {
-			direction = "desc";
-		}
-	}
-	
-	return new SortKeyNode(key, direction, span(node));
-}
-
-function convertDisplayClause(node: SyntaxNode, source: string): DisplayNode {
-	const displayList = child(node, Terms.DisplayList);
-	if (!displayList) throw new Error("Missing display list");
-
-	const kids = allChildren(displayList);
-	let all = false;
-	const properties: PropertyNode[] = [];
-
-	for (const kid of kids) {
-		if (kid.type.id === Terms.all) {
-			all = true;
-		} else if (kid.type.id === Terms.DisplayItem) {
-			const builtinProp = child(kid, Terms.BuiltinPropertyAccess);
-			const propAccess = child(kid, Terms.PropertyAccess);
-			
-			if (builtinProp) {
-				properties.push(convertBuiltinPropertyAccess(builtinProp, source));
-			} else if (propAccess) {
-				properties.push(convertPropertyAccess(propAccess, source));
-			}
-		}
-	}
-
-	return new DisplayNode(all, properties, span(node));
-}
-
-// ============================================================================
-// Expression Conversion
-// ============================================================================
-
-/**
- * Check if a node is an expression type
- */
-function isExpressionNode(node: SyntaxNode): boolean {
-	return [
-		Terms.OrExpr,
-		Terms.AndExpr,
-		Terms.NotExpr,
-		Terms.CompareExpr,
-		Terms.ArithExpr,
-		Terms.ParenExpr,
-		Terms.FunctionCall,
-		Terms.InlineQuery,
-		Terms.GroupReference,
-		Terms.PropertyAccess,
-		Terms.BuiltinPropertyAccess,
-		Terms.BuiltinIdentifier,
-		Terms.SimpleLiteral,
-		Terms.DateExpr,
-		Terms.InExpr,
-		Terms.RangeExpr,
-		Terms.String,
-		Terms.Number,
-		Terms.Duration,
-		Terms.Boolean,
-		Terms.Null,
-	].includes(node.type.id);
-}
-
-function convertExpression(node: SyntaxNode, source: string): ExprNode {
-	switch (node.type.id) {
-		case Terms.OrExpr:
-			return convertOrExpr(node, source);
-		case Terms.AndExpr:
-			return convertAndExpr(node, source);
-		case Terms.NotExpr:
-			return convertNotExpr(node, source);
-		case Terms.CompareExpr:
-			return convertCompareExpr(node, source);
-		case Terms.ArithExpr:
-			return convertArithExpr(node, source);
-		case Terms.ParenExpr:
-			return convertParenExpr(node, source);
-		case Terms.FunctionCall:
-			return convertFunctionCall(node, source);
-		case Terms.InlineQuery:
-			return convertInlineQuery(node, source);
-		case Terms.GroupReference:
-			return convertGroupReference(node, source);
-		case Terms.PropertyAccess:
-			return convertPropertyAccess(node, source);
-		case Terms.BuiltinPropertyAccess:
-			return convertBuiltinPropertyAccess(node, source);
-		case Terms.BuiltinIdentifier:
-			return convertBuiltinPropertyAccess(node, source);
-		case Terms.SimpleLiteral:
-			return convertSimpleLiteral(node, source);
-		case Terms.DateExpr:
-			return convertDateExpr(node, source);
-		case Terms.String:
-			return convertStringLiteral(node, source);
-		case Terms.Number:
-			return convertNumberLiteral(node, source);
-		case Terms.Duration:
-			return convertDurationLiteral(node, source);
-		case Terms.Boolean:
-			return convertBooleanLiteral(node, source);
-		case Terms.Null:
-			return convertNullLiteral(node);
-		default:
-			// Handle nodes by name for cases where @specialize creates multiple IDs
-			if (node.name === "Boolean") {
-				return convertBooleanLiteral(node, source);
-			}
-			if (node.name === "Null") {
-				return convertNullLiteral(node);
-			}
-			throw new Error(`Unknown expression type: ${node.name} (${node.type.id})`);
-	}
-}
-
-/**
- * Convert OrExpr - Lezer produces flat list, we need nested binary nodes
- * OrExpr = AndExpr (or AndExpr)*
- */
-function convertOrExpr(node: SyntaxNode, source: string): ExprNode {
-	const kids = allChildren(node);
-	const operands: ExprNode[] = [];
-
-	for (const kid of kids) {
-		if (kid.type.id !== Terms.or) {
-			operands.push(convertExpression(kid, source));
-		}
-	}
-
-	if (operands.length === 1) {
-		return operands[0]!;
-	}
-
-		// Fold into left-associative binary nodes
-		let result = operands[0]!;
-		for (let i = 1; i < operands.length; i++) {
-			const right = operands[i]!;
-			result = new OrExprNode(result, right, {
-				start: result.span.start,
-				end: right.span.end,
-			});
-		}
-		return result;
-}
-
-/**
- * Convert AndExpr - same pattern as OrExpr
- */
-function convertAndExpr(node: SyntaxNode, source: string): ExprNode {
-	const kids = allChildren(node);
-	const operands: ExprNode[] = [];
-
-	for (const kid of kids) {
-		if (kid.type.id !== Terms.and) {
-			operands.push(convertExpression(kid, source));
-		}
-	}
-
-	if (operands.length === 1) {
-		return operands[0]!;
-	}
-
-	let result = operands[0]!;
-	for (let i = 1; i < operands.length; i++) {
-		const right = operands[i]!;
-		result = new AndExprNode(result, right, {
-			start: result.span.start,
-			end: right.span.end,
-		});
-	}
-	return result;
-}
-
-/**
- * Convert NotExpr - handles both "not" and "!" prefix
- */
-function convertNotExpr(node: SyntaxNode, source: string): ExprNode {
-	const kids = allChildren(node);
-	
-	// Check if this starts with "not" or "!"
-	let hasNot = false;
-	let operandNode: SyntaxNode | null = null;
-	
-	for (const kid of kids) {
-		if (kid.type.id === Terms.not || kid.name === "!") {
-			hasNot = true;
-		} else {
-			operandNode = kid;
-		}
-	}
-
-	if (!operandNode) throw new Error("Missing operand in not expression");
-	
-	const operand = convertExpression(operandNode, source);
-	
-	if (hasNot) {
-		return new NotExprNode(operand, span(node));
-	}
-	
-	return operand;
-}
-
-/**
- * Convert CompareExpr - handles comparison operators and "in" expressions
- */
-function convertCompareExpr(node: SyntaxNode, source: string): ExprNode {
-	const kids = allChildren(node);
-	
-	// Find all parts: operands and operator
-	const operands: ExprNode[] = [];
-	let operator: string | null = null;
-	let inExpr: SyntaxNode | null = null;
-	
-	for (const kid of kids) {
-		if (kid.type.id === Terms.InExpr) {
-			inExpr = kid;
-		} else if (isCompareOp(kid.name)) {
-			operator = kid.name;
-		} else if (isExpressionNode(kid)) {
-			operands.push(convertExpression(kid, source));
-		}
-	}
-
-	// Handle "in" expression
-	if (inExpr) {
-		return convertInExpr(operands[0]!, inExpr, source);
-	}
-
-	// Simple expression without comparison
-	if (!operator) {
-		if (operands.length === 1) {
-			return operands[0]!;
-		}
-		throw new Error("CompareExpr without operator must have single operand");
-	}
-
-	// Comparison expression
-	if (operands.length !== 2) {
-		throw new Error(`CompareExpr requires 2 operands, got ${operands.length}`);
-	}
-
-	return new CompareExprNode(
-		operator as CompareOp,
-		operands[0]!,
-		operands[1]!,
-		span(node)
-	);
-}
-
-/**
- * Convert InExpr - handles both "in collection" and "in lower..upper"
- */
-function convertInExpr(value: ExprNode, node: SyntaxNode, source: string): ExprNode {
-	const kids = allChildren(node);
-	let collection: ExprNode | null = null;
-	let rangeExpr: SyntaxNode | null = null;
-
-	for (const kid of kids) {
-		if (kid.type.id === Terms.RangeExpr) {
-			rangeExpr = kid;
-		} else if (kid.type.id !== Terms._in && isExpressionNode(kid)) {
-			collection = convertExpression(kid, source);
-		}
-	}
-
-	if (!collection) throw new Error("Missing collection in 'in' expression");
-
-	// Range expression: value in lower..upper
-	if (rangeExpr) {
-		const rangeKids = allChildren(rangeExpr);
-		let upper: ExprNode | null = null;
-		for (const kid of rangeKids) {
-			if (isExpressionNode(kid)) {
-				upper = convertExpression(kid, source);
-			}
-		}
-		if (!upper) throw new Error("Missing upper bound in range expression");
-		return new RangeNode(value, collection, upper, {
-			start: value.span.start,
-			end: upper.span.end,
-		});
-	}
-
-	// Simple in: value in collection
-	return new InExprNode(value, collection, {
-		start: value.span.start,
-		end: collection.span.end,
-	});
-}
-
-function isCompareOp(op: string): boolean {
-	return ["=", "!=", "<", ">", "<=", ">=", "=?", "!=?"].includes(op);
-}
-
-/**
- * Convert ArithExpr - handles + and - operators
- */
-function convertArithExpr(node: SyntaxNode, source: string): ExprNode {
-	const kids = allChildren(node);
-	const parts: Array<{type: "operand"; node: ExprNode} | {type: "op"; op: "+" | "-"}> = [];
-
-	for (const kid of kids) {
-		if (kid.name === "+") {
-			parts.push({type: "op", op: "+"});
-		} else if (kid.name === "-") {
-			parts.push({type: "op", op: "-"});
-		} else if (isExpressionNode(kid)) {
-			parts.push({type: "operand", node: convertExpression(kid, source)});
-		}
-	}
-
-	// Single operand, no arithmetic
-	if (parts.length === 1 && parts[0]?.type === "operand") {
-		return parts[0].node;
-	}
-
-	// Build left-associative tree
-	let result: ExprNode | null = null;
-	let pendingOp: "+" | "-" | null = null;
-
-	for (const part of parts) {
-		if (part.type === "operand") {
-			if (result === null) {
-				result = part.node;
-			} else if (pendingOp) {
-				result = new ArithExprNode(pendingOp, result, part.node, {
-					start: result.span.start,
-					end: part.node.span.end,
-				});
-				pendingOp = null;
-			}
-		} else {
-			pendingOp = part.op;
-		}
-	}
-
-	if (!result) throw new Error("Empty ArithExpr");
-	return result;
-}
-
-function convertParenExpr(node: SyntaxNode, source: string): ExprNode {
-	const kids = allChildren(node);
-	for (const kid of kids) {
-		if (isExpressionNode(kid)) {
-			return convertExpression(kid, source);
+		if (ctx.isExpr(kid)) {
+			return ctx.expr(kid);
 		}
 	}
 	throw new Error("Empty parenthesized expression");
-}
+});
 
-function convertFunctionCall(node: SyntaxNode, source: string): ExprNode {
-	// FunctionCall now has FunctionName child which contains Identifier or keyword
-	const funcNameNode = child(node, Terms.FunctionName);
+registerConverter("SimpleLiteral", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
+	const kids = ctx.allChildren(node);
+	if (kids.length === 0) throw new Error("Empty SimpleLiteral");
+	return ctx.expr(kids[0]!);
+});
+
+registerConverter("FunctionCall", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
+	const funcNameNode = node.getChild("FunctionName");
 	if (!funcNameNode) throw new Error("Missing function name");
-	// Get the actual name from inside FunctionName (could be Identifier or keyword like 'all', 'group')
-	const name = text(funcNameNode, source);
+	const name = ctx.text(funcNameNode);
 
 	// Check if this is an aggregate function
-	if (isAggregateFunction(name)) {
-		return convertAggregateCall(node, name as AggregateFunc, source);
+	if (AggregateNode.isAggregate(name)) {
+		return AggregateNode.fromSyntax(node, name as AggregateFunc, ctx);
 	}
 
-	const argList = child(node, Terms.ArgList);
+	// Regular function - parse arguments
+	const argList = node.getChild("ArgList");
 	const args: ExprNode[] = [];
-	
 	if (argList) {
-		const argKids = allChildren(argList);
+		const argKids = ctx.allChildren(argList);
 		for (const kid of argKids) {
-			if (isExpressionNode(kid)) {
-				args.push(convertExpression(kid, source));
+			if (ctx.isExpr(kid)) {
+				args.push(ctx.expr(kid));
 			}
 		}
 	}
@@ -656,7 +122,6 @@ function convertFunctionCall(node: SyntaxNode, source: string): ExprNode {
 	// Look up the function in the registry
 	const FuncClass = getFunctionClass(name);
 	if (!FuncClass) {
-		// Unknown function - throw parse error
 		throw new Error(`Unknown function: ${name}`);
 	}
 
@@ -669,415 +134,85 @@ function convertFunctionCall(node: SyntaxNode, source: string): ExprNode {
 	if (args.length > maxArity) {
 		throw new Error(`${name}() accepts at most ${maxArity} argument(s), got ${args.length}`);
 	}
-	
-	// Create the specific function node
-	return new FuncClass(args, span(node));
-}
 
-/**
- * Convert InlineQuery node: @(from ... [prune ...] [where ...] [sort ...])
- */
-function convertInlineQuery(node: SyntaxNode, source: string): InlineQueryNode {
-	// InlineQuery contains InlineQueryBody which has InlineClause nodes
-	const bodyNode = child(node, Terms.InlineQueryBody);
-	if (!bodyNode) throw new Error("Missing inline query body");
+	return new FuncClass(args, ctx.span(node));
+});
 
-	const fromNode = getSingleClause(bodyNode, Terms.InlineClause, Terms.From, "from", true)!;
-	const pruneNode = getSingleClause(bodyNode, Terms.InlineClause, Terms.Prune, "prune", false);
-	const whereNode = getSingleClause(bodyNode, Terms.InlineClause, Terms.Where, "where", false);
-	const sortNode = getSingleClause(bodyNode, Terms.InlineClause, Terms.Sort, "sort", false);
-
-	const from = convertFromClause(fromNode, source);
-	const prune = pruneNode ? convertPruneClause(pruneNode, source) : undefined;
-	const where = whereNode ? convertWhereClause(whereNode, source) : undefined;
-	const sort = sortNode ? convertSortClause(sortNode, source) : undefined;
-
-	return new InlineQueryNode(from, span(node), prune, where, sort);
-}
-
-function getSingleClause(
-	node: SyntaxNode,
-	wrapperTerm: number,
-	term: number,
-	name: string,
-	required: boolean
-): SyntaxNode | null {
-	const wrapperNodes = children(node, wrapperTerm);
-	const matches = wrapperNodes
-		.map((wrapper) => child(wrapper, term))
-		.filter((match): match is SyntaxNode => Boolean(match));
-	if (matches.length > 1) {
-		throw new ParseError(`Duplicate ${name} clause`, span(node));
-	}
-	if (matches.length === 0) {
-		if (required) {
-			throw new ParseError(`Missing ${name} clause`, span(node));
-		}
-		return null;
-	}
-	return matches[0] ?? null;
-}
-
-function isAggregateFunction(name: string): boolean {
-	return ["count", "sum", "avg", "min", "max", "any", "all"].includes(name.toLowerCase());
-}
-
-function convertAggregateCall(node: SyntaxNode, func: AggregateFunc, source: string): AggregateNode {
-	const argList = child(node, Terms.ArgList);
-	if (!argList) {
-		throw new Error(`${func}() requires arguments`);
-	}
-
-	// Find first expression argument (the source)
-	const firstArgExpr = findFirstExpressionInArgList(argList);
-	if (!firstArgExpr) {
-		throw new Error(`${func}() requires a source argument`);
-	}
-
-	// Unwrap expression wrappers to find the actual source node
-	const firstArgNode = unwrapExpression(firstArgExpr);
-
-	let source_: AggregateSource;
-	let remainingArgsStart: SyntaxNode | null = null;
-
-	// Handle different source types
-	if (firstArgNode.type.id === Terms.InlineQuery) {
-		// @(from ...) - inline query
-		const inlineQuery = convertInlineQuery(firstArgNode, source);
-		source_ = {
-			type: "inlineQuery",
-			node: inlineQuery,
-		} as InlineQuerySource;
-		remainingArgsStart = findNextExpression(argList, firstArgExpr);
-	} else if (firstArgNode.type.id === Terms.GroupReference) {
-		// @"Name" - group reference
-		const stringNode = child(firstArgNode, Terms.String);
-		if (!stringNode) throw new Error("Missing string in group reference");
-		const groupName = parseStringLiteral(text(stringNode, source));
-		source_ = {
-			type: "groupRef",
-			name: groupName,
-			span: span(firstArgNode),
-		} as GroupRefSource;
-		remainingArgsStart = findNextExpression(argList, firstArgExpr);
-	} else if (firstArgNode.type.id === Terms.PropertyAccess || firstArgNode.type.id === Terms.Identifier) {
-		// Bare identifier - could be group name or relation name
-		let name: string;
-		if (firstArgNode.type.id === Terms.Identifier) {
-			name = text(firstArgNode, source);
-		} else {
-			const propAccess = convertPropertyAccess(firstArgNode, source);
-			name = propAccess.path.join(".");
-		}
-		source_ = {
-			type: "bareIdentifier",
-			name,
-			span: span(firstArgNode),
-		} as BareIdentifierSource;
-		remainingArgsStart = findNextExpression(argList, firstArgExpr);
-		} else {
-			throw new Error(`Invalid source in ${func}(): expected @(...), @"Name", or identifier`);
-		}
-
-	// Parse remaining arguments (property or condition)
-	const needsProperty = ["sum", "avg", "min", "max"].includes(func);
-	const needsCondition = ["any", "all"].includes(func);
-
-	let property: ExprNode | undefined;
-	let condition: ExprNode | undefined;
-
-	if (remainingArgsStart) {
-		const remainingArg = convertExpression(remainingArgsStart, source);
-		if (needsProperty) {
-			property = remainingArg;
-		} else if (needsCondition) {
-			condition = remainingArg;
-		}
-	}
-
-	return new AggregateNode(func, source_, span(node), property, condition);
-}
-
-/**
- * Find the first expression node in an ArgList
- */
-function findFirstExpressionInArgList(node: SyntaxNode): SyntaxNode | null {
-	const kids = allChildren(node);
-	for (const kid of kids) {
-		if (isExpressionNode(kid)) {
-			return kid;
-		}
-	}
-	return null;
-}
-
-/**
- * Unwrap expression wrappers (OrExpr, AndExpr, etc.) to find the atomic expression
- * Used for aggregate source detection where we need the actual node type
- */
-function unwrapExpression(node: SyntaxNode): SyntaxNode {
-	// Keep unwrapping expression wrappers until we hit an atomic expression
-	const wrapperTypes = [
-		Terms.OrExpr,
-		Terms.AndExpr,
-		Terms.NotExpr,
-		Terms.CompareExpr,
-		Terms.ArithExpr,
-	];
-
-	let current = node;
-	while (wrapperTypes.includes(current.type.id)) {
-		const kids = allChildren(current);
-		// Find the first child that is an expression
-		const exprChild = kids.find((k) => isExpressionNode(k));
-		if (!exprChild) break;
-		current = exprChild;
-	}
-	return current;
-}
-
-/**
- * Find the next expression after a given node in an ArgList
- */
-function findNextExpression(argList: SyntaxNode, after: SyntaxNode): SyntaxNode | null {
-	const kids = allChildren(argList);
-	let foundAfter = false;
-	for (const kid of kids) {
-		if (foundAfter) {
-			if (isExpressionNode(kid)) {
-				return kid;
-			}
-		}
-		if (kid === after || (kid.from === after.from && kid.to === after.to)) {
-			foundAfter = true;
-		}
-	}
-	return null;
-}
-
-function convertPropertyAccess(node: SyntaxNode, source: string): PropertyNode {
-	// First child is always an Identifier, subsequent are PropertySegment (Identifier or String)
-	const path = extractPropertyPath(node, source);
-	return new PropertyNode(path, span(node), false);
-}
-
-function convertBuiltinPropertyAccess(node: SyntaxNode, source: string): PropertyNode {
-	// BuiltinPropertyAccess has BuiltinIdentifier as first child, then PropertySegment children
-	const builtinIdent = child(node, Terms.BuiltinIdentifier);
-	if (!builtinIdent) {
-		// Fallback: if it's just a BuiltinIdentifier node, parse it directly
-		const fullText = text(node, source);
-		const path = fullText.slice(1).split(".");
-		return new PropertyNode(path, span(node), true);
-	}
-	
-	const baseName = text(builtinIdent, source).slice(1); // Remove $ prefix
-	const segments = extractPropertySegments(node, source);
-	const path = [baseName, ...segments];
-	return new PropertyNode(path, span(node), true);
-}
-
-/**
- * Extract property path from PropertyAccess node
- * Handles both Identifier and String (quoted) segments
- */
-function extractPropertyPath(node: SyntaxNode, source: string): string[] {
-	const path: string[] = [];
-	
-	// First segment is always an Identifier
-	const firstIdent = child(node, Terms.Identifier);
-	if (firstIdent) {
-		path.push(text(firstIdent, source));
-	}
-	
-	// Remaining segments via PropertySegment
-	path.push(...extractPropertySegments(node, source));
-	
-	return path;
-}
-
-/**
- * Extract property segments (after first identifier) from a property access node
- * PropertySegment can be Identifier or String
- */
-function extractPropertySegments(node: SyntaxNode, source: string): string[] {
-	const segments: string[] = [];
-	const segmentNodes = children(node, Terms.PropertySegment);
-	
-	for (const seg of segmentNodes) {
-		const ident = child(seg, Terms.Identifier);
-		if (ident) {
-			segments.push(text(ident, source));
-			continue;
-		}
-		
-		const str = child(seg, Terms.String);
-		if (str) {
-			segments.push(parseStringLiteral(text(str, source)));
-		}
-	}
-	
-	return segments;
-}
-
-function convertGroupReference(node: SyntaxNode, source: string): ExprNode {
-	// GroupReference is @"Name" - extract the string
-	const stringNode = child(node, Terms.String);
+registerConverter("GroupReference", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
+	const stringNode = node.getChild("String");
 	if (!stringNode) throw new Error("Missing string in group reference");
-	const groupName = parseStringLiteral(text(stringNode, source));
-	
-	// GroupReference should only appear in specific contexts (chains, aggregates)
-	// In general expressions, it doesn't make sense, but we'll create a PropertyNode
-	// that will be handled specially by aggregate functions
-	// This is a bit of a hack, but it works for now
-	return new PropertyNode(["@group", groupName], span(node), false);
+	const groupName = ctx.parseString(ctx.text(stringNode));
+	return new PropertyNode(["@group", groupName], ctx.span(node), false);
+});
+
+// ============================================================================
+// Expression Dispatcher
+// ============================================================================
+
+function convertExpression(node: SyntaxNode, ctx: ConvertContext): ExprNode {
+	const converter = getConverterMap().get(node.type.id);
+	if (converter) {
+		return converter(node, ctx);
+	}
+
+	// Name-based fallback for @specialize tokens (Boolean, Null)
+	const nameConverter = registry.getConverterByTermName(node.name);
+	if (nameConverter) {
+		return nameConverter(node, ctx);
+	}
+
+	throw new Error(`Unknown expression type: ${node.name} (${node.type.id})`);
 }
 
 // ============================================================================
-// Literal Conversion
+// ConvertContext Implementation
 // ============================================================================
 
-function convertSimpleLiteral(node: SyntaxNode, source: string): ExprNode {
-	const kids = allChildren(node);
-	if (kids.length === 0) throw new Error("Empty SimpleLiteral");
-	
-	const kid = kids[0]!;
-	return convertExpression(kid, source);
-}
-
-function convertStringLiteral(node: SyntaxNode, source: string): StringNode {
-	const value = parseStringLiteral(text(node, source));
-	return new StringNode(value, span(node));
-}
-
-function convertNumberLiteral(node: SyntaxNode, source: string): NumberNode {
-	const value = parseFloat(text(node, source));
-	return new NumberNode(value, span(node));
-}
-
-function convertDurationLiteral(node: SyntaxNode, source: string): DurationNode {
-	const t = text(node, source);
-	const match = t.match(/^(\d+(?:\.\d+)?)([dwmy])$/);
-	if (!match || !match[1] || !match[2]) {
-		throw new Error(`Invalid duration: ${t}`);
-	}
-	return new DurationNode(
-		parseFloat(match[1]),
-		match[2] as DurationUnit,
-		span(node)
-	);
-}
-
-function convertBooleanLiteral(node: SyntaxNode, source: string): BooleanNode {
-	const value = text(node, source).toLowerCase() === "true";
-	return new BooleanNode(value, span(node));
-}
-
-function convertNullLiteral(node: SyntaxNode): NullNode {
-	return new NullNode(span(node));
-}
-
-function convertDateExpr(node: SyntaxNode, source: string): DateExprNode {
-	const baseNode = child(node, Terms.DateBase);
-	const offsetNode = child(node, Terms.DateOffset);
-	
-	if (!baseNode) throw new Error("Missing date base");
-
-	const base = convertDateBase(baseNode, source);
-	const offset = offsetNode ? convertDateOffset(offsetNode, source) : undefined;
-
-	return new DateExprNode(base, span(node), offset);
-}
-
-function convertDateBase(node: SyntaxNode, source: string): DateBase {
-	const dateLiteral = child(node, Terms.DateLiteral);
-	const relativeDate = child(node, Terms.RelativeDate);
-
-	if (dateLiteral) {
-		const dateStr = text(dateLiteral, source);
-		const date = new Date(dateStr);
-		return {
-			type: "dateLiteral",
-			value: date,
-			span: span(dateLiteral),
-		};
-	}
-
-	if (relativeDate) {
-		const kind = convertRelativeDateKind(relativeDate);
-		return {
-			type: "relativeDate",
-			kind,
-			span: span(relativeDate),
-		};
-	}
-
-	throw new Error("Invalid date base");
-}
-
-function convertRelativeDateKind(node: SyntaxNode): RelativeDateKind {
-	const kids = allChildren(node);
-	if (kids.length === 0) {
-		// Check node name for keyword nodes
-		switch (node.type.id) {
-			case Terms.today:
-				return "today";
-			case Terms.yesterday:
-				return "yesterday";
-			case Terms.tomorrow:
-				return "tomorrow";
-			case Terms.startOfWeek:
-				return "startOfWeek";
-			case Terms.endOfWeek:
-				return "endOfWeek";
-		}
-	}
-	
-	const kid = kids[0];
-	if (kid) {
-		switch (kid.type.id) {
-			case Terms.today:
-				return "today";
-			case Terms.yesterday:
-				return "yesterday";
-			case Terms.tomorrow:
-				return "tomorrow";
-			case Terms.startOfWeek:
-				return "startOfWeek";
-			case Terms.endOfWeek:
-				return "endOfWeek";
-		}
-	}
-	
-	return "today";
-}
-
-function convertDateOffset(node: SyntaxNode, source: string): DateOffset {
-	const kids = allChildren(node);
-	let op: "+" | "-" = "+";
-	let duration: DurationNode | null = null;
-
-	for (const kid of kids) {
-		if (kid.name === "+") {
-			op = "+";
-		} else if (kid.name === "-") {
-			op = "-";
-		} else if (kid.type.id === Terms.Duration) {
-			duration = convertDurationLiteral(kid, source);
-		}
-	}
-
-	if (!duration) throw new Error("Missing duration in date offset");
-
-	return {
-		op,
-		value: duration.value,
-		unit: duration.unit,
+function createConvertContext(source: string): ConvertContext {
+	const ctx: ConvertContext = {
+		source,
+		expr(node: SyntaxNode): ExprNode {
+			return convertExpression(node, ctx);
+		},
+		isExpr(node: SyntaxNode): boolean {
+			return getExprTermIds().has(node.type.id);
+		},
+		span(node: SyntaxNode): Span {
+			return {start: node.from, end: node.to};
+		},
+		text(node: SyntaxNode): string {
+			return source.slice(node.from, node.to);
+		},
+		allChildren(node: SyntaxNode): SyntaxNode[] {
+			const result: SyntaxNode[] = [];
+			const cursor = node.cursor();
+			if (!cursor.firstChild()) return result;
+			do {
+				result.push(cursor.node);
+			} while (cursor.nextSibling());
+			return result;
+		},
+		parseString(str: string): string {
+			return parseStringLiteral(str);
+		},
 	};
+	return ctx;
 }
 
 // ============================================================================
-// String Parsing
+// Entry Point
+// ============================================================================
+
+/**
+ * Convert a Lezer parse tree to a QueryNode
+ */
+export function convert(tree: Tree, source: string): QueryNode {
+	const ctx = createConvertContext(source);
+	return QueryNode.fromSyntax(tree.topNode, ctx);
+}
+
+// ============================================================================
+// String Parsing (shared utility)
 // ============================================================================
 
 /**

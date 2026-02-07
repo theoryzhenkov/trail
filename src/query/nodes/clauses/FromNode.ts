@@ -4,11 +4,12 @@
  * @see docs/syntax/query.md#from
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ClauseNode} from "../base/ClauseNode";
 import {RelationSpecNode} from "./RelationSpecNode";
 import {InlineQueryNode} from "../expressions/InlineQueryNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 
 /**
  * A chain target can be a relation spec, group reference, or inline query
@@ -73,5 +74,40 @@ export class FromNode extends ClauseNode {
 				}
 			}
 		}
+	}
+
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): FromNode {
+		const relationChains = node.getChildren("RelationChain");
+		const chains: RelationChain[] = [];
+
+		for (const chainNode of relationChains) {
+			const firstSpec = chainNode.getChild("RelationSpec");
+			if (!firstSpec) throw new Error("Missing relation spec in chain");
+
+			const firstRel = RelationSpecNode.fromSyntax(firstSpec, ctx);
+			const chainTargets = chainNode.getChildren("ChainTarget");
+			const chain: ChainTarget[] = [];
+
+			for (const target of chainTargets) {
+				const relSpec = target.getChild("RelationSpec");
+				const groupRef = target.getChild("GroupReference");
+				const inlineQuery = target.getChild("InlineQuery");
+
+				if (relSpec) {
+					chain.push({type: "relation", spec: RelationSpecNode.fromSyntax(relSpec, ctx)});
+				} else if (groupRef) {
+					const stringNode = groupRef.getChild("String");
+					if (!stringNode) throw new Error("Missing string in group reference");
+					const groupName = ctx.parseString(ctx.text(stringNode));
+					chain.push({type: "group", name: groupName, span: ctx.span(target)});
+				} else if (inlineQuery) {
+					chain.push({type: "inline", query: InlineQueryNode.fromSyntax(inlineQuery, ctx)});
+				}
+			}
+
+			chains.push({first: firstRel, chain});
+		}
+
+		return new FromNode(chains, ctx.span(node));
 	}
 }

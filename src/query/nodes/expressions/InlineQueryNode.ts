@@ -5,6 +5,7 @@
  * Executes a full query recursively and returns the result set.
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ExprNode} from "../base/ExprNode";
 import {FromNode} from "../clauses/FromNode";
 import {SortNode} from "../clauses/SortNode";
@@ -14,9 +15,10 @@ import type {Span, Value, NodeDoc, ValidationContext, QueryResultNode} from "../
 import type {EvalContext} from "../context";
 import type {QueryEnv} from "../context";
 import {executeQueryClauses} from "../execution/query-executor";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
+import {getSingleClause} from "./convert-helpers";
 
-@register("InlineQueryNode", {expr: true})
+@register("InlineQueryNode", {expr: true, term: "InlineQuery"})
 export class InlineQueryNode extends ExprNode {
 	readonly from: FromNode;
 	readonly prune?: PruneNode;
@@ -88,5 +90,22 @@ export class InlineQueryNode extends ExprNode {
 		if (this.sort) {
 			this.sort.validate(ctx);
 		}
+	}
+
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): InlineQueryNode {
+		const bodyNode = node.getChild("InlineQueryBody");
+		if (!bodyNode) throw new Error("Missing inline query body");
+
+		const fromNode = getSingleClause(bodyNode, "InlineClause", "From", "from", true, ctx)!;
+		const pruneNode = getSingleClause(bodyNode, "InlineClause", "Prune", "prune", false, ctx);
+		const whereNode = getSingleClause(bodyNode, "InlineClause", "Where", "where", false, ctx);
+		const sortNode = getSingleClause(bodyNode, "InlineClause", "Sort", "sort", false, ctx);
+
+		const from = FromNode.fromSyntax(fromNode, ctx);
+		const prune = pruneNode ? PruneNode.fromSyntax(pruneNode, ctx) : undefined;
+		const where = whereNode ? WhereNode.fromSyntax(whereNode, ctx) : undefined;
+		const sort = sortNode ? SortNode.fromSyntax(sortNode, ctx) : undefined;
+
+		return new InlineQueryNode(from, ctx.span(node), prune, where, sort);
 	}
 }

@@ -2,12 +2,13 @@
  * PropertyNode - Property access expression
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {EvalContext} from "../context";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 
-@register("PropertyNode", {expr: true})
+@register("PropertyNode", {expr: true, term: ["PropertyAccess", "BuiltinPropertyAccess", "BuiltinIdentifier"]})
 export class PropertyNode extends ExprNode {
 	readonly path: string[];
 	readonly isBuiltin: boolean;
@@ -25,6 +26,68 @@ export class PropertyNode extends ExprNode {
 		super(span);
 		this.path = path;
 		this.isBuiltin = isBuiltin;
+	}
+
+	/**
+	 * Convert from either PropertyAccess, BuiltinPropertyAccess, or BuiltinIdentifier
+	 */
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): PropertyNode {
+		if (node.name === "BuiltinPropertyAccess" || node.name === "BuiltinIdentifier") {
+			return PropertyNode.fromBuiltinSyntax(node, ctx);
+		}
+		// Regular PropertyAccess
+		const path = PropertyNode.extractPropertyPath(node, ctx);
+		return new PropertyNode(path, ctx.span(node), false);
+	}
+
+	/**
+	 * Convert BuiltinPropertyAccess or BuiltinIdentifier to PropertyNode
+	 */
+	static fromBuiltinSyntax(node: SyntaxNode, ctx: ConvertContext): PropertyNode {
+		const builtinIdent = node.getChild("BuiltinIdentifier");
+		if (!builtinIdent) {
+			// Bare BuiltinIdentifier node
+			const fullText = ctx.text(node);
+			const path = fullText.slice(1).split(".");
+			return new PropertyNode(path, ctx.span(node), true);
+		}
+		const baseName = ctx.text(builtinIdent).slice(1); // Remove $ prefix
+		const segments = PropertyNode.extractPropertySegments(node, ctx);
+		const path = [baseName, ...segments];
+		return new PropertyNode(path, ctx.span(node), true);
+	}
+
+	/**
+	 * Extract property path from PropertyAccess node
+	 */
+	private static extractPropertyPath(node: SyntaxNode, ctx: ConvertContext): string[] {
+		const path: string[] = [];
+		const firstIdent = node.getChild("Identifier");
+		if (firstIdent) {
+			path.push(ctx.text(firstIdent));
+		}
+		path.push(...PropertyNode.extractPropertySegments(node, ctx));
+		return path;
+	}
+
+	/**
+	 * Extract property segments (after first identifier) from a property access node
+	 */
+	private static extractPropertySegments(node: SyntaxNode, ctx: ConvertContext): string[] {
+		const segments: string[] = [];
+		const segmentNodes = node.getChildren("PropertySegment");
+		for (const seg of segmentNodes) {
+			const ident = seg.getChild("Identifier");
+			if (ident) {
+				segments.push(ctx.text(ident));
+				continue;
+			}
+			const str = seg.getChild("String");
+			if (str) {
+				segments.push(ctx.parseString(ctx.text(str)));
+			}
+		}
+		return segments;
 	}
 
 	/**

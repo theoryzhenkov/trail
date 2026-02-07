@@ -2,14 +2,15 @@
  * DurationNode - Duration literal
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {EvalContext} from "../context";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 
 export type DurationUnit = "d" | "w" | "m" | "y";
 
-@register("DurationNode")
+@register("DurationNode", {term: "Duration"})
 export class DurationNode extends ExprNode {
 	readonly value: number;
 	readonly unit: DurationUnit;
@@ -38,5 +39,18 @@ export class DurationNode extends ExprNode {
 
 	validate(_ctx: ValidationContext): void {
 		// Duration literals are always valid
+	}
+
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): DurationNode {
+		const t = ctx.text(node);
+		const match = t.match(/^(\d+(?:\.\d+)?)([dwmy])$/);
+		if (!match || !match[1] || !match[2]) {
+			throw new Error(`Invalid duration: ${t}`);
+		}
+		return new DurationNode(
+			parseFloat(match[1]),
+			match[2] as DurationUnit,
+			ctx.span(node)
+		);
 	}
 }

@@ -2,6 +2,7 @@
  * QueryNode - Root query node
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ClauseNode} from "../base/ClauseNode";
 import {FromNode} from "./FromNode";
 import {SortNode} from "./SortNode";
@@ -21,7 +22,8 @@ import type {
 } from "../types";
 import {type QueryEnv, EvalContext, evalContextFromNode, evalContextForActiveFile} from "../context";
 import {executeQueryClauses} from "../execution/query-executor";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
+import {getSingleClause} from "../expressions/convert-helpers";
 
 @register("QueryNode", {clause: true})
 export class QueryNode extends ClauseNode {
@@ -148,6 +150,30 @@ export class QueryNode extends ClauseNode {
 				children: this.applyDisplay(node.children, env),
 			};
 		});
+	}
+
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): QueryNode {
+		const groupNode = getSingleClause(node, "QueryClause", "Group", "group", true, ctx)!;
+		const fromNode = getSingleClause(node, "QueryClause", "From", "from", true, ctx)!;
+		const pruneNode = getSingleClause(node, "QueryClause", "Prune", "prune", false, ctx);
+		const whereNode = getSingleClause(node, "QueryClause", "Where", "where", false, ctx);
+		const whenNode = getSingleClause(node, "QueryClause", "When", "when", false, ctx);
+		const sortNode = getSingleClause(node, "QueryClause", "Sort", "sort", false, ctx);
+		const displayNode = getSingleClause(node, "QueryClause", "Display", "display", false, ctx);
+
+		// Extract group name
+		const stringNode = groupNode.getChild("String");
+		if (!stringNode) throw new Error("Missing group name string");
+		const group = ctx.parseString(ctx.text(stringNode));
+
+		const from = FromNode.fromSyntax(fromNode, ctx);
+		const prune = pruneNode ? PruneNode.fromSyntax(pruneNode, ctx) : undefined;
+		const where = whereNode ? WhereNode.fromSyntax(whereNode, ctx) : undefined;
+		const when = whenNode ? WhenNode.fromSyntax(whenNode, ctx) : undefined;
+		const sort = sortNode ? SortNode.fromSyntax(sortNode, ctx) : undefined;
+		const display = displayNode ? DisplayNode.fromSyntax(displayNode, ctx) : undefined;
+
+		return new QueryNode(group, from, ctx.span(node), prune, where, when, sort, display);
 	}
 
 	/**

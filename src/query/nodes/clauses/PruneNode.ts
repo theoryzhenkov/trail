@@ -6,12 +6,14 @@
  * @see docs/syntax/query.md#prune
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ClauseNode} from "../base/ClauseNode";
 import type {ExprNode} from "../base/ExprNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import type {EvalContext} from "../context";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 import {isTruthy} from "../value-ops";
+import {findExpressionInClause} from "./WhereNode";
 
 @register("PruneNode", {clause: true})
 export class PruneNode extends ClauseNode {
@@ -50,5 +52,10 @@ export class PruneNode extends ClauseNode {
 	test(ctx: EvalContext): boolean {
 		const result = this.expression.evaluate(ctx);
 		return isTruthy(result);
+	}
+
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): PruneNode {
+		const expr = findExpressionInClause(node, ctx);
+		return new PruneNode(expr, ctx.span(node));
 	}
 }

@@ -4,10 +4,11 @@
  * @see docs/syntax/query.md#sort
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ClauseNode} from "../base/ClauseNode";
 import {SortKeyNode} from "./SortKeyNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 
 @register("SortNode", {clause: true})
 export class SortNode extends ClauseNode {
@@ -38,5 +39,11 @@ export class SortNode extends ClauseNode {
 		for (const key of this.keys) {
 			key.validate(ctx);
 		}
+	}
+
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): SortNode {
+		const keyNodes = node.getChildren("SortKey");
+		const keys = keyNodes.map((k) => SortKeyNode.fromSyntax(k, ctx));
+		return new SortNode(keys, ctx.span(node));
 	}
 }

@@ -5,12 +5,43 @@
  * Supports both decorator-based and function-based registration.
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import type {Node} from "./base/Node";
 import type {TokenNode} from "./base/TokenNode";
 import type {ModifierNode} from "./base/ModifierNode";
 import type {ExprNode} from "./base/ExprNode";
 import type {BuiltinProperty} from "./base/BuiltinNode";
-import type {Completable, CompletionContext, NodeDoc, ContextProvider, HighlightCategory} from "./types";
+import type {Completable, CompletionContext, NodeDoc, ContextProvider, HighlightCategory, Span} from "./types";
+
+// ============================================================================
+// Convert Context - shared interface for syntax tree → AST conversion
+// ============================================================================
+
+/**
+ * Context passed to fromSyntax methods for syntax tree → AST conversion.
+ * Provides tree navigation utilities and the recursive expression converter.
+ */
+export interface ConvertContext {
+	/** Original source text */
+	readonly source: string;
+	/** Recursively convert a syntax node to an expression node */
+	expr(node: SyntaxNode): ExprNode;
+	/** Check if a syntax node is a convertible expression type */
+	isExpr(node: SyntaxNode): boolean;
+	/** Get source span from a syntax node */
+	span(node: SyntaxNode): Span;
+	/** Get text content of a syntax node */
+	text(node: SyntaxNode): string;
+	/** Get all direct children of a syntax node */
+	allChildren(node: SyntaxNode): SyntaxNode[];
+	/** Parse a string literal, handling escape sequences */
+	parseString(str: string): string;
+}
+
+/**
+ * Converter function type: converts a Lezer SyntaxNode to a typed ExprNode
+ */
+export type ExprConverterFn = (node: SyntaxNode, ctx: ConvertContext) => ExprNode;
 
 /**
  * Type for a node class constructor
@@ -71,6 +102,8 @@ export interface RegisterOptions {
 	builtin?: string;
 	/** Register as a modifier (metadata-only, not instantiated in AST) */
 	modifier?: boolean;
+	/** Lezer grammar term name(s) for auto-registering the converter via static fromSyntax */
+	term?: string | string[];
 }
 
 /**
@@ -88,6 +121,8 @@ class NodeRegistry {
 	// Context provider tracking: maps Lezer grammar name to contexts
 	private contextProviders = new Map<string, CompletionContext[]>();
 	private clauseLezerNames = new Set<string>();
+	// Converter registry: maps Lezer grammar term name to converter function
+	private convertersByTermName = new Map<string, ExprConverterFn>();
 
 	/**
 	 * Register a node class by its type identifier
@@ -389,6 +424,31 @@ class NodeRegistry {
 	isClause(lezerName: string): boolean {
 		return this.clauseLezerNames.has(lezerName);
 	}
+
+	// ================================================================
+	// Converter Registry
+	// ================================================================
+
+	/**
+	 * Register a converter function for a Lezer grammar term name
+	 */
+	registerConverter(termName: string, converter: ExprConverterFn): void {
+		this.convertersByTermName.set(termName, converter);
+	}
+
+	/**
+	 * Get a converter by Lezer grammar term name
+	 */
+	getConverterByTermName(termName: string): ExprConverterFn | undefined {
+		return this.convertersByTermName.get(termName);
+	}
+
+	/**
+	 * Get all registered converters (term name → converter)
+	 */
+	getAllConvertersByTermName(): ReadonlyMap<string, ExprConverterFn> {
+		return this.convertersByTermName;
+	}
 }
 
 /**
@@ -445,6 +505,17 @@ export function register(type: string, options?: RegisterOptions) {
 
 		if (options?.builtin) {
 			registry.registerBuiltin(options.builtin, cls as unknown as BuiltinClass);
+		}
+
+		// Auto-register converter from static fromSyntax if term(s) specified
+		if (options?.term) {
+			const fromSyntax = (cls as unknown as {fromSyntax?: ExprConverterFn}).fromSyntax;
+			if (fromSyntax) {
+				const terms = Array.isArray(options.term) ? options.term : [options.term];
+				for (const termName of terms) {
+					registry.registerConverter(termName, fromSyntax);
+				}
+			}
 		}
 
 		return cls;
@@ -528,4 +599,13 @@ export function getAllBuiltinClasses(): Map<string, BuiltinClass> {
 export function getNodeDoc(type: string, name?: string): NodeDoc | undefined {
 	const cls = registry.getNodeClass(type);
 	return (cls as unknown as {documentation?: NodeDoc})?.documentation;
+}
+
+/**
+ * Helper to register a standalone converter for a grammar term
+ * Used for structural converters (ParenExpr, SimpleLiteral, etc.) that
+ * don't correspond to a single node class.
+ */
+export function registerConverter(termName: string, converter: ExprConverterFn): void {
+	registry.registerConverter(termName, converter);
 }

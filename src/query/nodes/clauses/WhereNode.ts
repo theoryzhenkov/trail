@@ -6,11 +6,12 @@
  * @see docs/syntax/query.md#where
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ClauseNode} from "../base/ClauseNode";
 import type {ExprNode} from "../base/ExprNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import type {EvalContext} from "../context";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 import {isTruthy} from "../value-ops";
 
 @register("WhereNode", {clause: true})
@@ -55,4 +56,23 @@ export class WhereNode extends ClauseNode {
 		const result = this.expression.evaluate(ctx);
 		return isTruthy(result);
 	}
+
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): WhereNode {
+		const expr = findExpressionInClause(node, ctx);
+		return new WhereNode(expr, ctx.span(node));
+	}
+}
+
+/**
+ * Extract and convert the expression from a clause node (Prune, Where, When).
+ * Skips the keyword (first child) and finds the expression child.
+ */
+export function findExpressionInClause(node: SyntaxNode, ctx: ConvertContext): ExprNode {
+	const kids = ctx.allChildren(node);
+	for (const kid of kids) {
+		if (ctx.isExpr(kid)) {
+			return ctx.expr(kid);
+		}
+	}
+	throw new Error(`Missing expression in clause: ${node.name}`);
 }

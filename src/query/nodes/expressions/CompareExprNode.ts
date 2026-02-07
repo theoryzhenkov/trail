@@ -2,16 +2,20 @@
  * CompareExprNode - Comparison expressions (=, !=, <, >, <=, >=, =?, !=?)
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {BinaryNode} from "../base/BinaryNode";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, CompletionContext} from "../types";
 import type {EvalContext} from "../context";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 import {compare, equals} from "../value-ops";
+import {InExprNode} from "./InExprNode";
 
 export type CompareOp = "=" | "!=" | "<" | ">" | "<=" | ">=" | "=?" | "!=?";
 
-@register("CompareExprNode", {expr: true})
+const COMPARE_OPS = new Set(["=", "!=", "<", ">", "<=", ">=", "=?", "!=?"]);
+
+@register("CompareExprNode", {expr: true, term: "CompareExpr"})
 export class CompareExprNode extends BinaryNode {
 	readonly op: CompareOp;
 
@@ -73,5 +77,47 @@ export class CompareExprNode extends BinaryNode {
 		}
 		// Exhaustive check - should never reach here
 		return null;
+	}
+
+	/**
+	 * Convert CompareExpr - handles comparison operators and delegates "in" expressions
+	 */
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): ExprNode {
+		const kids = ctx.allChildren(node);
+		const operands: ExprNode[] = [];
+		let operator: string | null = null;
+		let inExpr: SyntaxNode | null = null;
+
+		for (const kid of kids) {
+			if (kid.name === "InExpr") {
+				inExpr = kid;
+			} else if (COMPARE_OPS.has(kid.name)) {
+				operator = kid.name;
+			} else if (ctx.isExpr(kid)) {
+				operands.push(ctx.expr(kid));
+			}
+		}
+
+		// Handle "in" expression
+		if (inExpr) {
+			return InExprNode.fromInSyntax(operands[0]!, inExpr, ctx);
+		}
+
+		// Simple expression without comparison
+		if (!operator) {
+			if (operands.length === 1) return operands[0]!;
+			throw new Error("CompareExpr without operator must have single operand");
+		}
+
+		if (operands.length !== 2) {
+			throw new Error(`CompareExpr requires 2 operands, got ${operands.length}`);
+		}
+
+		return new CompareExprNode(
+			operator as CompareOp,
+			operands[0]!,
+			operands[1]!,
+			ctx.span(node)
+		);
 	}
 }

@@ -2,10 +2,12 @@
  * DateExprNode - Date expression with optional offset
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ExprNode} from "../base/ExprNode";
 import type {Span, Value, NodeDoc, ValidationContext} from "../types";
 import type {EvalContext} from "../context";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
+import {DurationNode} from "../literals/DurationNode";
 
 /**
  * Base types for date expressions
@@ -35,7 +37,11 @@ export interface DateOffset {
 	unit: "d" | "w" | "m" | "y";
 }
 
-@register("DateExprNode", {expr: true})
+export type RelativeDateKind = "today" | "yesterday" | "tomorrow" | "startOfWeek" | "endOfWeek";
+
+const RELATIVE_DATE_KEYWORDS = new Set(["today", "yesterday", "tomorrow", "startOfWeek", "endOfWeek"]);
+
+@register("DateExprNode", {expr: true, term: "DateExpr"})
 export class DateExprNode extends ExprNode {
 	readonly base: DateBase;
 	readonly offset?: DateOffset;
@@ -83,5 +89,67 @@ export class DateExprNode extends ExprNode {
 		if (this.base.type === "property") {
 			this.base.node.validate(ctx);
 		}
+	}
+
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): DateExprNode {
+		const baseNode = node.getChild("DateBase");
+		const offsetNode = node.getChild("DateOffset");
+		if (!baseNode) throw new Error("Missing date base");
+
+		const base = DateExprNode.convertDateBase(baseNode, ctx);
+		const offset = offsetNode ? DateExprNode.convertDateOffset(offsetNode, ctx) : undefined;
+		return new DateExprNode(base, ctx.span(node), offset);
+	}
+
+	private static convertDateBase(node: SyntaxNode, ctx: ConvertContext): DateBase {
+		const dateLiteral = node.getChild("DateLiteral");
+		const relativeDate = node.getChild("RelativeDate");
+
+		if (dateLiteral) {
+			const dateStr = ctx.text(dateLiteral);
+			const date = new Date(dateStr);
+			return {type: "dateLiteral", value: date, span: ctx.span(dateLiteral)};
+		}
+
+		if (relativeDate) {
+			const kind = DateExprNode.convertRelativeDateKind(relativeDate, ctx);
+			return {type: "relativeDate", kind, span: ctx.span(relativeDate)};
+		}
+
+		throw new Error("Invalid date base");
+	}
+
+	private static convertRelativeDateKind(node: SyntaxNode, ctx: ConvertContext): RelativeDateKind {
+		const kids = ctx.allChildren(node);
+		// Check children first, then node itself
+		for (const kid of kids) {
+			if (RELATIVE_DATE_KEYWORDS.has(kid.name)) {
+				return kid.name as RelativeDateKind;
+			}
+		}
+		// Check node itself for keyword nodes with no children
+		if (RELATIVE_DATE_KEYWORDS.has(node.name)) {
+			return node.name as RelativeDateKind;
+		}
+		return "today";
+	}
+
+	private static convertDateOffset(node: SyntaxNode, ctx: ConvertContext): DateOffset {
+		const kids = ctx.allChildren(node);
+		let op: "+" | "-" = "+";
+		let duration: DurationNode | null = null;
+
+		for (const kid of kids) {
+			if (kid.name === "+") {
+				op = "+";
+			} else if (kid.name === "-") {
+				op = "-";
+			} else if (kid.name === "Duration") {
+				duration = DurationNode.fromSyntax(kid, ctx);
+			}
+		}
+
+		if (!duration) throw new Error("Missing duration in date offset");
+		return {op, value: duration.value, unit: duration.unit};
 	}
 }

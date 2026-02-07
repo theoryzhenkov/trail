@@ -2,9 +2,10 @@
  * RelationSpecNode - Relation specification in FROM clause
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ClauseNode} from "../base/ClauseNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 
 @register("RelationSpecNode", {clause: true})
 export class RelationSpecNode extends ClauseNode {
@@ -38,5 +39,34 @@ export class RelationSpecNode extends ClauseNode {
 		if (!ctx.hasRelation(this.name)) {
 			ctx.addError(`Unknown relation: ${this.name}`, this.span, "UNKNOWN_RELATION");
 		}
+	}
+
+	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): RelationSpecNode {
+		const identNode = node.getChild("Identifier");
+		if (!identNode) throw new Error("Missing relation name");
+		const name = ctx.text(identNode);
+
+		let depth: number | "unlimited" = "unlimited";
+		let flatten: number | true | undefined;
+
+		const options = node.getChildren("RelationOption");
+		for (const opt of options) {
+			const optText = ctx.text(opt).trim();
+			if (optText.startsWith(":depth")) {
+				const numNode = opt.getChild("Number");
+				if (numNode) {
+					depth = parseInt(ctx.text(numNode), 10);
+				}
+			} else if (optText.startsWith(":flatten")) {
+				const numNode = opt.getChild("Number");
+				if (numNode) {
+					flatten = parseInt(ctx.text(numNode), 10);
+				} else {
+					flatten = true;
+				}
+			}
+		}
+
+		return new RelationSpecNode(name, depth, ctx.span(node), flatten);
 	}
 }

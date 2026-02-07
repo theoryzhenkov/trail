@@ -21,9 +21,10 @@ This module defines the typed AST nodes for TQL (Trail Query Language). Nodes ar
 | `literals/` | Literal value nodes | Adding new literal types |
 | `modifiers/` | Modifier metadata classes | Adding new modifiers |
 | `tokens/` | Keyword/operator token classes | Adding new keywords |
-| `registry.ts` | Central node registry | Rarely - adding registration types |
+| `registry.ts` | Central node registry + converter registry | Rarely - adding registration types |
 | `parser.ts` | TQL parse entry point | Rarely - changing parse API |
-| `tree-converter.ts` | Lezer → typed AST conversion | Adding new grammar constructs |
+| `tree-converter.ts` | Thin dispatcher + structural converters | Rarely - only for non-1:1 grammar mappings |
+| `expressions/convert-helpers.ts` | Shared conversion utilities | Adding grammar-level helpers |
 | `docs.ts` | Documentation extraction | Adding doc retrieval patterns |
 | `context.ts` | Execution/validation contexts | Adding context fields |
 | `types.ts` | Shared type definitions | Adding new types |
@@ -85,13 +86,14 @@ export * from "./MyFunction";
 
 ### Adding a New Clause
 
-1. **Create the clause file** in `clauses/`:
+1. **Create the clause file** in `clauses/` with `static fromSyntax()`:
 
 ```typescript
 // clauses/LimitNode.ts
+import type {SyntaxNode} from "@lezer/common";
 import {ClauseNode} from "../base/ClauseNode";
 import type {Span, NodeDoc, ValidationContext, Completable} from "../types";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 
 @register("LimitNode", {clause: true})
 export class LimitNode extends ClauseNode {
@@ -119,6 +121,13 @@ export class LimitNode extends ClauseNode {
   validate(ctx: ValidationContext): void {
     // Validation logic
   }
+
+  static fromSyntax(node: SyntaxNode, ctx: ConvertContext): LimitNode {
+    const numNode = node.getChild("Number");
+    if (!numNode) throw new Error("Missing limit count");
+    const count = parseInt(ctx.text(numNode), 10);
+    return new LimitNode(count, ctx.span(node));
+  }
 }
 ```
 
@@ -130,32 +139,34 @@ export * from "./LimitNode";
 
 3. **Update Lezer grammar** (`src/query/codemirror/tql.grammar`) to parse the clause.
 
-4. **Add conversion in `tree-converter.ts`**:
+4. **Wire into QueryNode** - Add to `QueryNode` constructor, `fromSyntax`, and execution.
 
-```typescript
-function convertLimitClause(node: SyntaxNode, source: string): LimitNode {
-  const numNode = child(node, Terms.Number);
-  const count = parseInt(text(numNode, source), 10);
-  return new LimitNode(count, span(node));
-}
-```
-
-5. **Wire into QueryNode** - Add to `QueryNode` constructor and execution.
+No changes needed in `tree-converter.ts` — conversion logic is in the node class.
 
 ### Adding a New Expression Type
 
-1. **Create in `expressions/`**:
+1. **Create in `expressions/`** with `fromSyntax` and `term` registration:
 
 ```typescript
-@register("MyExprNode", {expr: true})
+import type {SyntaxNode} from "@lezer/common";
+import {register, type ConvertContext} from "../registry";
+
+@register("MyExprNode", {expr: true, term: "MyExpr"})
 export class MyExprNode extends ExprNode {
   // ...
+
+  static fromSyntax(node: SyntaxNode, ctx: ConvertContext): MyExprNode {
+    // Use ctx.expr() for recursive child conversion
+    // Use node.getChild("Name") for Lezer string-based child lookup
+  }
 }
 ```
 
 2. **Add grammar rule** in `tql.grammar`.
 
-3. **Add converter** in `tree-converter.ts`.
+3. **Export from `nodes/expressions/index.ts`**.
+
+The `@register({ term: "MyExpr" })` auto-registers the converter. No changes needed in `tree-converter.ts`.
 
 ### Adding a New Token/Keyword
 
@@ -252,7 +263,9 @@ Then implement the property access in `PropertyNode.evaluate()`.
 
 6. **DO NOT** forget to export new nodes from the appropriate index file.
 
-7. **DO NOT** add grammar rules without corresponding tree-converter handling.
+7. **DO NOT** add grammar rules without corresponding `fromSyntax` methods on the node class.
+
+8. **DO NOT** add conversion logic to `tree-converter.ts` unless the grammar node doesn't map 1:1 to a node class (e.g., ParenExpr, FunctionCall).
 
 ## Testing
 

@@ -2,13 +2,14 @@
  * AggregateNode - Aggregate function expressions (count, sum, avg, min, max, any, all)
  */
 
+import type {SyntaxNode} from "@lezer/common";
 import {ExprNode} from "../base/ExprNode";
 import {PropertyNode} from "./PropertyNode";
 import {InlineQueryNode} from "./InlineQueryNode";
 import type {Span, Value, NodeDoc, ValidationContext, QueryResultNode} from "../types";
 import {type EvalContext, type QueryEnv, evalContextFromNode} from "../context";
 import {traverse, INCLUDE_ALL, type TraversalConfig} from "../execution/traversal";
-import {register} from "../registry";
+import {register, type ConvertContext} from "../registry";
 import {compare, isTruthy} from "../value-ops";
 
 export type AggregateFunc = "count" | "sum" | "avg" | "min" | "max" | "any" | "all";
@@ -311,4 +312,110 @@ export class AggregateNode extends ExprNode {
 			ctx.addError(`${this.func}() requires a condition argument`, this.span, "INVALID_ARITY");
 		}
 	}
+
+	/**
+	 * Check if a function name is an aggregate function
+	 */
+	static isAggregate(name: string): boolean {
+		return AGGREGATE_NAMES.has(name.toLowerCase());
+	}
+
+	/**
+	 * Convert a FunctionCall syntax node into an AggregateNode.
+	 * Called from the FunctionCall structural converter when the function name is an aggregate.
+	 */
+	static fromSyntax(node: SyntaxNode, func: AggregateFunc, ctx: ConvertContext): AggregateNode {
+		const argList = node.getChild("ArgList");
+		if (!argList) throw new Error(`${func}() requires arguments`);
+
+		// Find first expression argument (the source)
+		const firstArgExpr = findFirstExpression(argList, ctx);
+		if (!firstArgExpr) throw new Error(`${func}() requires a source argument`);
+
+		// Unwrap expression wrappers to find the actual source node
+		const firstArgNode = unwrapExpression(firstArgExpr, ctx);
+
+		let source_: AggregateSource;
+		let remainingArgsStart: SyntaxNode | null = null;
+
+		if (firstArgNode.name === "InlineQuery") {
+			const inlineQuery = InlineQueryNode.fromSyntax(firstArgNode, ctx);
+			source_ = {type: "inlineQuery", node: inlineQuery} as InlineQuerySource;
+			remainingArgsStart = findNextExpression(argList, firstArgExpr, ctx);
+		} else if (firstArgNode.name === "GroupReference") {
+			const stringNode = firstArgNode.getChild("String");
+			if (!stringNode) throw new Error("Missing string in group reference");
+			const groupName = ctx.parseString(ctx.text(stringNode));
+			source_ = {type: "groupRef", name: groupName, span: ctx.span(firstArgNode)} as GroupRefSource;
+			remainingArgsStart = findNextExpression(argList, firstArgExpr, ctx);
+		} else if (firstArgNode.name === "PropertyAccess" || firstArgNode.name === "Identifier") {
+			let name: string;
+			if (firstArgNode.name === "Identifier") {
+				name = ctx.text(firstArgNode);
+			} else {
+				const propAccess = PropertyNode.fromSyntax(firstArgNode, ctx);
+				name = propAccess.path.join(".");
+			}
+			source_ = {type: "bareIdentifier", name, span: ctx.span(firstArgNode)} as BareIdentifierSource;
+			remainingArgsStart = findNextExpression(argList, firstArgExpr, ctx);
+		} else {
+			throw new Error(`Invalid source in ${func}(): expected @(...), @"Name", or identifier`);
+		}
+
+		// Parse remaining arguments (property or condition)
+		const needsProperty = ["sum", "avg", "min", "max"].includes(func);
+		const needsCondition = ["any", "all"].includes(func);
+		let property: ExprNode | undefined;
+		let condition: ExprNode | undefined;
+
+		if (remainingArgsStart) {
+			const remainingArg = ctx.expr(remainingArgsStart);
+			if (needsProperty) {
+				property = remainingArg;
+			} else if (needsCondition) {
+				condition = remainingArg;
+			}
+		}
+
+		return new AggregateNode(func, source_, ctx.span(node), property, condition);
+	}
+}
+
+const AGGREGATE_NAMES = new Set(["count", "sum", "avg", "min", "max", "any", "all"]);
+
+/** Unwrap expression wrappers to find the atomic expression */
+function unwrapExpression(node: SyntaxNode, ctx: ConvertContext): SyntaxNode {
+	const wrapperNames = new Set(["OrExpr", "AndExpr", "NotExpr", "CompareExpr", "ArithExpr"]);
+	let current = node;
+	while (wrapperNames.has(current.name)) {
+		const kids = ctx.allChildren(current);
+		const exprChild = kids.find((k) => ctx.isExpr(k));
+		if (!exprChild) break;
+		current = exprChild;
+	}
+	return current;
+}
+
+/** Find the first expression node in an ArgList */
+function findFirstExpression(argList: SyntaxNode, ctx: ConvertContext): SyntaxNode | null {
+	const kids = ctx.allChildren(argList);
+	for (const kid of kids) {
+		if (ctx.isExpr(kid)) return kid;
+	}
+	return null;
+}
+
+/** Find the next expression after a given node in an ArgList */
+function findNextExpression(argList: SyntaxNode, after: SyntaxNode, ctx: ConvertContext): SyntaxNode | null {
+	const kids = ctx.allChildren(argList);
+	let foundAfter = false;
+	for (const kid of kids) {
+		if (foundAfter) {
+			if (ctx.isExpr(kid)) return kid;
+		}
+		if (kid === after || (kid.from === after.from && kid.to === after.to)) {
+			foundAfter = true;
+		}
+	}
+	return null;
 }
