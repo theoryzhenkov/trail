@@ -92,9 +92,9 @@ export interface DisplayProperty {
 }
 
 /**
- * Query result node structure
+ * Core traversal node - graph structure only
  */
-export interface QueryResultNode {
+export interface TraversalNode {
 	path: string;
 	relation: string;
 	depth: number;
@@ -103,9 +103,17 @@ export interface QueryResultNode {
 	parent: string | null;
 	traversalPath: string[];
 	properties: FileProperties;
+	hasFilteredAncestor: boolean;
+	children: TraversalNode[];
+}
+
+/**
+ * Query result node with display metadata
+ * Used during sorting and UI transformation phases
+ */
+export interface QueryResultNode extends TraversalNode {
 	displayProperties: DisplayProperty[];
 	visualDirection: VisualDirection;
-	hasFilteredAncestor: boolean;
 	children: QueryResultNode[];
 }
 

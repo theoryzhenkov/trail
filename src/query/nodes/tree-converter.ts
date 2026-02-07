@@ -23,28 +23,117 @@ import {
 	type ExprConverterFn,
 } from "./registry";
 
-// Import to trigger @register decorators (which also register converters)
-import "./functions";
-import "./builtins";
-
-// Import node classes with fromSyntax to trigger term registration
-import "./literals/StringNode";
-import "./literals/NumberNode";
-import "./literals/BooleanNode";
-import "./literals/NullNode";
-import "./literals/DurationNode";
-import "./expressions/OrExprNode";
-import "./expressions/AndExprNode";
-import "./expressions/NotExprNode";
-import "./expressions/ArithExprNode";
-import "./expressions/CompareExprNode";
-import "./expressions/PropertyNode";
-import "./expressions/DateExprNode";
-import "./expressions/InlineQueryNode";
-
 import {QueryNode} from "./clauses";
 import {AggregateNode, type AggregateFunc} from "./expressions";
 import {PropertyNode} from "./expressions/PropertyNode";
+
+// ============================================================================
+// Initialization - Import node classes to trigger @register decorators
+// ============================================================================
+
+let initialized = false;
+
+/**
+ * Initialize the tree converter by importing all node classes.
+ * This triggers @register decorators which register converters.
+ * 
+ * Call this before using the converter, or call it lazily on first parse.
+ */
+export function initializeConverter(): void {
+	if (initialized) return;
+	initialized = true;
+
+	// Import functions to trigger @register decorators
+	void import("./functions");
+	// Import builtins to trigger @register decorators
+	void import("./builtins");
+	// Import node classes with fromSyntax to trigger term registration
+	void import("./literals/StringNode");
+	void import("./literals/NumberNode");
+	void import("./literals/BooleanNode");
+	void import("./literals/NullNode");
+	void import("./literals/DurationNode");
+	void import("./expressions/OrExprNode");
+	void import("./expressions/AndExprNode");
+	void import("./expressions/NotExprNode");
+	void import("./expressions/ArithExprNode");
+	void import("./expressions/CompareExprNode");
+	void import("./expressions/PropertyNode");
+	void import("./expressions/DateExprNode");
+	void import("./expressions/InlineQueryNode");
+
+	// Register structural converters
+	registerStructuralConverters();
+}
+
+/**
+ * Register structural converters that don't map 1:1 to a node class
+ */
+function registerStructuralConverters(): void {
+	registerConverter("ParenExpr", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
+		const kids = ctx.allChildren(node);
+		for (const kid of kids) {
+			if (ctx.isExpr(kid)) {
+				return ctx.expr(kid);
+			}
+		}
+		throw new Error("Empty parenthesized expression");
+	});
+
+	registerConverter("SimpleLiteral", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
+		const kids = ctx.allChildren(node);
+		if (kids.length === 0) throw new Error("Empty SimpleLiteral");
+		return ctx.expr(kids[0]!);
+	});
+
+	registerConverter("FunctionCall", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
+		const funcNameNode = node.getChild("FunctionName");
+		if (!funcNameNode) throw new Error("Missing function name");
+		const name = ctx.text(funcNameNode);
+
+		// Check if this is an aggregate function
+		if (AggregateNode.isAggregate(name)) {
+			return AggregateNode.fromSyntax(node, name as AggregateFunc, ctx);
+		}
+
+		// Regular function - parse arguments
+		const argList = node.getChild("ArgList");
+		const args: ExprNode[] = [];
+		if (argList) {
+			const argKids = ctx.allChildren(argList);
+			for (const kid of argKids) {
+				if (ctx.isExpr(kid)) {
+					args.push(ctx.expr(kid));
+				}
+			}
+		}
+
+		// Look up the function in the registry
+		const FuncClass = getFunctionClass(name);
+		if (!FuncClass) {
+			throw new Error(`Unknown function: ${name}`);
+		}
+
+		// Validate arity at parse time
+		const minArity = (FuncClass as unknown as typeof FunctionExprNode).minArity ?? 0;
+		const maxArity = (FuncClass as unknown as typeof FunctionExprNode).maxArity ?? Infinity;
+		if (args.length < minArity) {
+			throw new Error(`${name}() requires at least ${minArity} argument(s), got ${args.length}`);
+		}
+		if (args.length > maxArity) {
+			throw new Error(`${name}() accepts at most ${maxArity} argument(s), got ${args.length}`);
+		}
+
+		return new FuncClass(args, ctx.span(node));
+	});
+
+	registerConverter("GroupReference", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
+		const stringNode = node.getChild("String");
+		if (!stringNode) throw new Error("Missing string in group reference");
+		const groupName = ctx.parseString(ctx.text(stringNode));
+		return new PropertyNode(["@group", groupName], ctx.span(node), false);
+	});
+}
 
 // ============================================================================
 // Converter Map - built lazily from registry
@@ -54,6 +143,7 @@ let converterMap: Map<number, ExprConverterFn> | null = null;
 let exprTermIds: Set<number> | null = null;
 
 function getConverterMap(): Map<number, ExprConverterFn> {
+	initializeConverter(); // Ensure converters are registered
 	if (!converterMap) {
 		converterMap = new Map();
 		const termsRecord = Terms as unknown as Record<string, number>;
@@ -76,74 +166,6 @@ function getExprTermIds(): Set<number> {
 	}
 	return exprTermIds;
 }
-
-// ============================================================================
-// Structural Converters - for grammar nodes that don't map 1:1 to a node class
-// ============================================================================
-
-registerConverter("ParenExpr", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
-	const kids = ctx.allChildren(node);
-	for (const kid of kids) {
-		if (ctx.isExpr(kid)) {
-			return ctx.expr(kid);
-		}
-	}
-	throw new Error("Empty parenthesized expression");
-});
-
-registerConverter("SimpleLiteral", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
-	const kids = ctx.allChildren(node);
-	if (kids.length === 0) throw new Error("Empty SimpleLiteral");
-	return ctx.expr(kids[0]!);
-});
-
-registerConverter("FunctionCall", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
-	const funcNameNode = node.getChild("FunctionName");
-	if (!funcNameNode) throw new Error("Missing function name");
-	const name = ctx.text(funcNameNode);
-
-	// Check if this is an aggregate function
-	if (AggregateNode.isAggregate(name)) {
-		return AggregateNode.fromSyntax(node, name as AggregateFunc, ctx);
-	}
-
-	// Regular function - parse arguments
-	const argList = node.getChild("ArgList");
-	const args: ExprNode[] = [];
-	if (argList) {
-		const argKids = ctx.allChildren(argList);
-		for (const kid of argKids) {
-			if (ctx.isExpr(kid)) {
-				args.push(ctx.expr(kid));
-			}
-		}
-	}
-
-	// Look up the function in the registry
-	const FuncClass = getFunctionClass(name);
-	if (!FuncClass) {
-		throw new Error(`Unknown function: ${name}`);
-	}
-
-	// Validate arity at parse time
-	const minArity = (FuncClass as unknown as typeof FunctionExprNode).minArity ?? 0;
-	const maxArity = (FuncClass as unknown as typeof FunctionExprNode).maxArity ?? Infinity;
-	if (args.length < minArity) {
-		throw new Error(`${name}() requires at least ${minArity} argument(s), got ${args.length}`);
-	}
-	if (args.length > maxArity) {
-		throw new Error(`${name}() accepts at most ${maxArity} argument(s), got ${args.length}`);
-	}
-
-	return new FuncClass(args, ctx.span(node));
-});
-
-registerConverter("GroupReference", (node: SyntaxNode, ctx: ConvertContext): ExprNode => {
-	const stringNode = node.getChild("String");
-	if (!stringNode) throw new Error("Missing string in group reference");
-	const groupName = ctx.parseString(ctx.text(stringNode));
-	return new PropertyNode(["@group", groupName], ctx.span(node), false);
-});
 
 // ============================================================================
 // Expression Dispatcher

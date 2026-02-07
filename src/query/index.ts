@@ -15,6 +15,7 @@ export type {
 	NodeDoc,
 	QueryContext,
 	QueryResult,
+	TraversalNode,
 	QueryResultNode,
 	QueryWarning,
 	TraversalContext,

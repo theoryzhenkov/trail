@@ -3,11 +3,12 @@ import {TrailSettings, TrailSettingTab, buildSettings, savedDataNeedsMigration} 
 import {GraphStore} from "./graph/store";
 import {TrailView, TRAIL_VIEW_TYPE} from "./ui/trail-view";
 import {registerCommands} from "./commands";
-import {getCache} from "./query/cache";
+import {QueryCache} from "./query/cache";
 
 export default class TrailPlugin extends Plugin {
 	settings: TrailSettings;
 	graph: GraphStore;
+	queryCache: QueryCache;
 	private changedFiles: Set<string>;
 	private refreshTimeoutId: number | null;
 	private graphRefreshTimeoutId: number | null;
@@ -15,6 +16,7 @@ export default class TrailPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
+		this.queryCache = new QueryCache();
 		this.graph = new GraphStore(this.app, this.settings);
 		this.changedFiles = new Set();
 		this.refreshTimeoutId = null;
@@ -39,9 +41,8 @@ export default class TrailPlugin extends Plugin {
 			if (file instanceof TFile) {
 				this.graph.handleRename(oldPath, file.path);
 				// Invalidate cache for both old and new paths
-				const cache = getCache();
-				cache.invalidateFile(oldPath);
-				cache.invalidateFile(file.path);
+				this.queryCache.invalidateFile(oldPath);
+				this.queryCache.invalidateFile(file.path);
 			}
 		}));
 
@@ -49,7 +50,7 @@ export default class TrailPlugin extends Plugin {
 			if (file instanceof TFile) {
 				this.graph.handleDelete(file.path);
 				// Invalidate cache for deleted file
-				getCache().invalidateFile(file.path);
+				this.queryCache.invalidateFile(file.path);
 			}
 		}));
 
@@ -116,16 +117,15 @@ export default class TrailPlugin extends Plugin {
 	}
 
 	private flushFileChanges() {
-		const cache = getCache();
 		for (const path of this.changedFiles) {
 			this.graph.markFileStale(path);
 			// Invalidate cache for this file
-			cache.invalidateFile(path);
+			this.queryCache.invalidateFile(path);
 		}
 		// Also invalidate results for the active file since related files may have changed
 		const activeFile = this.app.workspace.getActiveFile();
 		if (activeFile) {
-			cache.invalidateFile(activeFile.path);
+			this.queryCache.invalidateFile(activeFile.path);
 		}
 		this.changedFiles.clear();
 		this.refreshActiveView();

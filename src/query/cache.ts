@@ -201,23 +201,18 @@ export class QueryCache {
 }
 
 /**
- * Global cache instance
- */
-let globalCache: QueryCache | null = null;
-
-/**
- * Get the global query cache
+ * @deprecated Use plugin-owned cache instance instead of global singleton
+ * This function exists for backwards compatibility only
  */
 export function getCache(): QueryCache {
-	if (!globalCache) {
-		globalCache = new QueryCache();
-	}
-	return globalCache;
+	throw new Error(
+		"getCache() is deprecated. Pass cache instance explicitly from plugin."
+	);
 }
 
 /**
- * Reset the global cache
+ * @deprecated No longer needed with plugin-owned cache
  */
 export function resetCache(): void {
-	globalCache = null;
+	// No-op for backwards compatibility
 }

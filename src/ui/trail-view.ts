@@ -7,7 +7,7 @@ import {
 	renderFileLink,
 	createCollapsibleSection
 } from "./renderers";
-import {parse, execute, createValidationContext, TQLError, getCache} from "../query";
+import {parse, execute, createValidationContext, TQLError} from "../query";
 import type {QueryResult, QueryResultNode} from "../query";
 import {getRelationDisplayName} from "../settings";
 
@@ -285,8 +285,7 @@ export class TrailView extends ItemView {
 
 	private executeTqlQuery(query: string, filePath: string, parsedGroups: ParsedGroups): QueryResult {
 		// Check cache first
-		const cache = getCache();
-		const cached = cache.getResult(query, filePath);
+		const cached = this.plugin.queryCache.getResult(query, filePath);
 		if (cached) {
 			return cached;
 		}
@@ -303,7 +302,7 @@ export class TrailView extends ItemView {
 		const result = execute(ast, queryCtx);
 
 		// Store result in cache
-		cache.setResult(query, filePath, result);
+		this.plugin.queryCache.setResult(query, filePath, result);
 
 		return result;
 	}
