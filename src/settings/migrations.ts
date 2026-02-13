@@ -53,13 +53,16 @@ export function savedDataNeedsMigration(savedData: Partial<SavedSettingsData> | 
 		}
 	}
 
-	// Check for legacy alias format or legacy name field
+	// Check for legacy alias format, legacy name field, or mixed-case IDs
 	if (Array.isArray(savedData.relations)) {
 		for (const relation of savedData.relations) {
 			if (needsAliasMigration(relation.aliases)) {
 				return true;
 			}
 			if (needsIdMigration(relation)) {
+				return true;
+			}
+			if (needsCaseNormalization(relation)) {
 				return true;
 			}
 		}
@@ -96,6 +99,9 @@ export function applyMigrations(data: Partial<SavedSettingsData>): {
 
 	// Auto-migrate relation name → id format
 	migrateRelationIds(relations);
+
+	// Normalize relation IDs and implied targets to lowercase
+	normalizeRelationCase(relations);
 
 	return {tqlGroups, legacyGroups, relations};
 }
@@ -188,6 +194,44 @@ function migrateRelationIds(relations: RelationDefinition[]): void {
 			// Clean up old field
 			// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
 			delete (relation as unknown as LegacyRelationDefinition).name;
+		}
+	}
+}
+
+/**
+ * Check if a relation has mixed-case id or implied targets that need lowercasing.
+ * The settings validation previously didn't lowercase, so existing settings may have
+ * mixed-case IDs that break implied rule matching.
+ */
+function needsCaseNormalization(relation: RelationDefinition): boolean {
+	if (relation.id !== relation.id.toLowerCase()) {
+		return true;
+	}
+	for (const implied of relation.impliedRelations) {
+		if (implied.targetRelation !== implied.targetRelation.toLowerCase()) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Normalize relation IDs and implied target relations to lowercase.
+ * Fixes a bug where settings/validation.ts did not lowercase relation IDs,
+ * causing a mismatch with the parsing module which always lowercases.
+ */
+function normalizeRelationCase(relations: RelationDefinition[]): void {
+	for (const relation of relations) {
+		const lowerId = relation.id.toLowerCase();
+		if (relation.id !== lowerId) {
+			// Preserve the original casing as displayName if none was set
+			if (!relation.displayName) {
+				relation.displayName = relation.id;
+			}
+			relation.id = lowerId;
+		}
+		for (const implied of relation.impliedRelations) {
+			implied.targetRelation = implied.targetRelation.toLowerCase();
 		}
 	}
 }
