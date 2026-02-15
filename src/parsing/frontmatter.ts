@@ -5,7 +5,8 @@
  */
 
 import {FileProperties, ParsedRelation, RelationDefinition} from "../types";
-import {dedupeRelations, extractWikiLinkTarget, isValidRelationName, normalizeRelationName} from "./index";
+import {isValidRelationName, normalizeRelationName} from "../relations";
+import {dedupeRelations, extractWikiLinkTarget} from "./index";
 
 type FrontmatterValue = string | string[] | null | undefined;
 

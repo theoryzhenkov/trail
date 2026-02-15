@@ -19,7 +19,8 @@
  */
 
 import {ParsedRelation} from "../types";
-import {dedupeRelations, extractLinkTarget, isValidRelationName, normalizeRelationName} from "./index";
+import {isValidRelationName, normalizeRelationName} from "../relations";
+import {dedupeRelations, extractLinkTarget} from "./index";
 
 /** Context state for tracking across the file */
 interface ParserContext {

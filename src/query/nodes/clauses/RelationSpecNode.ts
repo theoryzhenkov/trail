@@ -6,6 +6,7 @@ import type {SyntaxNode} from "@lezer/common";
 import {ClauseNode} from "../base/ClauseNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
 import {register, type ConvertContext} from "../registry";
+import {normalizeRelationName} from "../../../relations";
 
 @register("RelationSpecNode", {clause: true})
 export class RelationSpecNode extends ClauseNode {
@@ -44,7 +45,7 @@ export class RelationSpecNode extends ClauseNode {
 	static fromSyntax(node: SyntaxNode, ctx: ConvertContext): RelationSpecNode {
 		const identNode = node.getChild("Identifier");
 		if (!identNode) throw new Error("Missing relation name");
-		const name = ctx.text(identNode);
+		const name = normalizeRelationName(ctx.text(identNode));
 
 		let depth: number | "unlimited" = "unlimited";
 		let flatten: number | true | undefined;

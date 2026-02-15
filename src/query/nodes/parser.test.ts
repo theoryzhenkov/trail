@@ -21,6 +21,11 @@ describe("TQL Parser", () => {
 			expect(query.from.chains[0]?.first.name).toBe("up");
 		});
 
+		it("should normalize mixed-case relation names at parse time", () => {
+			const query = parse('group "Test" from UP');
+			expect(query.from.chains[0]?.first.name).toBe("up");
+		});
+
 		it("should parse query with depth", () => {
 			const query = parse('group "Test" from down :depth 3');
 			expect(query.from.chains[0]?.first.depth).toBe(3);

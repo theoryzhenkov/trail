@@ -1,9 +1,4 @@
 import {ParsedRelation} from "../types";
-export {
-	RELATION_NAME_REGEX,
-	normalizeRelationName,
-	isValidRelationName,
-} from "../relations";
 
 export function extractLinkTarget(raw: string): string {
 	const withoutAlias = raw.split("|")[0] ?? raw;

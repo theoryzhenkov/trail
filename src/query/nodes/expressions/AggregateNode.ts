@@ -11,6 +11,7 @@ import {type EvalContext, type QueryEnv, evalContextFromNode} from "../context";
 import {traverse, INCLUDE_ALL, type TraversalConfig} from "../execution/traversal";
 import {register, type ConvertContext} from "../registry";
 import {compare, isTruthy} from "../value-ops";
+import {normalizeRelationName} from "../../../relations";
 
 export type AggregateFunc = "count" | "sum" | "avg" | "min" | "max" | "any" | "all";
 
@@ -351,7 +352,7 @@ export class AggregateNode extends ExprNode {
 		} else if (firstArgNode.name === "PropertyAccess" || firstArgNode.name === "Identifier") {
 			let name: string;
 			if (firstArgNode.name === "Identifier") {
-				name = ctx.text(firstArgNode);
+				name = normalizeRelationName(ctx.text(firstArgNode));
 			} else {
 				const propAccess = PropertyNode.fromSyntax(firstArgNode, ctx);
 				name = propAccess.path.join(".");

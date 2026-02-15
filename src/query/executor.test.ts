@@ -544,6 +544,34 @@ describe("TQL Executor", () => {
 			expect(paths).not.toContain("child2.md");
 		});
 
+		it("should treat mixed-case bare relation identifiers as case-insensitive", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "root.md", properties: {} },
+					{ path: "child1.md", properties: {} },
+					{ path: "grandchild1.md", properties: {} },
+					{ path: "child2.md", properties: {} },
+				],
+				edges: [
+					{ from: "root.md", to: "child1.md", relation: "down" },
+					{ from: "root.md", to: "child2.md", relation: "down" },
+					{ from: "child1.md", to: "grandchild1.md", relation: "down" },
+				],
+				relations: ["down"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down :depth 1 where count(DOWN) > 0`,
+				graph,
+				"root.md"
+			);
+
+			const paths = collectPaths(result.results);
+			expect(paths).toContain("child1.md");
+			expect(paths).not.toContain("child2.md");
+		});
+
 		it("should sum property values", () => {
 			const graph: MockGraph = {
 				files: [

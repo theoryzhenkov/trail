@@ -111,6 +111,7 @@ export {TQL} from "./nodes";
 
 export {emptyResult} from "./nodes";
 export {QueryCache, getCache, resetCache} from "./cache";
+export {rewriteRelationInTqlQuery} from "./rewrite-relation";
 
 // ============================================================================
 // Convenience Functions
