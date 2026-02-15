@@ -1,6 +1,8 @@
 import {describe, expect, it} from "vitest";
 import {applyMigrations, savedDataNeedsMigration} from "./migrations";
 
+type MigrationInput = NonNullable<Parameters<typeof savedDataNeedsMigration>[0]>;
+
 describe("settings relation identity migration", () => {
 	it("detects legacy relation schema", () => {
 		const savedData = {
@@ -12,7 +14,7 @@ describe("settings relation identity migration", () => {
 					impliedRelations: [{targetRelation: "down", direction: "reverse"}],
 				},
 			],
-		};
+		} as unknown as MigrationInput;
 
 		expect(savedDataNeedsMigration(savedData)).toBe(true);
 	});
@@ -32,7 +34,7 @@ describe("settings relation identity migration", () => {
 					impliedRelations: [],
 				},
 			],
-		};
+		} as unknown as MigrationInput;
 
 		const migrated = applyMigrations(savedData);
 		const up = migrated.relations.find((relation) => relation.name === "UP");
