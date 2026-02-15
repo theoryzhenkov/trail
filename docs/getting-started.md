@@ -97,7 +97,7 @@ Open `Projects.md` and look at the Trail pane:
   down  Website Redesign
 ```
 
-You didn't have to add a link in `Projects.md`—Trail inferred it automatically.
+You didn't have to add a link in `Projects.md` — Trail inferred it automatically.
 
 ---
 
