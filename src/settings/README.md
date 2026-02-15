@@ -39,7 +39,6 @@ The settings system separates four concerns:
 interface TrailSettings {
   relations: RelationDefinition[];   // Relation types and aliases
   tqlGroups: GroupDefinition[];      // TQL-based groups (authoritative)
-  groups: RelationGroup[];           // @deprecated - legacy groups for migration
   hideEmptyGroups: boolean;          // UI preference
   editorMode: EditorMode;            // "visual" | "query" | "auto"
 }
@@ -142,7 +141,6 @@ Configures relation types:
 Configures display groups:
 - Options: hide empty groups, editor mode
 - TQL groups with visual or query editor
-- Legacy groups migration UI (if present)
 
 ## Components
 
@@ -157,15 +155,6 @@ Reusable UI components for settings:
 | `sort-key-row.ts` | Sort key row UI |
 
 ## Migration
-
-### Legacy Groups → TQL
-
-Settings automatically migrate legacy `RelationGroup` format to TQL on load:
-
-1. `buildSettings()` checks for legacy groups
-2. `migrateAllGroups()` converts each group to TQL query
-3. Legacy groups are cleared after migration
-4. Settings are saved to persist migration
 
 ### TQL Syntax Migration (3.x → 4.x)
 

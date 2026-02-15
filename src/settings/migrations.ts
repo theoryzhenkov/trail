@@ -5,8 +5,7 @@
  * Migrations run once during buildSettings() and are persisted.
  */
 
-import type {RelationDefinition, RelationAlias, GroupDefinition, RelationGroup} from "../types";
-import {migrateAllGroups} from "../query/migration";
+import type {RelationDefinition, RelationAlias, GroupDefinition} from "../types";
 import {migrateAllTqlSyntax, needsSyntaxMigration} from "../query/syntax-migration";
 import {createRelationUid, normalizeRelationName} from "../relations";
 
@@ -29,7 +28,6 @@ interface LegacyRelationDefinition {
  */
 interface SavedSettingsData {
 	tqlGroups?: GroupDefinition[];
-	groups?: RelationGroup[];
 	relations?: RelationDefinition[];
 	hideEmptyGroups?: boolean;
 	editorMode?: "visual" | "query" | "auto";
@@ -40,11 +38,6 @@ interface SavedSettingsData {
  */
 export function savedDataNeedsMigration(savedData: Partial<SavedSettingsData> | null): boolean {
 	if (!savedData) return false;
-
-	// Check for legacy groups
-	if (Array.isArray(savedData.groups) && savedData.groups.length > 0) {
-		return true;
-	}
 
 	// Check for TQL syntax needing migration (3.x → 4.x)
 	if (Array.isArray(savedData.tqlGroups)) {
@@ -77,19 +70,10 @@ export function savedDataNeedsMigration(savedData: Partial<SavedSettingsData> | 
  */
 export function applyMigrations(data: Partial<SavedSettingsData>): {
 	tqlGroups: GroupDefinition[];
-	legacyGroups: RelationGroup[];
 	relations: RelationDefinition[];
 } {
 	let tqlGroups = data.tqlGroups ?? [];
-	let legacyGroups = data.groups ?? [];
 	let relations = data.relations ?? [];
-
-	// Auto-migrate legacy groups to TQL
-	if (legacyGroups.length > 0) {
-		const migrated = migrateAllGroups(legacyGroups);
-		tqlGroups = [...tqlGroups, ...migrated];
-		legacyGroups = []; // Clear after migration
-	}
 
 	// Auto-migrate TQL syntax from 3.x to 4.x
 	migrateAllTqlSyntax(tqlGroups);
@@ -101,7 +85,7 @@ export function applyMigrations(data: Partial<SavedSettingsData>): {
 	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
 	migrateRelationIdentity(relations as Array<RelationDefinition & LegacyRelationDefinition>);
 
-	return {tqlGroups, legacyGroups, relations};
+	return {tqlGroups, relations};
 }
 
 /**

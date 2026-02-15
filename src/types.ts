@@ -14,12 +14,6 @@ export interface ImpliedRelation {
 
 export type VisualDirection = "descending" | "ascending";
 
-export interface RelationGroupMember {
-	relation: RelationName;
-	depth: number;
-	extend?: string;
-}
-
 // PropertyValue is recursive to support nested YAML structures
 export type PropertyValue = string | number | boolean | string[] | null | PropertyObject;
 
@@ -48,18 +42,6 @@ export interface PropertySortKey {
 }
 
 export type ChainSortMode = "disabled" | "primary" | "secondary";
-
-export interface RelationGroup {
-	name: string;
-	members: RelationGroupMember[];
-	displayProperties?: string[];
-	filters?: PropertyFilter[];
-	filtersMatchMode?: FilterMatchMode;
-	showConditions?: PropertyFilter[];
-	showConditionsMatchMode?: FilterMatchMode;
-	sortBy?: PropertySortKey[];
-	chainSort?: ChainSortMode;
-}
 
 /**
  * TQL-based group definition

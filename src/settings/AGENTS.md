@@ -8,7 +8,7 @@ This module manages plugin configuration: relation definitions, TQL-based groups
 
 1. **TQL is Authoritative**: The `query` field in `GroupDefinition` is the source of truth. Visual editor changes generate TQL, not the other way around.
 
-2. **Migration on Load**: Legacy groups and old TQL syntax are auto-migrated in `buildSettings()`. Never assume saved data is in the latest format.
+2. **Migration on Load**: Old TQL syntax is auto-migrated in `buildSettings()`. Never assume saved data is in the latest format.
 
 3. **Visual Editor is Optional**: Complex queries fall back to query editor. `isVisualEditable()` determines if visual editing is possible.
 
@@ -26,7 +26,7 @@ This module manages plugin configuration: relation definitions, TQL-based groups
 | `validation.ts` | Input validation | Adding validation rules |
 | `visual-editor.ts` | TQL ↔ form conversion | Expanding visual editor features |
 | `tabs/relations-tab.ts` | Relations UI | Changing relation settings UI |
-| `tabs/groups-tab.ts` | Groups UI, migration UI | Changing group settings UI |
+| `tabs/groups-tab.ts` | Groups UI | Changing group settings UI |
 | `components/*.ts` | Reusable UI pieces | Adding shared UI patterns |
 
 ## Common Tasks
@@ -208,7 +208,7 @@ export function buildSettings(savedData: Partial<TrailSettings> | null): TrailSe
 Settings have no automated tests. Test manually:
 
 1. Fresh install: verify defaults
-2. Legacy migration: create old-format data, verify conversion
+2. Syntax migration: create old-format TQL, verify conversion
 3. Visual editor: verify round-trip (query → visual → query)
 4. Settings persistence: change settings, reload plugin, verify preserved
 
@@ -280,6 +280,5 @@ if (!isValidRelationName(normalized)) {
 - `obsidian`: Setting, SettingGroup, PluginSettingTab, Notice, setIcon
 - `@codemirror/view`: EditorView for TQL code editor
 - `../query`: parse(), TQLError, createTQLEditor()
-- `../query/migration`: migrateGroup(), migrateAllGroups()
 - `../query/syntax-migration`: migrateAllTqlSyntax(), needsSyntaxMigration()
 - `../types`: RelationDefinition, GroupDefinition, etc.

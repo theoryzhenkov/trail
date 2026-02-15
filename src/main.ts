@@ -90,7 +90,7 @@ export default class TrailPlugin extends Plugin {
 		const savedData = await this.loadData() as Partial<TrailSettings> | null;
 		const needsMigration = savedDataNeedsMigration(savedData);
 		
-		// buildSettings auto-migrates legacy groups to TQL
+		// buildSettings applies settings migrations
 		this.settings = buildSettings(savedData);
 		
 		// Save settings to persist the migration

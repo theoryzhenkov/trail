@@ -2,13 +2,11 @@ import type {EditorView} from "@codemirror/view";
 import {Notice, Setting, SettingGroup} from "obsidian";
 import TrailPlugin from "../../main";
 import {
-	GroupDefinition,
-	RelationGroup
+	GroupDefinition
 } from "../../types";
 import {parse, TQLError} from "../../query";
-import {migrateGroup} from "../../query/migration";
 import {createTQLEditor} from "../../query/codemirror";
-import {hasLegacyGroups, EditorMode, getRelationDisplayName} from "../index";
+import {EditorMode, getRelationDisplayName} from "../index";
 import {isVisualEditable, parseToVisual, visualToQuery, VisualCondition, VisualQuery} from "../visual-editor";
 import {
 	createSectionDetails,
@@ -79,10 +77,6 @@ export class GroupsTabRenderer {
 					});
 			});
 
-		if (hasLegacyGroups(this.plugin.settings)) {
-			this.renderMigrationBanner(containerEl);
-		}
-
 		new SettingGroup(containerEl)
 			.setHeading("TQL groups")
 			.addSetting((setting) => {
@@ -95,18 +89,6 @@ export class GroupsTabRenderer {
 
 	this.renderAddGroupControl(containerEl, openGroupSections);
 
-	if (hasLegacyGroups(this.plugin.settings)) {
-		this.renderLegacyGroupsSection(containerEl);
-	}
-}
-
-	private renderMigrationBanner(containerEl: HTMLElement) {
-		const banner = containerEl.createDiv({cls: "trail-migration-banner"});
-
-		new Setting(banner)
-			.setName("Legacy groups detected")
-			.setDesc("Your configuration includes legacy groups. Click 'Migrate' on each group below to convert them to TQL format.")
-			.setHeading();
 	}
 
 	private renderTqlGroupSection(
@@ -577,64 +559,5 @@ export class GroupsTabRenderer {
 						this.display();
 					});
 			});
-	}
-
-	private renderLegacyGroupsSection(containerEl: HTMLElement) {
-		const section = containerEl.createDiv({cls: "trail-legacy-groups"});
-
-		new Setting(section)
-			.setName("Legacy groups")
-			.setDesc("These groups use the old format. Migrate them to TQL for full functionality.")
-			.setHeading();
-
-		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration UI
-		for (const [index, group] of this.plugin.settings.groups.entries()) {
-			this.renderLegacyGroupSection(section, group, index);
-		}
-	}
-
-	private renderLegacyGroupSection(containerEl: HTMLElement, group: RelationGroup, index: number) {
-		const item = containerEl.createDiv({cls: "trail-legacy-group-item"});
-
-		const header = item.createDiv({cls: "trail-legacy-group-header"});
-		header.createSpan({text: group.name || "(unnamed)", cls: "trail-legacy-group-name"});
-
-		const actions = header.createDiv({cls: "trail-legacy-group-actions"});
-
-		const migrateBtn = actions.createEl("button", {text: "Migrate to TQL", cls: "mod-cta"});
-		migrateBtn.addEventListener("click", () => {
-			const tqlGroup = migrateGroup(group);
-			this.plugin.settings.tqlGroups.push(tqlGroup);
-			// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
-			this.plugin.settings.groups.splice(index, 1);
-			void this.plugin.saveSettings();
-			new Notice(`Migrated "${group.name}" to TQL`);
-			this.display();
-		});
-
-		const deleteBtn = actions.createEl("button", {text: "Delete", cls: "mod-warning"});
-		deleteBtn.addEventListener("click", () => {
-			// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
-			this.plugin.settings.groups.splice(index, 1);
-			void this.plugin.saveSettings();
-			this.display();
-		});
-
-		const preview = item.createDiv({cls: "trail-legacy-preview"});
-		const previewToggle = preview.createEl("button", {text: "Show generated TQL"});
-		const previewContent = preview.createDiv({cls: "trail-legacy-preview-content trail-hidden"});
-
-		previewToggle.addEventListener("click", () => {
-			if (previewContent.hasClass("trail-hidden")) {
-				const tqlGroup = migrateGroup(group);
-				previewContent.empty();
-				previewContent.createEl("pre", {text: tqlGroup.query});
-				previewContent.removeClass("trail-hidden");
-				previewToggle.textContent = "Hide generated TQL";
-			} else {
-				previewContent.addClass("trail-hidden");
-				previewToggle.textContent = "Show generated TQL";
-			}
-		});
 	}
 }
