@@ -60,7 +60,11 @@ function visitChildren(
 	}
 
 	const sourcePath = state.currentPath();
-	const edges = env.getOutgoingEdges(sourcePath, config.relation);
+	const relationUid = env.resolveRelationUid(config.relation);
+	if (!relationUid) {
+		return [];
+	}
+	const edges = env.getOutgoingEdges(sourcePath, relationUid);
 	const results: QueryResultNode[] = [];
 
 	for (const edge of edges) {
@@ -95,8 +99,19 @@ function visitNode(
 	depth: number
 ): QueryResultNode | null {
 	const properties = env.getProperties(edge.toPath);
-	const visualDirection = env.getVisualDirection(edge.relation);
-	const nodeCtx = state.buildNodeContext(edge, depth, properties, visualDirection);
+	const visualDirection = env.getVisualDirection(edge.relationUid);
+	const relationName = env.getRelationName(edge.relationUid);
+	const impliedFromName = edge.impliedFromUid
+		? env.getRelationName(edge.impliedFromUid)
+		: undefined;
+	const nodeCtx = state.buildNodeContext(
+		edge,
+		depth,
+		properties,
+		visualDirection,
+		relationName,
+		impliedFromName
+	);
 
 	// Apply filter
 	const decision = config.filter.evaluate(nodeCtx);
@@ -150,11 +165,16 @@ function handleLeaf(
 	// Build a synthetic context for the leaf
 	const sourcePath = state.currentPath();
 	const properties = env.getProperties(sourcePath);
-	const visualDirection = env.getVisualDirection(config.relation);
+	const relationUid = env.resolveRelationUid(config.relation);
+	if (!relationUid) {
+		return [];
+	}
+	const relationName = env.getRelationName(relationUid);
+	const visualDirection = env.getVisualDirection(relationUid);
 
 	const traversalCtx: TraversalContext = {
 		depth,
-		relation: config.relation,
+		relation: relationName,
 		isImplied: false,
 		parent: state.getTraversalPath()[state.getTraversalPath().length - 2] ?? null,
 		path: state.getTraversalPath(),
@@ -165,7 +185,7 @@ function handleLeaf(
 		edge: {
 			fromPath: traversalCtx.parent ?? sourcePath,
 			toPath: sourcePath,
-			relation: config.relation,
+			relationUid,
 			implied: false,
 		},
 		depth,
@@ -173,6 +193,7 @@ function handleLeaf(
 		traversalPath: state.getTraversalPath(),
 		properties,
 		traversalCtx,
+		relationName,
 		visualDirection,
 	};
 
@@ -191,6 +212,11 @@ function handleLeaf(
  */
 function traverseBfs(env: QueryEnv, config: TraversalConfig): TraversalResult {
 	const state = new BfsTraversalState(config.startPath);
+	const relationUid = env.resolveRelationUid(config.relation);
+	if (!relationUid) {
+		return state.getResult();
+	}
+	const relationName = env.getRelationName(relationUid);
 
 	// BFS queue: [path, actualDepth, parentPath, traversalPath]
 	type QueueItem = {
@@ -205,7 +231,7 @@ function traverseBfs(env: QueryEnv, config: TraversalConfig): TraversalResult {
 	const leafNodes: NodeContext[] = [];
 
 	// Initialize with direct neighbors
-	const initialEdges = env.getOutgoingEdges(config.startPath, config.relation);
+	const initialEdges = env.getOutgoingEdges(config.startPath, relationUid);
 	for (const edge of initialEdges) {
 		if (!state.hasVisited(edge.toPath)) {
 			state.markVisited(edge.toPath);
@@ -225,20 +251,23 @@ function traverseBfs(env: QueryEnv, config: TraversalConfig): TraversalResult {
 		const properties = env.getProperties(path);
 
 		// Get edge for implied status
-		const edges = env.getOutgoingEdges(parent, config.relation);
+		const edges = env.getOutgoingEdges(parent, relationUid);
 		const edge = edges.find((e) => e.toPath === path) ?? {
 			fromPath: parent,
 			toPath: path,
-			relation: config.relation,
+			relationUid,
 			implied: false,
 		};
 
-		const visualDirection = env.getVisualDirection(config.relation);
+		const visualDirection = env.getVisualDirection(relationUid);
+		const impliedFromName = edge.impliedFromUid
+			? env.getRelationName(edge.impliedFromUid)
+			: undefined;
 
 		// Build node context
 		const traversalCtx: TraversalContext = {
 			depth: 1, // Always 1 in flattened output
-			relation: config.relation,
+			relation: relationName,
 			isImplied: edge.implied,
 			parent,
 			path: traversalPath,
@@ -252,6 +281,8 @@ function traverseBfs(env: QueryEnv, config: TraversalConfig): TraversalResult {
 			traversalPath,
 			properties,
 			traversalCtx,
+			relationName,
+			impliedFromName,
 			visualDirection,
 		};
 
@@ -267,10 +298,10 @@ function traverseBfs(env: QueryEnv, config: TraversalConfig): TraversalResult {
 			// Add to results
 			state.addResult({
 				path,
-				relation: config.relation,
+				relation: relationName,
 				depth: 1,
 				implied: edge.implied,
-				impliedFrom: edge.impliedFrom,
+				impliedFrom: impliedFromName,
 				parent: config.startPath, // In flatten mode, parent is always start
 				traversalPath,
 				properties,
@@ -284,7 +315,7 @@ function traverseBfs(env: QueryEnv, config: TraversalConfig): TraversalResult {
 		// Continue BFS if allowed and within depth
 		let hasMoreEdges = false;
 		if (decision.traverse && depth < config.maxDepth) {
-			const nextEdges = env.getOutgoingEdges(path, config.relation);
+			const nextEdges = env.getOutgoingEdges(path, relationUid);
 			for (const nextEdge of nextEdges) {
 				if (!state.hasVisited(nextEdge.toPath)) {
 					hasMoreEdges = true;

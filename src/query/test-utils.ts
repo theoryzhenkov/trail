@@ -7,6 +7,7 @@ import type {RelationEdge, FileProperties, VisualDirection} from "../types";
 import type {QueryContext, FileMetadata, QueryResult} from "./nodes/types";
 import {QueryNode, parse, createValidationContext} from "./nodes";
 import {execute} from "./executor";
+import {normalizeRelationName} from "../relations";
 
 /**
  * Mock file data for testing
@@ -23,8 +24,10 @@ export interface MockFile {
 export interface MockEdge {
 	from: string;
 	to: string;
-	relation: string;
+	relationUid?: string;
+	relation?: string;
 	implied?: boolean;
+	impliedFromUid?: string;
 	impliedFrom?: string;
 }
 
@@ -59,6 +62,11 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 	const incomingEdges = new Map<string, RelationEdge[]>();
 
 	for (const edge of graph.edges) {
+		const relationUid = edge.relationUid ?? edge.relation ?? "";
+		const impliedFromUid = edge.impliedFromUid ?? edge.impliedFrom;
+		if (!relationUid) {
+			continue;
+		}
 		// Outgoing
 		const outKey = edge.from;
 		if (!outgoingEdges.has(outKey)) {
@@ -67,9 +75,9 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 		outgoingEdges.get(outKey)!.push({
 			fromPath: edge.from,
 			toPath: edge.to,
-			relation: edge.relation,
+			relationUid,
 			implied: edge.implied ?? false,
-			impliedFrom: edge.impliedFrom,
+			impliedFromUid,
 		});
 
 		// Incoming
@@ -80,10 +88,18 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 		incomingEdges.get(inKey)!.push({
 			fromPath: edge.from,
 			toPath: edge.to,
-			relation: edge.relation,
+			relationUid,
 			implied: edge.implied ?? false,
-			impliedFrom: edge.impliedFrom,
+			impliedFromUid,
 		});
+	}
+
+	const relationNames = graph.relations ?? ["up", "down", "next", "prev"];
+	const relationNameByUid = new Map<string, string>();
+	const relationUidByName = new Map<string, string>();
+	for (const relationName of relationNames) {
+		relationNameByUid.set(relationName, relationName);
+		relationUidByName.set(normalizeRelationName(relationName), relationName);
 	}
 
 	const activeFile = fileMap.get(activeFilePath);
@@ -95,7 +111,7 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 		getOutgoingEdges(path: string, relation?: string): RelationEdge[] {
 			const edges = outgoingEdges.get(path) ?? [];
 			if (relation) {
-				return edges.filter((e) => e.relation === relation);
+				return edges.filter((e) => e.relationUid === relation);
 			}
 			return edges;
 		},
@@ -103,7 +119,7 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 		getIncomingEdges(path: string, relation?: string): RelationEdge[] {
 			const edges = incomingEdges.get(path) ?? [];
 			if (relation) {
-				return edges.filter((e) => e.relation === relation);
+				return edges.filter((e) => e.relationUid === relation);
 			}
 			return edges;
 		},
@@ -134,10 +150,22 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 		},
 
 		getRelationNames(): string[] {
-			return graph.relations ?? ["up", "down", "next", "prev"];
+			return relationNames;
 		},
 
-		getVisualDirection(relation: string): VisualDirection {
+		resolveRelationUid(name: string): string | undefined {
+			if (relationNameByUid.has(name)) {
+				return name;
+			}
+			return relationUidByName.get(normalizeRelationName(name));
+		},
+
+		getRelationName(uid: string): string {
+			return relationNameByUid.get(uid) ?? uid;
+		},
+
+		getVisualDirection(relationUid: string): VisualDirection {
+			const relation = relationNameByUid.get(relationUid) ?? relationUid;
 			if (relation === "down" || relation === "next") {
 				return "descending";
 			}
@@ -166,10 +194,10 @@ export const TestGraphs = {
 				{path: "C.md", properties: {title: "C"}},
 			],
 			edges: [
-				{from: "A.md", to: "B.md", relation: "down"},
-				{from: "B.md", to: "A.md", relation: "up"},
-				{from: "B.md", to: "C.md", relation: "down"},
-				{from: "C.md", to: "B.md", relation: "up"},
+				{from: "A.md", to: "B.md", relationUid: "down"},
+				{from: "B.md", to: "A.md", relationUid: "up"},
+				{from: "B.md", to: "C.md", relationUid: "down"},
+				{from: "C.md", to: "B.md", relationUid: "up"},
 			],
 		};
 	},
@@ -202,14 +230,14 @@ export const TestGraphs = {
 				},
 			],
 			edges: [
-				{from: "root.md", to: "person1.md", relation: "down"},
-				{from: "root.md", to: "person2.md", relation: "down"},
-				{from: "root.md", to: "person3.md", relation: "down"},
-				{from: "root.md", to: "person4.md", relation: "down"},
-				{from: "person1.md", to: "root.md", relation: "up"},
-				{from: "person2.md", to: "root.md", relation: "up"},
-				{from: "person3.md", to: "root.md", relation: "up"},
-				{from: "person4.md", to: "root.md", relation: "up"},
+				{from: "root.md", to: "person1.md", relationUid: "down"},
+				{from: "root.md", to: "person2.md", relationUid: "down"},
+				{from: "root.md", to: "person3.md", relationUid: "down"},
+				{from: "root.md", to: "person4.md", relationUid: "down"},
+				{from: "person1.md", to: "root.md", relationUid: "up"},
+				{from: "person2.md", to: "root.md", relationUid: "up"},
+				{from: "person3.md", to: "root.md", relationUid: "up"},
+				{from: "person4.md", to: "root.md", relationUid: "up"},
 			],
 		};
 	},
@@ -226,12 +254,12 @@ export const TestGraphs = {
 				{path: "chapter4.md", properties: {title: "Chapter 4", order: 4}},
 			],
 			edges: [
-				{from: "chapter1.md", to: "chapter2.md", relation: "next"},
-				{from: "chapter2.md", to: "chapter1.md", relation: "prev"},
-				{from: "chapter2.md", to: "chapter3.md", relation: "next"},
-				{from: "chapter3.md", to: "chapter2.md", relation: "prev"},
-				{from: "chapter3.md", to: "chapter4.md", relation: "next"},
-				{from: "chapter4.md", to: "chapter3.md", relation: "prev"},
+				{from: "chapter1.md", to: "chapter2.md", relationUid: "next"},
+				{from: "chapter2.md", to: "chapter1.md", relationUid: "prev"},
+				{from: "chapter2.md", to: "chapter3.md", relationUid: "next"},
+				{from: "chapter3.md", to: "chapter2.md", relationUid: "prev"},
+				{from: "chapter3.md", to: "chapter4.md", relationUid: "next"},
+				{from: "chapter4.md", to: "chapter3.md", relationUid: "prev"},
 			],
 			relations: ["next", "prev"],
 		};
@@ -252,18 +280,18 @@ export const TestGraphs = {
 				{path: "a1i.md", properties: {level: 3, category: "x"}},
 			],
 			edges: [
-				{from: "root.md", to: "a.md", relation: "down"},
-				{from: "root.md", to: "b.md", relation: "down"},
-				{from: "a.md", to: "root.md", relation: "up"},
-				{from: "b.md", to: "root.md", relation: "up"},
-				{from: "a.md", to: "a1.md", relation: "down"},
-				{from: "a.md", to: "a2.md", relation: "down"},
-				{from: "a1.md", to: "a.md", relation: "up"},
-				{from: "a2.md", to: "a.md", relation: "up"},
-				{from: "b.md", to: "b1.md", relation: "down"},
-				{from: "b1.md", to: "b.md", relation: "up"},
-				{from: "a1.md", to: "a1i.md", relation: "down"},
-				{from: "a1i.md", to: "a1.md", relation: "up"},
+				{from: "root.md", to: "a.md", relationUid: "down"},
+				{from: "root.md", to: "b.md", relationUid: "down"},
+				{from: "a.md", to: "root.md", relationUid: "up"},
+				{from: "b.md", to: "root.md", relationUid: "up"},
+				{from: "a.md", to: "a1.md", relationUid: "down"},
+				{from: "a.md", to: "a2.md", relationUid: "down"},
+				{from: "a1.md", to: "a.md", relationUid: "up"},
+				{from: "a2.md", to: "a.md", relationUid: "up"},
+				{from: "b.md", to: "b1.md", relationUid: "down"},
+				{from: "b1.md", to: "b.md", relationUid: "up"},
+				{from: "a1.md", to: "a1i.md", relationUid: "down"},
+				{from: "a1i.md", to: "a1.md", relationUid: "up"},
 			],
 		};
 	},

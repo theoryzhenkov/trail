@@ -10,6 +10,7 @@ import {isValidRelationName, normalizeRelationName} from "../validation";
 import {createSectionDetails, IconSuggest, setupDragReorder} from "../components";
 import {createDefaultAliases} from "../defaults";
 import {getRelationDisplayName} from "../index";
+import {createRelationUid} from "../../relations";
 
 export class RelationsTabRenderer {
 	private plugin: TrailPlugin;
@@ -57,7 +58,7 @@ export class RelationsTabRenderer {
 		);
 
 		const wasOpen = openSections.has(index);
-		const isNew = !relation.id;
+		const isNew = !relation.name;
 		details.open = wasOpen || isNew;
 
 		const displayName = getRelationDisplayName(relation);
@@ -65,7 +66,7 @@ export class RelationsTabRenderer {
 			cls: "trail-relation-name",
 			text: displayName || "(unnamed)"
 		});
-		if (!relation.id) {
+		if (!relation.name) {
 			nameSpan.addClass("trail-relation-name-empty");
 		}
 
@@ -85,46 +86,30 @@ export class RelationsTabRenderer {
 		});
 
 		new Setting(content)
-			.setName("ID")
-			.setDesc("Unique lowercase identifier used in frontmatter and inline syntax (e.g., up, parent).")
+			.setName("Name")
+			.setDesc("Canonical relation name used in frontmatter and inline syntax (case-insensitive).")
 			.addText((text) => {
 				text
 					.setPlaceholder("E.g., up, parent, contains")
-					.setValue(relation.id)
+					.setValue(relation.name)
 					.onChange((value) => {
 						const normalized = normalizeRelationName(value);
 						if (value && !isValidRelationName(normalized)) {
-							new Notice("Relation IDs must use lowercase letters, numbers, underscore, or dash.");
-							text.setValue(relation.id);
+							new Notice("Relation names must use letters, numbers, underscore, or dash.");
+							text.setValue(relation.name);
 							return;
 						}
-						if (normalized && this.isDuplicateRelationId(normalized, index)) {
-							new Notice("Relation ID already exists.");
-							text.setValue(relation.id);
+						if (normalized && this.isDuplicateRelationName(normalized, index)) {
+							new Notice("Relation name already exists.");
+							text.setValue(relation.name);
 							return;
 						}
-						const previousId = relation.id;
-						relation.id = normalized;
-						this.updateImpliedRelationTargets(previousId, normalized);
-						this.updateGroupMemberRelations(previousId, normalized);
+						const previousName = relation.name;
+						relation.name = value.trim();
+						this.updateGroupMemberRelations(previousName, relation.name);
 						void this.plugin.saveSettings();
 						nameSpan.textContent = getRelationDisplayName(relation) || "(unnamed)";
-						nameSpan.toggleClass("trail-relation-name-empty", !normalized);
-					});
-			});
-
-		new Setting(content)
-			.setName("Display name")
-			.setDesc("Optional custom name shown in the UI. If empty, the ID is used.")
-			.addText((text) => {
-				text
-					.setPlaceholder(relation.id || "Same as ID")
-					.setValue(relation.displayName ?? "")
-					.onChange((value) => {
-						const trimmed = value.trim();
-						relation.displayName = trimmed || undefined;
-						void this.plugin.saveSettings();
-						nameSpan.textContent = getRelationDisplayName(relation) || "(unnamed)";
+						nameSpan.toggleClass("trail-relation-name-empty", !relation.name);
 					});
 			});
 
@@ -154,8 +139,8 @@ export class RelationsTabRenderer {
 					.setWarning()
 					.onClick(() => {
 						this.plugin.settings.relations.splice(index, 1);
-						this.removeImpliedRelationTargets(relation.id);
-						this.removeGroupMemberRelations(relation.id);
+						this.removeImpliedRelationTargets(relation.uid);
+						this.removeGroupMemberRelations(relation.name);
 						void this.plugin.saveSettings();
 						this.display();
 					});
@@ -223,7 +208,7 @@ export class RelationsTabRenderer {
 					.setCta()
 					.onClick(() => {
 						relation.aliases.push({
-							key: relation.id || "key"
+							key: normalizeRelationName(relation.name) || "key"
 						});
 						void this.plugin.saveSettings();
 						this.display();
@@ -240,7 +225,7 @@ export class RelationsTabRenderer {
 		new Setting(containerEl)
 			.addText((text) => {
 				text
-					.setPlaceholder(relation.id || "key")
+					.setPlaceholder(normalizeRelationName(relation.name) || "key")
 					.setValue(alias.key);
 
 				let currentValue = alias.key;
@@ -299,7 +284,7 @@ export class RelationsTabRenderer {
 						.setCta()
 						.onClick(() => {
 							relation.impliedRelations.push({
-								targetRelation: relation.id || (options[0] ?? ""),
+								targetRelationUid: relation.uid || (options[0]?.uid ?? ""),
 								direction: "reverse"
 							});
 							void this.plugin.saveSettings();
@@ -326,12 +311,12 @@ export class RelationsTabRenderer {
 			.addDropdown((dropdown) => {
 				const options = this.getRelationOptions();
 				for (const option of options) {
-					dropdown.addOption(option, option);
+					dropdown.addOption(option.uid, option.name);
 				}
 				dropdown
-					.setValue(implied.targetRelation)
+					.setValue(implied.targetRelationUid)
 					.onChange((value) => {
-						implied.targetRelation = value;
+						implied.targetRelationUid = value;
 						void this.plugin.saveSettings();
 					});
 			})
@@ -359,33 +344,24 @@ export class RelationsTabRenderer {
 			});
 	}
 
-	private getRelationOptions(): string[] {
+	private getRelationOptions(): Array<{uid: string; name: string}> {
 		return this.plugin.settings.relations
-			.map((r) => r.id)
-			.filter((id) => id.length > 0);
+			.filter((relation) => relation.uid.length > 0)
+			.map((relation) => ({uid: relation.uid, name: relation.name}));
 	}
 
-	private isDuplicateRelationId(id: string, currentIndex: number): boolean {
-		return this.plugin.settings.relations.some((r, i) => i !== currentIndex && r.id === id);
+	private isDuplicateRelationName(normalizedName: string, currentIndex: number): boolean {
+		return this.plugin.settings.relations.some(
+			(relation, index) =>
+				index !== currentIndex &&
+				normalizeRelationName(relation.name) === normalizedName
+		);
 	}
 
-	private updateImpliedRelationTargets(oldId: string, newId: string) {
-		if (!oldId || oldId === newId) {
-			return;
-		}
-		for (const rel of this.plugin.settings.relations) {
-			for (const implied of rel.impliedRelations) {
-				if (implied.targetRelation === oldId) {
-					implied.targetRelation = newId;
-				}
-			}
-		}
-	}
-
-	private removeImpliedRelationTargets(targetId: string) {
+	private removeImpliedRelationTargets(targetUid: string) {
 		for (const rel of this.plugin.settings.relations) {
 			rel.impliedRelations = rel.impliedRelations.filter(
-				(implied) => implied.targetRelation !== targetId
+				(implied) => implied.targetRelationUid !== targetUid
 			);
 		}
 	}
@@ -434,23 +410,24 @@ export class RelationsTabRenderer {
 						const normalized = normalizeRelationName(newRelationId);
 						
 						if (!normalized) {
-							new Notice("Relation ID cannot be empty.");
+							new Notice("Relation name cannot be empty.");
 							return;
 						}
 						
 						if (!isValidRelationName(normalized)) {
-							new Notice("Relation IDs must use lowercase letters, numbers, underscore, or dash.");
+							new Notice("Relation names must use letters, numbers, underscore, or dash.");
 							return;
 						}
 						
-						if (this.isDuplicateRelationId(normalized, -1)) {
-							new Notice("Relation ID already exists.");
+						if (this.isDuplicateRelationName(normalized, -1)) {
+							new Notice("Relation name already exists.");
 							return;
 						}
 
 						const newIndex = this.plugin.settings.relations.length;
 						this.plugin.settings.relations.push({
-							id: normalized,
+							uid: createRelationUid(),
+							name: normalized,
 							aliases: createDefaultAliases(normalized),
 							impliedRelations: []
 						});

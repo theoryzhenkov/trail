@@ -17,7 +17,7 @@ function edge(
 	implied = false,
 	impliedFrom?: string
 ): RelationEdge {
-	return {fromPath, toPath, relation, implied, impliedFrom};
+	return {fromPath, toPath, relationUid: relation, implied, impliedFromUid: impliedFrom};
 }
 
 /**
@@ -25,9 +25,17 @@ function edge(
  */
 function relation(
 	id: string,
-	impliedRelations: RelationDefinition["impliedRelations"] = []
+	impliedRelations: Array<{targetRelation: string; direction: RelationDefinition["impliedRelations"][number]["direction"]}> = []
 ): RelationDefinition {
-	return {id, aliases: [], impliedRelations};
+	return {
+		uid: id,
+		name: id,
+		aliases: [],
+		impliedRelations: impliedRelations.map((implied) => ({
+			targetRelationUid: implied.targetRelation,
+			direction: implied.direction,
+		})),
+	};
 }
 
 /**
@@ -40,7 +48,7 @@ function hasEdge(
 	relation: string
 ): boolean {
 	return edges.some(
-		(e) => e.fromPath === fromPath && e.toPath === toPath && e.relation === relation
+		(e) => e.fromPath === fromPath && e.toPath === toPath && e.relationUid === relation
 	);
 }
 
@@ -76,9 +84,9 @@ describe("applyImpliedRules", () => {
 			expect(hasEdge(result, "A.md", "B.md", "up")).toBe(true);
 			expect(hasEdge(result, "A.md", "B.md", "parent")).toBe(true);
 
-			const impliedEdge = result.find((e) => e.relation === "parent");
+			const impliedEdge = result.find((e) => e.relationUid === "parent");
 			expect(impliedEdge?.implied).toBe(true);
-			expect(impliedEdge?.impliedFrom).toBe("up");
+			expect(impliedEdge?.impliedFromUid).toBe("up");
 		});
 	});
 
@@ -94,9 +102,9 @@ describe("applyImpliedRules", () => {
 			expect(hasEdge(result, "A.md", "B.md", "up")).toBe(true);
 			expect(hasEdge(result, "B.md", "A.md", "down")).toBe(true);
 
-			const impliedEdge = result.find((e) => e.relation === "down");
+			const impliedEdge = result.find((e) => e.relationUid === "down");
 			expect(impliedEdge?.implied).toBe(true);
-			expect(impliedEdge?.impliedFrom).toBe("up");
+			expect(impliedEdge?.impliedFromUid).toBe("up");
 		});
 	});
 
@@ -132,7 +140,7 @@ describe("applyImpliedRules", () => {
 				(e) => e.fromPath === "B.md" && e.toPath === "A.md"
 			);
 			expect(impliedEdge?.implied).toBe(true);
-			expect(impliedEdge?.impliedFrom).toBe("same");
+			expect(impliedEdge?.impliedFromUid).toBe("same");
 		});
 
 		it("should not duplicate edge when self-implying forward", () => {
@@ -268,7 +276,7 @@ describe("applyImpliedRules", () => {
 			const impliedEdges = result.filter((e) => e.implied);
 			expect(impliedEdges).toHaveLength(2);
 			for (const ie of impliedEdges) {
-				expect(ie.impliedFrom).toBe("down");
+				expect(ie.impliedFromUid).toBe("down");
 			}
 		});
 
@@ -400,10 +408,10 @@ describe("applyImpliedRules", () => {
 			
 			// Should have exactly one edge in each direction
 			const abEdges = result.filter(
-				(e) => e.fromPath === "A.md" && e.toPath === "B.md" && e.relation === "sibling"
+				(e) => e.fromPath === "A.md" && e.toPath === "B.md" && e.relationUid === "sibling"
 			);
 			const baEdges = result.filter(
-				(e) => e.fromPath === "B.md" && e.toPath === "A.md" && e.relation === "sibling"
+				(e) => e.fromPath === "B.md" && e.toPath === "A.md" && e.relationUid === "sibling"
 			);
 			expect(abEdges).toHaveLength(1);
 			expect(baEdges).toHaveLength(1);
@@ -477,10 +485,10 @@ describe("applyImpliedRules", () => {
 
 			// Verify they're marked as implied from "down"
 			const bcEdge = result.find(
-				(e) => e.fromPath === "B.md" && e.toPath === "C.md" && e.relation === "same"
+				(e) => e.fromPath === "B.md" && e.toPath === "C.md" && e.relationUid === "same"
 			);
 			expect(bcEdge?.implied).toBe(true);
-			expect(bcEdge?.impliedFrom).toBe("down");
+			expect(bcEdge?.impliedFromUid).toBe("down");
 		});
 
 		it("should work with real-world frontmatter array pattern", () => {
@@ -521,7 +529,7 @@ describe("applyImpliedRules", () => {
 			const result = applyImpliedRules(edges, relations);
 
 			// Filter to only "same" relations - should find the implied ones
-			const sameEdges = result.filter((e) => e.relation === "same");
+			const sameEdges = result.filter((e) => e.relationUid === "same");
 			expect(sameEdges).toHaveLength(2);
 
 			// Both directions present

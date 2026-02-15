@@ -8,6 +8,7 @@
 import type {RelationDefinition, RelationAlias, GroupDefinition, RelationGroup} from "../types";
 import {migrateAllGroups} from "../query/migration";
 import {migrateAllTqlSyntax, needsSyntaxMigration} from "../query/syntax-migration";
+import {createRelationUid, normalizeRelationName} from "../relations";
 
 /** @deprecated Legacy alias format with type field */
 interface LegacyRelationAlias {
@@ -15,8 +16,9 @@ interface LegacyRelationAlias {
 	key: string;
 }
 
-/** @deprecated Legacy relation format with name instead of id */
+/** @deprecated Legacy relation format with id/displayName */
 interface LegacyRelationDefinition {
+	uid?: string;
 	name?: string;
 	id?: string;
 	displayName?: string;
@@ -53,16 +55,14 @@ export function savedDataNeedsMigration(savedData: Partial<SavedSettingsData> | 
 		}
 	}
 
-	// Check for legacy alias format, legacy name field, or mixed-case IDs
+	// Check for legacy alias format or legacy relation shape
 	if (Array.isArray(savedData.relations)) {
-		for (const relation of savedData.relations) {
+		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration checks
+		for (const relation of savedData.relations as Array<RelationDefinition & LegacyRelationDefinition>) {
 			if (needsAliasMigration(relation.aliases)) {
 				return true;
 			}
-			if (needsIdMigration(relation)) {
-				return true;
-			}
-			if (needsCaseNormalization(relation)) {
+			if (needsRelationIdentityMigration(relation)) {
 				return true;
 			}
 		}
@@ -97,11 +97,9 @@ export function applyMigrations(data: Partial<SavedSettingsData>): {
 	// Auto-migrate legacy alias format
 	migrateRelationAliases(relations);
 
-	// Auto-migrate relation name → id format
-	migrateRelationIds(relations);
-
-	// Normalize relation IDs and implied targets to lowercase
-	normalizeRelationCase(relations);
+	// Auto-migrate relation identity and implied relation references
+	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
+	migrateRelationIdentity(relations as Array<RelationDefinition & LegacyRelationDefinition>);
 
 	return {tqlGroups, legacyGroups, relations};
 }
@@ -163,75 +161,61 @@ function migrateSingleAlias(alias: LegacyRelationAlias): string {
 	}
 }
 
-/**
- * Check if relation needs migration from name to id
- */
-function needsIdMigration(relation: unknown): boolean {
-	if (!relation || typeof relation !== "object") return false;
-	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration check
-	const r = relation as LegacyRelationDefinition;
-	// Needs migration if has name but no id
-	return "name" in r && !("id" in r);
-}
-
-/**
- * Migrate relations from legacy name field to id/displayName format.
- * Old format: {name: string, ...}
- * New format: {id: string (lowercase), displayName?: string, ...}
- */
-function migrateRelationIds(relations: RelationDefinition[]): void {
-	for (const relation of relations) {
-		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
-		const legacy = relation as unknown as LegacyRelationDefinition;
-		if (legacy.name !== undefined && legacy.id === undefined) {
-			// Migrate: id is lowercase, displayName preserves original if different
-			const normalizedId = legacy.name.toLowerCase();
-			relation.id = normalizedId;
-			// Only set displayName if it differs from id (preserves custom casing)
-			if (legacy.name !== normalizedId) {
-				relation.displayName = legacy.name;
-			}
-			// Clean up old field
-			// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
-			delete (relation as unknown as LegacyRelationDefinition).name;
-		}
-	}
-}
-
-/**
- * Check if a relation has mixed-case id or implied targets that need lowercasing.
- * The settings validation previously didn't lowercase, so existing settings may have
- * mixed-case IDs that break implied rule matching.
- */
-function needsCaseNormalization(relation: RelationDefinition): boolean {
-	if (relation.id !== relation.id.toLowerCase()) {
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration checks
+function needsRelationIdentityMigration(relation: LegacyRelationDefinition): boolean {
+	const hasUid = typeof relation.uid === "string" && relation.uid.length > 0;
+	const hasName = typeof relation.name === "string" && relation.name.length > 0;
+	const hasLegacyId = typeof relation.id === "string" && relation.id.length > 0;
+	const hasLegacyDisplayName =
+		typeof relation.displayName === "string" && relation.displayName.length > 0;
+	if (!hasUid || !hasName) {
 		return true;
 	}
-	for (const implied of relation.impliedRelations) {
-		if (implied.targetRelation !== implied.targetRelation.toLowerCase()) {
-			return true;
-		}
+	if (hasLegacyId || hasLegacyDisplayName) {
+		return true;
 	}
 	return false;
 }
 
-/**
- * Normalize relation IDs and implied target relations to lowercase.
- * Fixes a bug where settings/validation.ts did not lowercase relation IDs,
- * causing a mismatch with the parsing module which always lowercases.
- */
-function normalizeRelationCase(relations: RelationDefinition[]): void {
+function migrateRelationIdentity(
+	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
+	relations: Array<RelationDefinition & LegacyRelationDefinition>
+): void {
+	const uidByLegacyName = new Map<string, string>();
+
 	for (const relation of relations) {
-		const lowerId = relation.id.toLowerCase();
-		if (relation.id !== lowerId) {
-			// Preserve the original casing as displayName if none was set
-			if (!relation.displayName) {
-				relation.displayName = relation.id;
+		if (!relation.uid) {
+			relation.uid = createRelationUid();
+		}
+
+		if (!relation.name || relation.name.trim().length === 0) {
+			const migratedName = relation.displayName ?? relation.id ?? relation.name ?? "";
+			relation.name = migratedName;
+		}
+
+		const normalizedLegacyId = normalizeRelationName(relation.id ?? relation.name);
+		if (normalizedLegacyId) {
+			uidByLegacyName.set(normalizedLegacyId, relation.uid);
+		}
+	}
+
+	for (const relation of relations) {
+		for (const implied of relation.impliedRelations as Array<{
+			targetRelationUid?: string;
+			targetRelation?: string;
+		}>) {
+			if (!implied.targetRelationUid) {
+				const legacyTarget = implied.targetRelation
+					? normalizeRelationName(implied.targetRelation)
+					: "";
+				if (legacyTarget) {
+					implied.targetRelationUid = uidByLegacyName.get(legacyTarget);
+				}
 			}
-			relation.id = lowerId;
+			delete implied.targetRelation;
 		}
-		for (const implied of relation.impliedRelations) {
-			implied.targetRelation = implied.targetRelation.toLowerCase();
-		}
+
+		delete relation.id;
+		delete relation.displayName;
 	}
 }

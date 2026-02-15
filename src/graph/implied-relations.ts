@@ -11,11 +11,9 @@ export function applyImpliedRules(edges: RelationEdge[], relations: RelationDefi
 
 	// Apply forward/reverse/both rules (per-edge)
 	for (const edge of edges) {
-		const rulesForRelation = impliedRules.get(edge.relation) ?? [];
+		const rulesForRelation = impliedRules.get(edge.relationUid) ?? [];
 		for (const rule of rulesForRelation) {
-			const baseRelation = rule.baseRelation.trim().toLowerCase();
-			const impliedRelation = rule.impliedRelation.trim().toLowerCase();
-			if (!baseRelation || !impliedRelation) {
+			if (!rule.baseRelationUid || !rule.impliedRelationUid) {
 				continue;
 			}
 
@@ -23,9 +21,9 @@ export function applyImpliedRules(edges: RelationEdge[], relations: RelationDefi
 				const impliedEdge: RelationEdge = {
 					fromPath: edge.fromPath,
 					toPath: edge.toPath,
-					relation: impliedRelation,
+					relationUid: rule.impliedRelationUid,
 					implied: true,
-					impliedFrom: edge.relation
+					impliedFromUid: edge.relationUid
 				};
 				addImplied(impliedEdge, impliedEdges, existing);
 			}
@@ -34,9 +32,9 @@ export function applyImpliedRules(edges: RelationEdge[], relations: RelationDefi
 				const impliedEdge: RelationEdge = {
 					fromPath: edge.toPath,
 					toPath: edge.fromPath,
-					relation: impliedRelation,
+					relationUid: rule.impliedRelationUid,
 					implied: true,
-					impliedFrom: edge.relation
+					impliedFromUid: edge.relationUid
 				};
 				addImplied(impliedEdge, impliedEdges, existing);
 			}
@@ -50,8 +48,8 @@ export function applyImpliedRules(edges: RelationEdge[], relations: RelationDefi
 }
 
 interface ImpliedRule {
-	baseRelation: string;
-	impliedRelation: string;
+	baseRelationUid: string;
+	impliedRelationUid: string;
 	direction: ImpliedDirection;
 }
 
@@ -70,7 +68,7 @@ function applySiblingRules(
 	const edgesBySourceAndRelation = new Map<string, Map<string, RelationEdge[]>>();
 
 	for (const edge of edges) {
-		const rulesForRelation = impliedRules.get(edge.relation) ?? [];
+		const rulesForRelation = impliedRules.get(edge.relationUid) ?? [];
 		const hasSiblingRule = rulesForRelation.some((r) => r.direction === "sibling");
 		if (!hasSiblingRule) {
 			continue;
@@ -82,9 +80,9 @@ function applySiblingRules(
 			byRelationForTarget = new Map();
 			edgesByTargetAndRelation.set(edge.toPath, byRelationForTarget);
 		}
-		const edgesForTarget = byRelationForTarget.get(edge.relation) ?? [];
+		const edgesForTarget = byRelationForTarget.get(edge.relationUid) ?? [];
 		edgesForTarget.push(edge);
-		byRelationForTarget.set(edge.relation, edgesForTarget);
+		byRelationForTarget.set(edge.relationUid, edgesForTarget);
 
 		// Index by source (for down-style: same source -> multiple targets)
 		let byRelationForSource = edgesBySourceAndRelation.get(edge.fromPath);
@@ -92,9 +90,9 @@ function applySiblingRules(
 			byRelationForSource = new Map();
 			edgesBySourceAndRelation.set(edge.fromPath, byRelationForSource);
 		}
-		const edgesForSource = byRelationForSource.get(edge.relation) ?? [];
+		const edgesForSource = byRelationForSource.get(edge.relationUid) ?? [];
 		edgesForSource.push(edge);
-		byRelationForSource.set(edge.relation, edgesForSource);
+		byRelationForSource.set(edge.relationUid, edgesForSource);
 	}
 
 	// Process up-style siblings: nodes that share the same target
@@ -109,8 +107,7 @@ function applySiblingRules(
 			const siblingRules = rulesForRelation.filter((r) => r.direction === "sibling");
 
 			for (const rule of siblingRules) {
-				const impliedRelation = rule.impliedRelation.trim().toLowerCase();
-				if (!impliedRelation) {
+				if (!rule.impliedRelationUid) {
 					continue;
 				}
 
@@ -125,9 +122,9 @@ function applySiblingRules(
 							{
 								fromPath: edgeA.fromPath,
 								toPath: edgeB.fromPath,
-								relation: impliedRelation,
+								relationUid: rule.impliedRelationUid,
 								implied: true,
-								impliedFrom: relation
+								impliedFromUid: relation
 							},
 							impliedEdges,
 							existing
@@ -136,9 +133,9 @@ function applySiblingRules(
 							{
 								fromPath: edgeB.fromPath,
 								toPath: edgeA.fromPath,
-								relation: impliedRelation,
+								relationUid: rule.impliedRelationUid,
 								implied: true,
-								impliedFrom: relation
+								impliedFromUid: relation
 							},
 							impliedEdges,
 							existing
@@ -161,8 +158,7 @@ function applySiblingRules(
 			const siblingRules = rulesForRelation.filter((r) => r.direction === "sibling");
 
 			for (const rule of siblingRules) {
-				const impliedRelation = rule.impliedRelation.trim().toLowerCase();
-				if (!impliedRelation) {
+				if (!rule.impliedRelationUid) {
 					continue;
 				}
 
@@ -177,9 +173,9 @@ function applySiblingRules(
 							{
 								fromPath: edgeA.toPath,
 								toPath: edgeB.toPath,
-								relation: impliedRelation,
+								relationUid: rule.impliedRelationUid,
 								implied: true,
-								impliedFrom: relation
+								impliedFromUid: relation
 							},
 							impliedEdges,
 							existing
@@ -188,9 +184,9 @@ function applySiblingRules(
 							{
 								fromPath: edgeB.toPath,
 								toPath: edgeA.toPath,
-								relation: impliedRelation,
+								relationUid: rule.impliedRelationUid,
 								implied: true,
-								impliedFrom: relation
+								impliedFromUid: relation
 							},
 							impliedEdges,
 							existing
@@ -206,22 +202,20 @@ function buildImpliedRules(relations: RelationDefinition[]): Map<string, Implied
 	const map = new Map<string, ImpliedRule[]>();
 
 	for (const relation of relations) {
-		// relation.id is already lowercase by contract
-		if (!relation.id) {
+		if (!relation.uid) {
 			continue;
 		}
 		for (const implied of relation.impliedRelations) {
-			const impliedRelation = implied.targetRelation.trim().toLowerCase();
-			if (!impliedRelation) {
+			if (!implied.targetRelationUid) {
 				continue;
 			}
-			const list = map.get(relation.id) ?? [];
+			const list = map.get(relation.uid) ?? [];
 			list.push({
-				baseRelation: relation.id,
-				impliedRelation,
+				baseRelationUid: relation.uid,
+				impliedRelationUid: implied.targetRelationUid,
 				direction: implied.direction
 			});
-			map.set(relation.id, list);
+			map.set(relation.uid, list);
 		}
 	}
 
@@ -238,5 +232,5 @@ function addImplied(edge: RelationEdge, impliedEdges: RelationEdge[], existing: 
 }
 
 function edgeKey(edge: RelationEdge): string {
-	return `${edge.fromPath}|${edge.toPath}|${edge.relation}`;
+	return `${edge.fromPath}|${edge.toPath}|${edge.relationUid}`;
 }

@@ -106,8 +106,16 @@ export class QueryEnv {
 		return this._queryCtx.getRelationNames();
 	}
 
-	getVisualDirection(relation: string): VisualDirection {
-		return this._queryCtx.getVisualDirection(relation);
+	resolveRelationUid(name: string): string | undefined {
+		return this._queryCtx.resolveRelationUid(name);
+	}
+
+	getRelationName(uid: string): string {
+		return this._queryCtx.getRelationName(uid);
+	}
+
+	getVisualDirection(relationUid: string): VisualDirection {
+		return this._queryCtx.getVisualDirection(relationUid);
 	}
 
 	resolveGroupQuery(name: string): unknown {

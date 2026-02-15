@@ -9,7 +9,8 @@ import {
 } from "./renderers";
 import {parse, execute, createValidationContext, TQLError} from "../query";
 import type {QueryResult, QueryResultNode} from "../query";
-import {getRelationDisplayName} from "../settings";
+import {findRelationByName, getRelationDisplayName} from "../settings";
+import {resolveRelationUidByName} from "../relations";
 
 export const TRAIL_VIEW_TYPE = "trail-view";
 
@@ -17,7 +18,7 @@ interface ParsedGroups {
 	groupNames: string[];
 	validatedByName: Map<string, ReturnType<typeof parse>>;
 	astByQuery: Map<string, ReturnType<typeof parse>>;
-	relationIds: string[];
+	relationNames: string[];
 }
 
 export class TrailView extends ItemView {
@@ -194,7 +195,7 @@ export class TrailView extends ItemView {
 	 */
 	private parseAllGroups(): ParsedGroups {
 		const settings = this.plugin.settings;
-		const relationIds = settings.relations.map(r => r.id);
+		const relationNames = settings.relations.map((relation) => relation.name);
 		const astByQuery = new Map<string, ReturnType<typeof parse>>();
 		const groupNameByQuery = new Map<string, string>();
 		const groupNames: string[] = [];
@@ -212,7 +213,7 @@ export class TrailView extends ItemView {
 		}
 
 		// Second pass: validate all parsed ASTs with full group names list
-		const validationCtx = createValidationContext(relationIds, groupNames);
+		const validationCtx = createValidationContext(relationNames, groupNames);
 		const validatedByName = new Map<string, ReturnType<typeof parse>>();
 
 		for (const [query, ast] of astByQuery) {
@@ -225,7 +226,7 @@ export class TrailView extends ItemView {
 			}
 		}
 
-		return {groupNames, validatedByName, astByQuery, relationIds};
+		return {groupNames, validatedByName, astByQuery, relationNames};
 	}
 
 	private renderTqlGroup(
@@ -294,7 +295,7 @@ export class TrailView extends ItemView {
 		let ast = parsedGroups.astByQuery.get(query);
 		if (!ast) {
 			ast = parse(query);
-			const validationCtx = createValidationContext(parsedGroups.relationIds, parsedGroups.groupNames);
+			const validationCtx = createValidationContext(parsedGroups.relationNames, parsedGroups.groupNames);
 			ast.validate(validationCtx);
 		}
 
@@ -349,9 +350,11 @@ export class TrailView extends ItemView {
 					backlinks,
 				};
 			},
-			getRelationNames: () => settings.relations.map(r => r.id),
-			getVisualDirection: (relation: string) => {
-				const def = settings.relations.find(r => r.id === relation);
+			getRelationNames: () => settings.relations.map((relation) => relation.name),
+			resolveRelationUid: (name: string) => resolveRelationUidByName(settings.relations, name),
+			getRelationName: (uid: string) => settings.relations.find((relation) => relation.uid === uid)?.name ?? uid,
+			getVisualDirection: (relationUid: string) => {
+				const def = settings.relations.find((relation) => relation.uid === relationUid);
 				return def?.visualDirection ?? "descending";
 			},
 			resolveGroupQuery: (name: string) => {
@@ -509,14 +512,14 @@ export class TrailView extends ItemView {
 		return `${key}: ${value as string | number | boolean}`;
 	}
 
-	private getRelationDefinition(relationId: string): RelationDefinition | undefined {
-		return this.plugin.settings.relations.find(r => r.id === relationId);
+	private getRelationDefinition(relationName: string): RelationDefinition | undefined {
+		return findRelationByName(this.plugin.settings.relations, relationName);
 	}
 
-	private renderRelationTag(containerEl: HTMLElement, relationId: string, implied: boolean): void {
+	private renderRelationTag(containerEl: HTMLElement, relationName: string, implied: boolean): void {
 		const relationEl = containerEl.createSpan({cls: "trail-relation-tag"});
-		const relationDef = this.getRelationDefinition(relationId);
-		const displayName = relationDef ? getRelationDisplayName(relationDef) : relationId;
+		const relationDef = this.getRelationDefinition(relationName);
+		const displayName = relationDef ? getRelationDisplayName(relationDef) : relationName;
 
 		if (relationDef?.icon) {
 			setIcon(relationEl, relationDef.icon);

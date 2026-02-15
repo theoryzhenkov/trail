@@ -11,7 +11,8 @@ export interface AncestorNode {
 export function computeAncestors(
 	startPath: string,
 	edges: RelationEdge[],
-	relationFilter?: Set<string>
+	relationFilter?: Set<string>,
+	getRelationName?: (relationUid: string) => string
 ): AncestorNode[] {
 	const incomingMap = new Map<string, RelationEdge[]>();
 	for (const edge of edges) {
@@ -32,7 +33,7 @@ export function computeAncestors(
 		}
 		const incomingEdges = incomingMap.get(current.path) ?? [];
 		for (const edge of incomingEdges) {
-			if (relationFilter && relationFilter.size > 0 && !relationFilter.has(edge.relation)) {
+			if (relationFilter && relationFilter.size > 0 && !relationFilter.has(edge.relationUid)) {
 				continue;
 			}
 			if (visited.has(edge.fromPath)) {
@@ -42,9 +43,13 @@ export function computeAncestors(
 			results.push({
 				path: edge.fromPath,
 				depth: current.depth + 1,
-				viaRelation: edge.relation,
+				viaRelation: getRelationName ? getRelationName(edge.relationUid) : edge.relationUid,
 				implied: edge.implied,
-				impliedFrom: edge.impliedFrom
+				impliedFrom: edge.impliedFromUid
+					? getRelationName
+						? getRelationName(edge.impliedFromUid)
+						: edge.impliedFromUid
+					: undefined
 			});
 			queue.push({path: edge.fromPath, depth: current.depth + 1});
 		}

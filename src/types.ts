@@ -1,4 +1,5 @@
 export type RelationName = string;
+export type RelationUid = string;
 
 export interface RelationAlias {
 	key: string;
@@ -7,7 +8,7 @@ export interface RelationAlias {
 export type ImpliedDirection = "forward" | "reverse" | "both" | "sibling";
 
 export interface ImpliedRelation {
-	targetRelation: RelationName;
+	targetRelationUid: RelationUid;
 	direction: ImpliedDirection;
 }
 
@@ -78,10 +79,10 @@ export interface GroupDefinition {
 }
 
 export interface RelationDefinition {
-	/** Lowercase identifier used for matching and logic (e.g., "up", "down") */
-	id: RelationName;
-	/** Optional display name for UI (defaults to id if not set) */
-	displayName?: string;
+	/** Immutable internal identity */
+	uid: RelationUid;
+	/** User-facing canonical name (case-preserving) */
+	name: RelationName;
 	aliases: RelationAlias[];
 	impliedRelations: ImpliedRelation[];
 	visualDirection?: VisualDirection;
@@ -91,9 +92,9 @@ export interface RelationDefinition {
 export interface RelationEdge {
 	fromPath: string;
 	toPath: string;
-	relation: RelationName;
+	relationUid: RelationUid;
 	implied: boolean;
-	impliedFrom?: RelationName;
+	impliedFromUid?: RelationUid;
 }
 
 export interface ParsedRelation {

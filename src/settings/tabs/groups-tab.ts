@@ -14,6 +14,7 @@ import {
 	createSectionDetails,
 	setupDragReorder
 } from "../components";
+import {formatRelationNameForTql} from "../../relations";
 
 export class GroupsTabRenderer {
 	private plugin: TrailPlugin;
@@ -224,7 +225,7 @@ export class GroupsTabRenderer {
 				this.validateQuery(value, errorContainer, nameSpan);
 				void this.plugin.saveSettings();
 			},
-			getRelationNames: () => this.plugin.settings.relations.map(r => r.id),
+			getRelationNames: () => this.plugin.settings.relations.map((relation) => relation.name),
 			minHeight: "120px",
 		});
 
@@ -271,8 +272,8 @@ export class GroupsTabRenderer {
 			new Setting(relEl)
 				.addDropdown((dropdown) => {
 					for (const r of this.plugin.settings.relations) {
-						// Value is the id (used in TQL), label is display name (shown in UI)
-						dropdown.addOption(r.id, getRelationDisplayName(r));
+						const relationName = formatRelationNameForTql(r.name);
+						dropdown.addOption(relationName, getRelationDisplayName(r));
 					}
 					dropdown
 						.setValue(rel.name)
@@ -563,7 +564,9 @@ export class GroupsTabRenderer {
 						}
 
 						const newIndex = this.plugin.settings.tqlGroups.length;
-						const defaultRelation = this.plugin.settings.relations[0]?.id ?? "up";
+						const defaultRelation = formatRelationNameForTql(
+							this.plugin.settings.relations[0]?.name ?? "up"
+						);
 						this.plugin.settings.tqlGroups.push({
 							query: `group "${trimmed}"\nfrom ${defaultRelation}`,
 							enabled: true,

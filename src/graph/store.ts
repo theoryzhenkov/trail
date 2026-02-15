@@ -9,6 +9,11 @@ import {parseFileProperties, parseFrontmatterRelations} from "../parsing/frontma
 import {computeAncestors, AncestorNode} from "./traversal";
 import {applyImpliedRules} from "./implied-relations";
 import {buildPropertyExcludeKeys} from "./property-filters";
+import {
+	buildRelationIndexes,
+	normalizeRelationName,
+	resolveRelationUidByName,
+} from "../relations";
 
 export class GraphStore {
 	private app: App;
@@ -21,6 +26,8 @@ export class GraphStore {
 	private allStale: boolean;
 	private changeListeners: Set<() => void>;
 	private cachedEdgesWithImplied: RelationEdge[] | null;
+	private relationByUid: Map<string, TrailSettings["relations"][number]>;
+	private relationUidByNormalizedName: Map<string, string>;
 
 	constructor(app: App, settings: TrailSettings) {
 		this.app = app;
@@ -33,6 +40,9 @@ export class GraphStore {
 		this.allStale = true;
 		this.changeListeners = new Set();
 		this.cachedEdgesWithImplied = null;
+		const indexes = buildRelationIndexes(this.settings.relations);
+		this.relationByUid = indexes.byUid;
+		this.relationUidByNormalizedName = indexes.uidByNormalizedName;
 	}
 
 	onDidChange(callback: () => void) {
@@ -44,6 +54,7 @@ export class GraphStore {
 
 	updateSettings(settings: TrailSettings) {
 		this.settings = settings;
+		this.rebuildRelationIndexes();
 		this.invalidateImpliedCache();
 		this.rebuildTargetIndex();
 	}
@@ -175,17 +186,20 @@ export class GraphStore {
 		const seen = new Set<string>();
 		
 		for (const relation of this.settings.relations) {
-			if (relation.id && !seen.has(relation.id)) {
-				orderedTypes.push(relation.id);
-				seen.add(relation.id);
+			const normalized = normalizeRelationName(relation.name);
+			if (normalized && !seen.has(normalized)) {
+				orderedTypes.push(relation.name);
+				seen.add(normalized);
 			}
 		}
 		
 		// Add any relations found in edges but not in settings (append at end)
 		for (const edge of this.getEdgesWithImplied()) {
-			if (!seen.has(edge.relation)) {
-				orderedTypes.push(edge.relation);
-				seen.add(edge.relation);
+			const relationName = this.getRelationName(edge.relationUid);
+			const normalized = normalizeRelationName(relationName);
+			if (!seen.has(normalized)) {
+				orderedTypes.push(relationName);
+				seen.add(normalized);
 			}
 		}
 		
@@ -197,7 +211,11 @@ export class GraphStore {
 		if (!relation) {
 			return edges;
 		}
-		return edges.filter((edge) => edge.relation === relation);
+		const relationUid = this.resolveRelationUid(relation);
+		if (!relationUid) {
+			return [];
+		}
+		return edges.filter((edge) => edge.relationUid === relationUid);
 	}
 
 	getOutgoingEdges(path: string, relation?: string): RelationEdge[] {
@@ -205,15 +223,45 @@ export class GraphStore {
 		if (!relation) {
 			return edges;
 		}
-		return edges.filter((edge) => edge.relation === relation);
+		const relationUid = this.resolveRelationUid(relation);
+		if (!relationUid) {
+			return [];
+		}
+		return edges.filter((edge) => edge.relationUid === relationUid);
 	}
 
 	getAncestors(path: string, relationFilter?: Set<string>): AncestorNode[] {
-		return computeAncestors(path, this.getEdgesWithImplied(), relationFilter);
+		const relationUidFilter = relationFilter
+			? new Set(
+					Array.from(relationFilter)
+						.map((relationName) => this.resolveRelationUid(relationName))
+						.filter((uid): uid is string => Boolean(uid))
+			  )
+			: undefined;
+		return computeAncestors(path, this.getEdgesWithImplied(), relationUidFilter, (uid) =>
+			this.getRelationName(uid)
+		);
 	}
 
 	private invalidateImpliedCache() {
 		this.cachedEdgesWithImplied = null;
+	}
+
+	private rebuildRelationIndexes() {
+		const indexes = buildRelationIndexes(this.settings.relations);
+		this.relationByUid = indexes.byUid;
+		this.relationUidByNormalizedName = indexes.uidByNormalizedName;
+	}
+
+	private resolveRelationUid(relation: string): string | undefined {
+		if (this.relationByUid.has(relation)) {
+			return relation;
+		}
+		return this.relationUidByNormalizedName.get(normalizeRelationName(relation));
+	}
+
+	getRelationName(relationUid: string): string {
+		return this.relationByUid.get(relationUid)?.name ?? relationUid;
 	}
 
 	private rebuildTargetIndex() {
@@ -250,8 +298,8 @@ export class GraphStore {
 		const content = await this.app.vault.read(file);
 		const allowedRelations = new Set(
 			this.settings.relations
-				.map((relation) => relation.id)
-				.filter((id) => id.length > 0)
+				.map((relation) => normalizeRelationName(relation.name))
+				.filter((name) => name.length > 0)
 		);
 		const inlineRelations = parseInlineRelations(content, allowedRelations);
 		const cache = this.app.metadataCache.getFileCache(file);
@@ -293,12 +341,15 @@ export class GraphStore {
 			edges.push({
 				fromPath,
 				toPath,
-				relation: relation.relation,
+				relationUid: resolveRelationUidByName(this.settings.relations, relation.relation) ?? "",
 				implied: false
 			});
 		}
 
-		return {edges, properties};
+		return {
+			edges: edges.filter((edge) => edge.relationUid.length > 0),
+			properties,
+		};
 	}
 
 	getFileProperties(path: string): FileProperties {

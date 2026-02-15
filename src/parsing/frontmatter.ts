@@ -135,12 +135,12 @@ function normalizeValues(value: FrontmatterValue): string[] {
 function buildRelationAliases(relations: RelationDefinition[]): Map<string, string[]> {
 	const map = new Map<string, string[]>();
 	for (const relation of relations) {
-		// relation.id is already lowercase by contract
-		if (!isValidRelationName(relation.id)) {
+		const normalizedName = normalizeRelationName(relation.name);
+		if (!isValidRelationName(normalizedName)) {
 			continue;
 		}
 		const aliasKeys = relation.aliases.map((alias) => alias.key.toLowerCase());
-		map.set(relation.id, aliasKeys);
+		map.set(normalizedName, aliasKeys);
 	}
 	return map;
 }

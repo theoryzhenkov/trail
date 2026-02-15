@@ -97,13 +97,15 @@ export class TraversalState {
 		edge: RelationEdge,
 		depth: number,
 		properties: FileProperties,
-		visualDirection: VisualDirection
+		visualDirection: VisualDirection,
+		relationName: string,
+		impliedFromName?: string
 	): NodeContext {
 		const traversalPath = [...this.path, edge.toPath];
 
 		const traversalCtx: TraversalContext = {
 			depth,
-			relation: edge.relation,
+			relation: relationName,
 			isImplied: edge.implied,
 			parent: this.currentPath(),
 			path: traversalPath,
@@ -117,6 +119,8 @@ export class TraversalState {
 			traversalPath,
 			properties,
 			traversalCtx,
+			relationName,
+			impliedFromName,
 			visualDirection,
 		};
 	}
@@ -138,10 +142,10 @@ export class TraversalState {
 
 		const node: QueryResultNode = {
 			path: ctx.path,
-			relation: ctx.edge.relation,
+			relation: ctx.relationName,
 			depth: ctx.depth,
 			implied: ctx.edge.implied,
-			impliedFrom: ctx.edge.impliedFrom,
+			impliedFrom: ctx.impliedFromName,
 			parent: ctx.parent,
 			traversalPath: ctx.traversalPath,
 			properties: ctx.properties,

@@ -4,20 +4,23 @@ import {
 	RelationAlias,
 	RelationDefinition
 } from "../types";
+import {createRelationUid, formatRelationNameForTql} from "../relations";
 
 export function createDefaultRelations(): RelationDefinition[] {
-	const base: Array<{id: string; visualDirection: RelationDefinition["visualDirection"]}> = [
-		{id: "up", visualDirection: "ascending"},
-		{id: "down", visualDirection: "descending"},
-		{id: "next", visualDirection: "descending"},
-		{id: "prev", visualDirection: "descending"}
+	const base: Array<{name: string; visualDirection: RelationDefinition["visualDirection"]}> = [
+		{name: "up", visualDirection: "ascending"},
+		{name: "down", visualDirection: "descending"},
+		{name: "next", visualDirection: "descending"},
+		{name: "prev", visualDirection: "descending"}
 	];
-	const relations = base.map(({id, visualDirection}) => ({
-		id,
-		aliases: createDefaultAliases(id),
+	const relations = base.map(({name, visualDirection}) => ({
+		uid: createRelationUid(),
+		name,
+		aliases: createDefaultAliases(name),
 		impliedRelations: [] as ImpliedRelation[],
 		visualDirection
 	}));
+	const uidByName = new Map(relations.map((relation) => [relation.name, relation.uid]));
 
 	const impliedPairs: Array<[string, string]> = [
 		["up", "down"],
@@ -27,12 +30,13 @@ export function createDefaultRelations(): RelationDefinition[] {
 	];
 
 	for (const [from, to] of impliedPairs) {
-		const relation = relations.find((item) => item.id === from);
-		if (!relation) {
+		const relation = relations.find((item) => item.name === from);
+		const targetRelationUid = uidByName.get(to);
+		if (!relation || !targetRelationUid) {
 			continue;
 		}
 		relation.impliedRelations.push({
-			targetRelation: to,
+			targetRelationUid,
 			direction: "reverse"
 		});
 	}
@@ -61,8 +65,9 @@ from next depth 1, prev depth 1`,
 }
 
 export function createDefaultAliases(name: string): RelationAlias[] {
+	const normalized = formatRelationNameForTql(name);
 	return [
-		{key: name},
-		{key: `relations.${name}`},
+		{key: normalized},
+		{key: `relations.${normalized}`},
 	];
 }

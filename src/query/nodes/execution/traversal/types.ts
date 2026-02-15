@@ -33,6 +33,10 @@ export interface NodeContext {
 	properties: FileProperties;
 	/** Traversal context for expression evaluation */
 	traversalCtx: TraversalContext;
+	/** Resolved display relation name */
+	relationName: string;
+	/** Resolved display implied-from relation name */
+	impliedFromName?: string;
 	/** Visual direction of the relation */
 	visualDirection: VisualDirection;
 }

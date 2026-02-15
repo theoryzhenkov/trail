@@ -143,7 +143,9 @@ export interface QueryContext {
 	getProperties(path: string): FileProperties;
 	getFileMetadata(path: string): FileMetadata | undefined;
 	getRelationNames(): string[];
-	getVisualDirection(relation: string): VisualDirection;
+	resolveRelationUid(name: string): string | undefined;
+	getRelationName(uid: string): string;
+	getVisualDirection(relationUid: string): VisualDirection;
 	resolveGroupQuery(name: string): unknown; // Will be QueryNode after refactor
 	activeFilePath: string;
 	activeFileProperties: FileProperties;

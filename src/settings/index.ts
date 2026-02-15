@@ -1,6 +1,11 @@
 import {GroupDefinition, RelationDefinition, RelationGroup} from "../types";
 import {createDefaultRelations, createDefaultTqlGroups} from "./defaults";
 import {savedDataNeedsMigration as checkNeedsMigration, applyMigrations} from "./migrations";
+import {
+	findRelationByName,
+	findRelationByUid,
+	getRelationDisplayName,
+} from "../relations";
 
 export {TrailSettingTab} from "./settings-tab";
 
@@ -82,18 +87,4 @@ export function savedDataNeedsMigration(savedData: Partial<TrailSettings> | null
 	return checkNeedsMigration(savedData);
 }
 
-/**
- * Get the display name for a relation.
- * Returns displayName if set, otherwise falls back to id.
- */
-export function getRelationDisplayName(relation: RelationDefinition): string {
-	return relation.displayName ?? relation.id;
-}
-
-/**
- * Find a relation by id (case-insensitive lookup).
- */
-export function findRelationById(relations: RelationDefinition[], id: string): RelationDefinition | undefined {
-	const normalizedId = id.toLowerCase();
-	return relations.find((r) => r.id === normalizedId);
-}
+export {getRelationDisplayName, findRelationByUid, findRelationByName};
