@@ -377,6 +377,53 @@ describe("TQL Executor - Flatten", () => {
 		});
 	});
 
+	describe("Partial flatten (flatten from depth N)", () => {
+		it("should flatten descendants beyond specified depth (5D fix)", () => {
+			const graph: MockGraph = {
+				files: [
+					{path: "root.md", properties: {}},
+					{path: "a.md", properties: {}},
+					{path: "b.md", properties: {}},
+					{path: "c.md", properties: {}},
+					{path: "d.md", properties: {}},
+				],
+				edges: [
+					{from: "root.md", to: "a.md", relation: "down"},
+					{from: "a.md", to: "b.md", relation: "down"},
+					{from: "b.md", to: "c.md", relation: "down"},
+					{from: "c.md", to: "d.md", relation: "down"},
+				],
+				relations: ["down"],
+			};
+
+			const result = runQuery(
+				'group "Test" from down :flatten 2',
+				graph,
+				"root.md"
+			);
+
+			expect(result.visible).toBe(true);
+			// a.md at depth 1 - in tree
+			// b.md at depth 2 - at flatten boundary, should have flattened children
+			// c.md and d.md should appear as flattened children of b.md
+			expect(result.results).toHaveLength(1); // a.md at top
+			expect(result.results[0]?.path).toBe("a.md");
+			expect(result.results[0]?.children).toHaveLength(1); // b.md
+
+			const bNode = result.results[0]?.children[0];
+			expect(bNode?.path).toBe("b.md");
+			// b.md's descendants (c, d) should be flattened as direct children
+			expect(bNode?.children).toHaveLength(2);
+			const flatPaths = bNode?.children.map((n) => n.path);
+			expect(flatPaths).toContain("c.md");
+			expect(flatPaths).toContain("d.md");
+			// All flattened children should have empty children
+			for (const child of bNode?.children ?? []) {
+				expect(child.children).toHaveLength(0);
+			}
+		});
+	});
+
 	describe("Flatten edge cases", () => {
 		it("should return empty results when no edges exist", () => {
 			const graph: MockGraph = {

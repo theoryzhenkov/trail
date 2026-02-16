@@ -375,6 +375,36 @@ describe("TQL Executor - Advanced Features", () => {
 			expect(paths).toHaveLength(0);
 		});
 
+		it("should detect cycles across chain boundaries (5C fix)", () => {
+			// Graph: A -> B (down), B -> A (next)
+			// Chain: from down >> next should not revisit A
+			const graph: MockGraph = {
+				files: [
+					{path: "a.md", properties: {}},
+					{path: "b.md", properties: {}},
+				],
+				edges: [
+					{from: "a.md", to: "b.md", relation: "down"},
+					{from: "b.md", to: "a.md", relation: "next"},
+				],
+				relations: ["down", "next"],
+				groups: [],
+			};
+
+			const result = runQuery(
+				`group "Test" from down :depth 1 >> next`,
+				graph,
+				"a.md"
+			);
+
+			expect(result.visible).toBe(true);
+			const paths = collectPaths(result.results);
+			// b.md is found via down, but a.md should NOT be found via next
+			// because a.md is an ancestor in the chain
+			expect(paths).toContain("b.md");
+			expect(paths).not.toContain("a.md");
+		});
+
 		it("should process chains with flatten modifier", () => {
 			// Test: from up :flatten >> @"Siblings" should find siblings of all ancestors
 			const graph: MockGraph = {

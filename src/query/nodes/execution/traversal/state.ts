@@ -9,6 +9,7 @@
  */
 
 import type {RelationEdge, FileProperties, VisualDirection} from "../../../../types";
+import type {QueryEnv} from "../../context";
 import type {QueryResultNode, QueryWarning, TraversalContext} from "../../types";
 import type {TraversalConfig, NodeContext, OutputConfig} from "./types";
 
@@ -20,8 +21,6 @@ export class TraversalState {
 	private readonly ancestors: Set<string>;
 	/** Current traversal path from root */
 	private readonly path: string[];
-	/** Flat results (used when flattening) */
-	private readonly flatResults: QueryResultNode[] = [];
 	/** Collected warnings */
 	private readonly warnings: QueryWarning[] = [];
 	/** Output configuration */
@@ -30,7 +29,13 @@ export class TraversalState {
 	private readonly relation: string;
 
 	constructor(config: TraversalConfig) {
+		// Fix 5C: Merge initial ancestors from chain boundaries
 		this.ancestors = new Set([config.startPath]);
+		if (config.initialAncestors) {
+			for (const ancestor of config.initialAncestors) {
+				this.ancestors.add(ancestor);
+			}
+		}
 		this.path = [config.startPath];
 		this.output = config.output;
 		this.relation = config.relation;
@@ -87,20 +92,24 @@ export class TraversalState {
 	}
 
 	// =========================================================================
-	// Node Context Building
+	// Node Context Building (5A: simplified, delegates to env)
 	// =========================================================================
 
 	/**
 	 * Build context for a node being visited
 	 */
 	buildNodeContext(
+		env: QueryEnv,
 		edge: RelationEdge,
 		depth: number,
-		properties: FileProperties,
-		visualDirection: VisualDirection,
-		relationName: string,
-		impliedFromName?: string
 	): NodeContext {
+		const properties = env.getProperties(edge.toPath);
+		const visualDirection = env.getVisualDirection(edge.relationUid);
+		const relationName = env.getRelationName(edge.relationUid);
+		const impliedFromName = edge.impliedFromUid
+			? env.getRelationName(edge.impliedFromUid)
+			: undefined;
+
 		const traversalPath = [...this.path, edge.toPath];
 
 		const traversalCtx: TraversalContext = {
@@ -134,8 +143,7 @@ export class TraversalState {
 	 *
 	 * Handles output configuration:
 	 * - Tree mode: returns node with children nested
-	 * - Flat mode: adds to flat results, returns node without children
-	 * - Partial flat: tree until flattenFrom depth, then flat
+	 * - Partial flat: tree until flattenFrom depth, then flatten descendants
 	 */
 	buildResultNode(ctx: NodeContext, children: QueryResultNode[]): QueryResultNode {
 		const {flattenFrom} = this.output;
@@ -155,37 +163,16 @@ export class TraversalState {
 			children: [],
 		};
 
-		if (flattenFrom === true) {
-			// Full flatten: all nodes collected flat, depth normalized to 1
-			node.depth = 1;
-			node.children = [];
-			this.flatResults.push(node);
-		} else if (typeof flattenFrom === "number" && ctx.depth >= flattenFrom) {
-			// At or beyond flatten depth: flatten this node and all children
-			node.children = [];
-			this.flatResults.push(node);
-			// Flatten children recursively
-			this.flattenChildren(children);
+		if (typeof flattenFrom === "number" && ctx.depth >= flattenFrom) {
+			// Fix 5D: At or beyond flatten depth, flatten all descendants
+			// as direct children instead of discarding them
+			node.children = flattenDescendants(children);
 		} else {
 			// Tree mode: nest children normally
 			node.children = children;
 		}
 
 		return node;
-	}
-
-	/**
-	 * Recursively flatten children into flatResults
-	 */
-	private flattenChildren(children: QueryResultNode[]): void {
-		for (const child of children) {
-			const flattened: QueryResultNode = {
-				...child,
-				children: [],
-			};
-			this.flatResults.push(flattened);
-			this.flattenChildren(child.children);
-		}
 	}
 
 	// =========================================================================
@@ -207,23 +194,23 @@ export class TraversalState {
 	 * Get the final result based on output configuration
 	 */
 	getResult(treeResults: QueryResultNode[]): {nodes: QueryResultNode[]; warnings: QueryWarning[]} {
-		const {flattenFrom} = this.output;
-
-		if (flattenFrom === true) {
-			// Full flatten: return flat results
-			return {nodes: this.flatResults, warnings: this.warnings};
-		}
-
-		if (typeof flattenFrom === "number") {
-			// Partial flatten: tree results contain nodes up to flattenFrom,
-			// with flattened children in flatResults
-			// The tree results already have correct structure from buildResultNode
-			return {nodes: treeResults, warnings: this.warnings};
-		}
-
-		// Tree mode: return tree results
+		// Both tree and partial flatten are now handled entirely in buildResultNode
 		return {nodes: treeResults, warnings: this.warnings};
 	}
+}
+
+/**
+ * Recursively flatten descendants into a single-level list
+ */
+function flattenDescendants(nodes: QueryResultNode[]): QueryResultNode[] {
+	const result: QueryResultNode[] = [];
+	for (const node of nodes) {
+		result.push({...node, children: []});
+		if (node.children.length > 0) {
+			result.push(...flattenDescendants(node.children));
+		}
+	}
+	return result;
 }
 
 /**

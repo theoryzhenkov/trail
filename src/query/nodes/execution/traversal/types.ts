@@ -118,6 +118,8 @@ export interface TraversalConfig {
 	output: OutputConfig;
 	/** Handler for leaf nodes (chain/extend processing) */
 	onLeaf?: LeafHandler;
+	/** Initial ancestors for cycle detection across chain boundaries (5C fix) */
+	initialAncestors?: Set<string>;
 }
 
 /**

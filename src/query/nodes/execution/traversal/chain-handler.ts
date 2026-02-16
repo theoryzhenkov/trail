@@ -59,6 +59,9 @@ export function createChainHandler(
 
 /**
  * Extend traversal from chain targets
+ *
+ * Fix 5C: Passes ancestorPaths as initialAncestors to child traversals
+ * so that cycle detection works across chain boundaries.
  */
 function extendFromChain(
 	env: QueryEnv,
@@ -80,6 +83,7 @@ function extendFromChain(
 				maxDepth: target.spec.depth === "unlimited" ? Infinity : target.spec.depth,
 				filter,
 				output: {flattenFrom: target.spec.flatten},
+				initialAncestors: ancestorPaths,
 				onLeaf: chain.length > 1
 					? createChainHandler(env, {
 							chain: chain.slice(1),
@@ -109,6 +113,7 @@ function extendFromChain(
 					maxDepth: relConfig.maxDepth,
 					filter,
 					output: {flattenFrom: relConfig.flatten},
+					initialAncestors: ancestorPaths,
 					onLeaf: chain.length > 1
 						? createChainHandler(env, {
 								chain: chain.slice(1),
@@ -145,7 +150,7 @@ export function createGroupResolver(
 		const groupQuery = env.resolveGroupQuery(name) as
 			| {from: {chains: Array<{first: {name: string; depth: number | "unlimited"; flatten?: number | true}; chain: ChainTarget[]}>}}
 			| undefined;
-		
+
 		if (!groupQuery) {
 			return undefined;
 		}
