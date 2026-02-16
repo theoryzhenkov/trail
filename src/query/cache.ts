@@ -2,7 +2,7 @@
  * TQL Query Cache - Caches parsed ASTs and query results
  */
 
-import {QueryNode} from "./nodes/clauses";
+import {Query} from "./nodes/query";
 import type {QueryResult} from "./nodes/types";
 import {parse} from "./nodes/parser";
 
@@ -10,7 +10,7 @@ import {parse} from "./nodes/parser";
  * Cached query entry
  */
 interface CachedQuery {
-	query: QueryNode;
+	query: Query;
 	timestamp: number;
 }
 
@@ -50,7 +50,7 @@ export class QueryCache {
 	/**
 	 * Parse query with caching
 	 */
-	parseQuery(queryString: string): QueryNode {
+	parseQuery(queryString: string): Query {
 		const cached = this.queryCache.get(queryString);
 		if (cached) {
 			// Move to end (LRU)
@@ -167,7 +167,7 @@ export class QueryCache {
 		};
 	}
 
-	private cacheQuery(queryString: string, query: QueryNode): void {
+	private cacheQuery(queryString: string, query: Query): void {
 		this.evictQueryIfNeeded();
 		this.queryCache.set(queryString, {
 			query,

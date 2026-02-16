@@ -5,7 +5,7 @@
  * Complex queries that cannot be represented visually fall back to the query editor.
  */
 
-import {parse, QueryNode, CompareExprNode, PropertyNode, StringNode, NumberNode, BooleanNode, NullNode} from "../query";
+import {parse, Query, CompareExprNode, PropertyNode, StringNode, NumberNode, BooleanNode, NullNode} from "../query";
 import type {ExprNode} from "../query";
 
 /**
@@ -51,7 +51,7 @@ export function isVisualEditable(query: string): boolean {
 /**
  * Check if an AST can be visualized
  */
-function canVisualizeQuery(ast: QueryNode): boolean {
+function canVisualizeQuery(ast: Query): boolean {
 	// Must have a group name
 	if (!ast.group) return false;
 
@@ -190,7 +190,7 @@ function parseConditionClause(expr?: ExprNode): VisualCondition | undefined {
 	return {property, operator, value};
 }
 
-function parseSortClause(ast: QueryNode): VisualSortKey | undefined {
+function parseSortClause(ast: Query): VisualSortKey | undefined {
 	if (!ast.sort || ast.sort.keys.length === 0) return undefined;
 	const key = ast.sort.keys[0];
 	if (!key) return undefined;
@@ -201,7 +201,7 @@ function parseSortClause(ast: QueryNode): VisualSortKey | undefined {
 	};
 }
 
-function parseDisplayClause(ast: QueryNode): string[] | undefined {
+function parseDisplayClause(ast: Query): string[] | undefined {
 	if (!ast.display || ast.display.all) return undefined;
 	if (ast.display.properties.length === 0) return undefined;
 

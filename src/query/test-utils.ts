@@ -5,7 +5,7 @@
 
 import type {RelationEdge, FileProperties, VisualDirection} from "../types";
 import type {QueryContext, FileMetadata, QueryResult} from "./nodes/types";
-import {QueryNode, parse, createValidationContext} from "./nodes";
+import {Query, parse, createValidationContext} from "./nodes";
 import {execute} from "./executor";
 import {normalizeRelationName} from "../relations";
 
@@ -36,7 +36,7 @@ export interface MockEdge {
  */
 export interface MockGroup {
 	name: string;
-	query: QueryNode;
+	query: Query;
 }
 
 /**
@@ -172,7 +172,7 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 			return "ascending";
 		},
 
-		resolveGroupQuery(name: string): QueryNode | undefined {
+		resolveGroupQuery(name: string): Query | undefined {
 			const group = graph.groups?.find((g) => g.name === name);
 			return group?.query;
 		},
@@ -328,11 +328,11 @@ export function runQuery(query: string, graph: MockGraph, activeFile: string): Q
 	const validationCtx = createValidationContext(relations, groupNames);
 
 	// Parse and validate in one step
-	const queryNode = parse(query);
-	queryNode.validate(validationCtx);
+	const q = parse(query);
+	q.validate(validationCtx);
 
 	const ctx = createMockContext(graph, activeFile);
-	return execute(queryNode, ctx);
+	return execute(q, ctx);
 }
 
 /**
@@ -345,7 +345,7 @@ export function createMockGroup(
 	groupNames: string[]
 ): MockGroup {
 	const validationCtx = createValidationContext(relations, groupNames);
-	const queryNode = parse(queryStr);
-	queryNode.validate(validationCtx);
-	return {name, query: queryNode};
+	const q = parse(queryStr);
+	q.validate(validationCtx);
+	return {name, query: q};
 }

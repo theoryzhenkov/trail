@@ -42,24 +42,24 @@ export {Query} from "./query";
 export {parse, ParseError} from "./parser";
 
 import type {QueryContext, QueryResult} from "./types";
-import {QueryNode} from "./clauses/QueryNode";
+import {Query} from "./query";
 import {QueryEnv, createValidationContext} from "./context";
 import {parse} from "./parser";
 
 /**
  * TQL Pipeline API
- * 
+ *
  * Usage:
  *   const result = TQL.parse(input).validate(ctx).execute(env);
- * 
+ *
  * Or for quick execution:
  *   const result = TQL.run(input, queryCtx);
  */
 export const TQL = {
 	/**
-	 * Parse a TQL query string into a QueryNode
+	 * Parse a TQL query string into a Query
 	 */
-	parse(input: string): QueryNode {
+	parse(input: string): Query {
 		return parse(input);
 	},
 
@@ -75,7 +75,7 @@ export const TQL = {
 		const query = this.parse(input);
 		const validationCtx = createValidationContext(relationNames, groupNames);
 		query.validate(validationCtx);
-		
+
 		const env = new QueryEnv(queryCtx);
 		return query.execute(env);
 	},

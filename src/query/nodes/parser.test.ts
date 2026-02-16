@@ -4,7 +4,8 @@
 
 import {describe, it, expect} from "vitest";
 import {parse, ParseError} from "./parser";
-import {QueryNode, FromNode, WhereNode} from "./clauses";
+import {Query} from "./query";
+import {FromNode, WhereNode} from "./clauses";
 import {OrExprNode, AndExprNode, CompareExprNode, PropertyNode} from "./expressions";
 import {ExistsFunction} from "./functions/existence";
 import {StringNode, NumberNode, BooleanNode, NullNode} from "./literals";
@@ -14,7 +15,7 @@ describe("TQL Parser", () => {
 	describe("Basic query parsing", () => {
 		it("should parse minimal query", () => {
 			const query = parse('group "Test" from up');
-			expect(query).toBeInstanceOf(QueryNode);
+			expect(query).toBeInstanceOf(Query);
 			expect(query.group).toBe("Test");
 			expect(query.from).toBeInstanceOf(FromNode);
 			expect(query.from.chains.length).toBe(1);
