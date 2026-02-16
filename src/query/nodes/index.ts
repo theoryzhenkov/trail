@@ -35,6 +35,9 @@ import "./functions";
 // Clauses
 export * from "./clauses";
 
+// Query (non-Node compilation unit)
+export {Query} from "./query";
+
 // Parser
 export {parse, ParseError} from "./parser";
 
