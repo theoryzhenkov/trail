@@ -43,7 +43,6 @@ export {
 	buildFilter,
 	combineFilters,
 	createPruneFilter,
-	createWhereFilter,
 	type FilterBuildOptions,
 } from "./filter";
 

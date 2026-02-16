@@ -5,7 +5,7 @@
  * on sort key expressions.
  */
 
-import {EvalContext} from "../context";
+import {evalContextFromNode} from "../context";
 import type {QueryEnv} from "../context";
 import type {QueryResultNode, Value} from "../types";
 import type {SortKeyNode} from "../clauses/SortKeyNode";
@@ -57,7 +57,7 @@ function prepareSortables(
 	env: QueryEnv
 ): SortableNode[] {
 	return nodes.map((node) => {
-		const ctx = new EvalContext(env, node.path, node.properties);
+		const ctx = evalContextFromNode(env, node);
 		const values = keys.map((key) => key.key.evaluate(ctx));
 		return {node, values};
 	});

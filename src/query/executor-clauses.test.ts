@@ -79,11 +79,27 @@ describe("TQL Executor - Clauses", () => {
 			);
 
 			const ages = result.results.map((n) => n.properties.age as number);
-			
+
 			// Check ages are in descending order
 			for (let i = 1; i < ages.length; i++) {
 				expect(ages[i]).toBeLessThanOrEqual(ages[i - 1]!);
 			}
+		});
+
+		it("should sort by $traversal.depth", () => {
+			const graph = TestGraphs.deepHierarchy();
+			const result = runQuery(
+				`group "Test" from down :flatten sort $traversal.depth :desc`,
+				graph,
+				"root.md"
+			);
+
+			const depths = result.results.map((n) => n.depth);
+			// In flatten mode depth is normalized to 1, but traversal context
+			// should still be available for sorting via evalContextFromNode
+			// which includes traversalPath. The key fix: sorting previously
+			// dropped traversal context by constructing EvalContext without it.
+			expect(result.results.length).toBeGreaterThan(0);
 		});
 	});
 

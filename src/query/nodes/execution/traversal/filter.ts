@@ -78,37 +78,6 @@ export function createPruneFilter(expr: ExprNode, env: QueryEnv): NodeFilter {
 }
 
 // =============================================================================
-// Where Filter (for future integration with traversal)
-// =============================================================================
-
-/**
- * Create a WHERE filter from an expression
- *
- * WHERE semantics: if expression evaluates to falsy, exclude node but still traverse children.
- * This maintains graph structure for ancestor paths.
- * - include: false (don't include in output)
- * - traverse: true (still visit children)
- *
- * Note: Currently WHERE is applied post-traversal in query-executor.ts.
- * This filter is provided for future integration where WHERE could be applied
- * during traversal for better performance.
- */
-export function createWhereFilter(expr: ExprNode, env: QueryEnv): NodeFilter {
-	return {
-		evaluate(nodeCtx: NodeContext): FilterDecision {
-			const evalCtx = new EvalContext(env, nodeCtx.path, nodeCtx.properties, nodeCtx.traversalCtx);
-			const result = expr.evaluate(evalCtx);
-			const shouldInclude = isTruthy(result);
-
-			return {
-				include: shouldInclude,
-				traverse: true, // Always traverse children for WHERE
-			};
-		},
-	};
-}
-
-// =============================================================================
 // Filter Builder (used by executor)
 // =============================================================================
 
@@ -118,8 +87,6 @@ export function createWhereFilter(expr: ExprNode, env: QueryEnv): NodeFilter {
 export interface FilterBuildOptions {
 	/** PRUNE expression (skip node and subtree) */
 	pruneExpr?: ExprNode;
-	/** WHERE expression (filter output, keep structure) - for future use */
-	whereExpr?: ExprNode;
 }
 
 /**
@@ -133,12 +100,6 @@ export function buildFilter(env: QueryEnv, options: FilterBuildOptions): NodeFil
 	if (options.pruneExpr) {
 		filters.push(createPruneFilter(options.pruneExpr, env));
 	}
-
-	// Note: WHERE is currently applied post-traversal to maintain ancestor paths.
-	// Uncomment below if integrating WHERE into traversal:
-	// if (options.whereExpr) {
-	//   filters.push(createWhereFilter(options.whereExpr, env));
-	// }
 
 	return combineFilters(...filters);
 }
