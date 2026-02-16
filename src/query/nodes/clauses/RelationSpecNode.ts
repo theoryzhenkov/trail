@@ -65,13 +65,13 @@ export class RelationSpecNode extends Node {
 		const relationNameNode = node.getChild("RelationName");
 		if (!relationNameNode) throw new Error("Missing relation name");
 
-		const identNodes = relationNameNode.getChildren("Identifier");
-		const nameIdent = identNodes[0];
+		const nameIdent = relationNameNode.getChild("Identifier");
 		if (!nameIdent) throw new Error("Missing relation identifier");
 
 		const name = normalizeRelationName(ctx.text(nameIdent));
-		const label = identNodes[1]
-			? normalizeLabel(ctx.text(identNodes[1]))
+		const labelNode = relationNameNode.getChild("RelationLabel");
+		const label = labelNode
+			? normalizeLabel(ctx.text(labelNode))
 			: undefined;
 
 		let depth: number | "unlimited" = "unlimited";

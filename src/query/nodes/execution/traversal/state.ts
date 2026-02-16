@@ -8,18 +8,11 @@
  * - Warning collection
  */
 
-import type {
-	RelationEdge,
-	FileProperties,
-	VisualDirection,
-} from "../../../../types";
+import type { RelationEdge } from "../../../../types";
 import type { QueryEnv } from "../../context";
-import type {
-	QueryResultNode,
-	QueryWarning,
-	TraversalContext,
-} from "../../types";
+import type { QueryResultNode, QueryWarning } from "../../types";
 import type { TraversalConfig, NodeContext, OutputConfig } from "./types";
+import { resolveNodeContext } from "./traverse";
 
 /**
  * Manages traversal state and result building
@@ -93,47 +86,23 @@ export class TraversalState {
 	}
 
 	// =========================================================================
-	// Node Context Building (5A: simplified, delegates to env)
+	// Node Context Building
 	// =========================================================================
 
 	/**
-	 * Build context for a node being visited
+	 * Build context for a node being visited.
+	 * Delegates to the shared resolveNodeContext, providing state-derived
+	 * parent and traversalPath.
 	 */
 	buildNodeContext(
 		env: QueryEnv,
 		edge: RelationEdge,
 		depth: number,
 	): NodeContext {
-		const properties = env.getProperties(edge.toPath);
-		const visualDirection = env.getVisualDirection(edge.relationUid);
-		const relationName = env.getRelationName(edge.relationUid);
-		const impliedFromName = edge.impliedFromUid
-			? env.getRelationName(edge.impliedFromUid)
-			: undefined;
-
-		const traversalPath = [...this.path, edge.toPath];
-
-		const traversalCtx: TraversalContext = {
-			depth,
-			relation: relationName,
-			label: edge.label,
-			isImplied: edge.implied,
-			parent: this.currentPath(),
-			path: traversalPath,
-		};
-
-		return {
-			path: edge.toPath,
-			edge,
-			depth,
-			parent: this.currentPath(),
-			traversalPath,
-			properties,
-			traversalCtx,
-			relationName,
-			impliedFromName,
-			visualDirection,
-		};
+		return resolveNodeContext(env, edge, depth, this.currentPath(), [
+			...this.path,
+			edge.toPath,
+		]);
 	}
 
 	// =========================================================================

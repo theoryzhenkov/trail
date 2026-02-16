@@ -12,6 +12,9 @@ export function isValidRelationName(value: string): boolean {
 	return value.length > 0 && RELATION_NAME_REGEX.test(value);
 }
 
+/** Labels follow the same rules as relation names */
+export const isValidLabel = isValidRelationName;
+
 export interface RelationIndexes {
 	byUid: Map<RelationUid, RelationDefinition>;
 	uidByNormalizedName: Map<string, RelationUid>;

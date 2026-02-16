@@ -19,11 +19,12 @@ function tqlNode(
 	path: string,
 	relation: string,
 	children: QueryResultNode[] = [],
-	options: Partial<QueryResultNode> = {}
+	options: Partial<QueryResultNode> = {},
 ): QueryResultNode {
 	return {
 		path,
 		relation,
+		label: options.label,
 		depth: options.depth ?? 1,
 		implied: options.implied ?? false,
 		impliedFrom: options.impliedFrom,
@@ -77,8 +78,8 @@ describe("tqlTreeToGroups", () => {
 
 			expect(result).toHaveLength(1);
 			expect(result[0]?.members).toHaveLength(2);
-			expect(result[0]?.members.map(m => m.path)).toContain("Dad.md");
-			expect(result[0]?.members.map(m => m.path)).toContain("Mom.md");
+			expect(result[0]?.members.map((m) => m.path)).toContain("Dad.md");
+			expect(result[0]?.members.map((m) => m.path)).toContain("Mom.md");
 		});
 
 		it("should NOT group nodes with different relations", () => {
@@ -106,7 +107,9 @@ describe("tqlTreeToGroups", () => {
 			expect(result).toHaveLength(1);
 			expect(result[0]?.members).toHaveLength(2);
 			expect(result[0]?.subgroups).toHaveLength(1);
-			expect(result[0]?.subgroups[0]?.members[0]?.path).toBe("Grandma.md");
+			expect(result[0]?.subgroups[0]?.members[0]?.path).toBe(
+				"Grandma.md",
+			);
 		});
 
 		it("should NOT group nodes with same relation but different children", () => {
@@ -132,8 +135,8 @@ describe("tqlTreeToGroups", () => {
 
 			expect(result).toHaveLength(2);
 			expect(result[0]?.members).toHaveLength(2);
-			expect(result[0]?.members.map(m => m.path)).toContain("A.md");
-			expect(result[0]?.members.map(m => m.path)).toContain("B.md");
+			expect(result[0]?.members.map((m) => m.path)).toContain("A.md");
+			expect(result[0]?.members.map((m) => m.path)).toContain("B.md");
 			expect(result[1]?.members).toHaveLength(1);
 			expect(result[1]?.members[0]?.path).toBe("C.md");
 		});
@@ -149,18 +152,15 @@ describe("tqlTreeToGroups", () => {
 
 			expect(result).toHaveLength(2);
 			expect(result[0]?.members).toHaveLength(2);
-			expect(result[0]?.members.map(m => m.path)).toContain("A.md");
-			expect(result[0]?.members.map(m => m.path)).toContain("C.md");
+			expect(result[0]?.members.map((m) => m.path)).toContain("A.md");
+			expect(result[0]?.members.map((m) => m.path)).toContain("C.md");
 			expect(result[1]?.members[0]?.path).toBe("B.md");
 		});
 	});
 
 	describe("multi-relation merging", () => {
 		it("should merge same path reached via different relations", () => {
-			const nodes = [
-				tqlNode("B.md", "next"),
-				tqlNode("B.md", "down"),
-			];
+			const nodes = [tqlNode("B.md", "next"), tqlNode("B.md", "down")];
 			const result = tqlTreeToGroups(nodes);
 
 			// B should appear once with both relations
@@ -200,7 +200,10 @@ describe("tqlTreeToGroups", () => {
 			expect(result[0]?.members[0]?.relations).toEqual(["down", "next"]);
 			// C should be merged with both relations
 			expect(result[0]?.subgroups).toHaveLength(1);
-			expect(result[0]?.subgroups[0]?.members[0]?.relations).toEqual(["down", "next"]);
+			expect(result[0]?.subgroups[0]?.members[0]?.relations).toEqual([
+				"down",
+				"next",
+			]);
 		});
 
 		it("should group merged nodes only if relation sets match", () => {
@@ -233,14 +236,17 @@ describe("tqlTreeToGroups", () => {
 			// B and D have same relation set and same subtrees — grouped together
 			expect(result).toHaveLength(1);
 			expect(result[0]?.members).toHaveLength(2);
-			expect(result[0]?.members.map(m => m.path)).toContain("B.md");
-			expect(result[0]?.members.map(m => m.path)).toContain("D.md");
+			expect(result[0]?.members.map((m) => m.path)).toContain("B.md");
+			expect(result[0]?.members.map((m) => m.path)).toContain("D.md");
 			expect(result[0]?.relations).toEqual(["down", "next"]);
 		});
 
 		it("should take implied=false when any instance is explicit", () => {
 			const nodes = [
-				tqlNode("B.md", "next", [], { implied: true, impliedFrom: "prev" }),
+				tqlNode("B.md", "next", [], {
+					implied: true,
+					impliedFrom: "prev",
+				}),
 				tqlNode("B.md", "down", [], { implied: false }),
 			];
 			const result = tqlTreeToGroups(nodes);
@@ -251,8 +257,14 @@ describe("tqlTreeToGroups", () => {
 
 		it("should preserve implied=true when all instances are implied", () => {
 			const nodes = [
-				tqlNode("B.md", "next", [], { implied: true, impliedFrom: "prev" }),
-				tqlNode("B.md", "down", [], { implied: true, impliedFrom: "up" }),
+				tqlNode("B.md", "next", [], {
+					implied: true,
+					impliedFrom: "prev",
+				}),
+				tqlNode("B.md", "down", [], {
+					implied: true,
+					impliedFrom: "up",
+				}),
 			];
 			const result = tqlTreeToGroups(nodes);
 
@@ -289,13 +301,20 @@ describe("tqlTreeToGroups", () => {
 			expect(result).toHaveLength(1);
 			expect(result[0]?.members[0]?.path).toBe("Parent.md");
 			expect(result[0]?.subgroups).toHaveLength(1);
-			expect(result[0]?.subgroups[0]?.members[0]?.path).toBe("Grandparent.md");
-			expect(result[0]?.subgroups[0]?.subgroups[0]?.members[0]?.path).toBe("GreatGrandparent.md");
+			expect(result[0]?.subgroups[0]?.members[0]?.path).toBe(
+				"Grandparent.md",
+			);
+			expect(
+				result[0]?.subgroups[0]?.subgroups[0]?.members[0]?.path,
+			).toBe("GreatGrandparent.md");
 		});
 
 		it("should preserve implied status through grouping", () => {
 			const nodes = [
-				tqlNode("A.md", "parent", [], { implied: true, impliedFrom: "child" }),
+				tqlNode("A.md", "parent", [], {
+					implied: true,
+					impliedFrom: "child",
+				}),
 			];
 			const result = tqlTreeToGroups(nodes);
 
@@ -312,7 +331,9 @@ describe("tqlTreeToGroups", () => {
 			];
 			const nodes = [
 				tqlNode("Dad.md", "parent", grandparents),
-				tqlNode("Mom.md", "parent", [...grandparents.map(g => ({ ...g }))]),
+				tqlNode("Mom.md", "parent", [
+					...grandparents.map((g) => ({ ...g })),
+				]),
 			];
 			const result = tqlTreeToGroups(nodes);
 
@@ -338,6 +359,62 @@ describe("tqlTreeToGroups", () => {
 			expect(result).toHaveLength(2);
 			expect(result[0]?.members[0]?.path).toBe("Dad.md");
 			expect(result[1]?.members[0]?.path).toBe("Mom.md");
+		});
+	});
+
+	describe("label in relation display", () => {
+		it("should include label suffix in group relations", () => {
+			const nodes = [
+				tqlNode("Author.md", "up", [], { label: "author" }),
+				tqlNode("Series.md", "up", [], { label: "series" }),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			// Different labels produce different relation strings → separate groups
+			expect(result).toHaveLength(2);
+			expect(result[0]?.relations).toEqual(["up.author"]);
+			expect(result[1]?.relations).toEqual(["up.series"]);
+		});
+
+		it("should group nodes with same relation.label", () => {
+			const nodes = [
+				tqlNode("Author1.md", "up", [], { label: "author" }),
+				tqlNode("Author2.md", "up", [], { label: "author" }),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]?.members).toHaveLength(2);
+			expect(result[0]?.relations).toEqual(["up.author"]);
+		});
+
+		it("should separate labeled and unlabeled same-relation nodes", () => {
+			const nodes = [
+				tqlNode("Author.md", "up", [], { label: "author" }),
+				tqlNode("Publisher.md", "up"),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			// "up.author" vs "up" → different groups
+			expect(result).toHaveLength(2);
+			expect(result[0]?.relations).toEqual(["up.author"]);
+			expect(result[1]?.relations).toEqual(["up"]);
+		});
+
+		it("should merge same path with different labels into multi-relation", () => {
+			const nodes = [
+				tqlNode("Person.md", "up", [], { label: "author" }),
+				tqlNode("Person.md", "down", [], { label: "editor" }),
+			];
+			const result = tqlTreeToGroups(nodes);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]?.members).toHaveLength(1);
+			expect(result[0]?.members[0]?.path).toBe("Person.md");
+			expect(result[0]?.members[0]?.relations).toEqual([
+				"down.editor",
+				"up.author",
+			]);
 		});
 	});
 
@@ -403,11 +480,21 @@ describe("invertDisplayGroups", () => {
 	});
 
 	it("should invert single-level group (no subgroups)", () => {
-		const groups: DisplayGroup[] = [{
-			relations: ["parent"],
-			members: [{ path: "A.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
-			subgroups: [],
-		}];
+		const groups: DisplayGroup[] = [
+			{
+				relations: ["parent"],
+				members: [
+					{
+						path: "A.md",
+						relations: ["parent"],
+						implied: false,
+						properties: {},
+						displayProperties: [],
+					},
+				],
+				subgroups: [],
+			},
+		];
 		const result = invertDisplayGroups(groups);
 
 		expect(result).toHaveLength(1);
@@ -416,15 +503,35 @@ describe("invertDisplayGroups", () => {
 	});
 
 	it("should invert two-level hierarchy", () => {
-		const groups: DisplayGroup[] = [{
-			relations: ["parent"],
-			members: [{ path: "Parent.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
-			subgroups: [{
+		const groups: DisplayGroup[] = [
+			{
 				relations: ["parent"],
-				members: [{ path: "Grandparent.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
-				subgroups: [],
-			}],
-		}];
+				members: [
+					{
+						path: "Parent.md",
+						relations: ["parent"],
+						implied: false,
+						properties: {},
+						displayProperties: [],
+					},
+				],
+				subgroups: [
+					{
+						relations: ["parent"],
+						members: [
+							{
+								path: "Grandparent.md",
+								relations: ["parent"],
+								implied: false,
+								properties: {},
+								displayProperties: [],
+							},
+						],
+						subgroups: [],
+					},
+				],
+			},
+		];
 		const result = invertDisplayGroups(groups);
 
 		expect(result).toHaveLength(1);
@@ -434,22 +541,48 @@ describe("invertDisplayGroups", () => {
 	});
 
 	it("should handle multiple leaf nodes creating multiple roots", () => {
-		const groups: DisplayGroup[] = [{
-			relations: ["parent"],
-			members: [{ path: "A.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
-			subgroups: [
-				{
-					relations: ["parent"],
-					members: [{ path: "B.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
-					subgroups: [],
-				},
-				{
-					relations: ["parent"],
-					members: [{ path: "C.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] }],
-					subgroups: [],
-				},
-			],
-		}];
+		const groups: DisplayGroup[] = [
+			{
+				relations: ["parent"],
+				members: [
+					{
+						path: "A.md",
+						relations: ["parent"],
+						implied: false,
+						properties: {},
+						displayProperties: [],
+					},
+				],
+				subgroups: [
+					{
+						relations: ["parent"],
+						members: [
+							{
+								path: "B.md",
+								relations: ["parent"],
+								implied: false,
+								properties: {},
+								displayProperties: [],
+							},
+						],
+						subgroups: [],
+					},
+					{
+						relations: ["parent"],
+						members: [
+							{
+								path: "C.md",
+								relations: ["parent"],
+								implied: false,
+								properties: {},
+								displayProperties: [],
+							},
+						],
+						subgroups: [],
+					},
+				],
+			},
+		];
 		const result = invertDisplayGroups(groups);
 
 		expect(result).toHaveLength(2);
@@ -458,21 +591,49 @@ describe("invertDisplayGroups", () => {
 	});
 
 	it("should preserve all members through inversion", () => {
-		const groups: DisplayGroup[] = [{
-			relations: ["parent"],
-			members: [
-				{ path: "Dad.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] },
-				{ path: "Mom.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] },
-			],
-			subgroups: [{
+		const groups: DisplayGroup[] = [
+			{
 				relations: ["parent"],
 				members: [
-					{ path: "Grandma.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] },
-					{ path: "Grandpa.md", relations: ["parent"], implied: false, properties: {}, displayProperties: [] },
+					{
+						path: "Dad.md",
+						relations: ["parent"],
+						implied: false,
+						properties: {},
+						displayProperties: [],
+					},
+					{
+						path: "Mom.md",
+						relations: ["parent"],
+						implied: false,
+						properties: {},
+						displayProperties: [],
+					},
 				],
-				subgroups: [],
-			}],
-		}];
+				subgroups: [
+					{
+						relations: ["parent"],
+						members: [
+							{
+								path: "Grandma.md",
+								relations: ["parent"],
+								implied: false,
+								properties: {},
+								displayProperties: [],
+							},
+							{
+								path: "Grandpa.md",
+								relations: ["parent"],
+								implied: false,
+								properties: {},
+								displayProperties: [],
+							},
+						],
+						subgroups: [],
+					},
+				],
+			},
+		];
 		const result = invertDisplayGroups(groups);
 
 		const allPaths = collectGroupPaths(result);
@@ -502,25 +663,35 @@ describe("edge cases", () => {
 
 	it("should handle nodes with properties", () => {
 		const nodes = [
-			tqlNode("A.md", "parent", [], { properties: { type: "person", age: 30 } }),
+			tqlNode("A.md", "parent", [], {
+				properties: { type: "person", age: 30 },
+			}),
 		];
 		const result = tqlTreeToGroups(nodes);
 
-		expect(result[0]?.members[0]?.properties).toEqual({ type: "person", age: 30 });
+		expect(result[0]?.members[0]?.properties).toEqual({
+			type: "person",
+			age: 30,
+		});
 	});
 
 	it("should handle mixed implied and explicit relations", () => {
 		const nodes = [
 			tqlNode("Explicit.md", "parent", [], { implied: false }),
-			tqlNode("Implied.md", "parent", [], { implied: true, impliedFrom: "child" }),
+			tqlNode("Implied.md", "parent", [], {
+				implied: true,
+				impliedFrom: "child",
+			}),
 		];
 		const result = tqlTreeToGroups(nodes);
 
 		expect(result).toHaveLength(1);
 		expect(result[0]?.members).toHaveLength(2);
 
-		const explicit = result[0]?.members.find(m => m.path === "Explicit.md");
-		const implied = result[0]?.members.find(m => m.path === "Implied.md");
+		const explicit = result[0]?.members.find(
+			(m) => m.path === "Explicit.md",
+		);
+		const implied = result[0]?.members.find((m) => m.path === "Implied.md");
 		expect(explicit?.implied).toBe(false);
 		expect(implied?.implied).toBe(true);
 		expect(implied?.impliedFrom).toBe("child");

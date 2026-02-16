@@ -3,11 +3,11 @@
  * Provides mock data and context for unit testing
  */
 
-import type {RelationEdge, FileProperties, VisualDirection} from "../types";
-import type {QueryContext, FileMetadata, QueryResult} from "./nodes/types";
-import {Query, parse, createValidationContext} from "./nodes";
-import {execute} from "./executor";
-import {normalizeRelationName} from "../relations";
+import type { RelationEdge, FileProperties, VisualDirection } from "../types";
+import type { QueryContext, FileMetadata, QueryResult } from "./nodes/types";
+import { Query, parse, createValidationContext } from "./nodes";
+import { execute } from "./executor";
+import { normalizeRelationName } from "../relations";
 
 /**
  * Mock file data for testing
@@ -26,6 +26,7 @@ export interface MockEdge {
 	to: string;
 	relationUid?: string;
 	relation?: string;
+	label?: string;
 	implied?: boolean;
 	impliedFromUid?: string;
 	impliedFrom?: string;
@@ -52,7 +53,10 @@ export interface MockGraph {
 /**
  * Create a mock QueryContext from test data
  */
-export function createMockContext(graph: MockGraph, activeFilePath: string): QueryContext {
+export function createMockContext(
+	graph: MockGraph,
+	activeFilePath: string,
+): QueryContext {
 	const fileMap = new Map<string, MockFile>();
 	for (const file of graph.files) {
 		fileMap.set(file.path, file);
@@ -76,6 +80,7 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 			fromPath: edge.from,
 			toPath: edge.to,
 			relationUid,
+			label: edge.label,
 			implied: edge.implied ?? false,
 			impliedFromUid,
 		});
@@ -89,6 +94,7 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 			fromPath: edge.from,
 			toPath: edge.to,
 			relationUid,
+			label: edge.label,
 			implied: edge.implied ?? false,
 			impliedFromUid,
 		});
@@ -99,7 +105,10 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 	const relationUidByName = new Map<string, string>();
 	for (const relationName of relationNames) {
 		relationNameByUid.set(relationName, relationName);
-		relationUidByName.set(normalizeRelationName(relationName), relationName);
+		relationUidByName.set(
+			normalizeRelationName(relationName),
+			relationName,
+		);
 	}
 
 	const activeFile = fileMap.get(activeFilePath);
@@ -108,18 +117,32 @@ export function createMockContext(graph: MockGraph, activeFilePath: string): Que
 		activeFilePath,
 		activeFileProperties: activeFile?.properties ?? {},
 
-		getOutgoingEdges(path: string, relation?: string): RelationEdge[] {
-			const edges = outgoingEdges.get(path) ?? [];
+		getOutgoingEdges(
+			path: string,
+			relation?: string,
+			label?: string,
+		): RelationEdge[] {
+			let edges = outgoingEdges.get(path) ?? [];
 			if (relation) {
-				return edges.filter((e) => e.relationUid === relation);
+				edges = edges.filter((e) => e.relationUid === relation);
+			}
+			if (label !== undefined) {
+				edges = edges.filter((e) => e.label === label);
 			}
 			return edges;
 		},
 
-		getIncomingEdges(path: string, relation?: string): RelationEdge[] {
-			const edges = incomingEdges.get(path) ?? [];
+		getIncomingEdges(
+			path: string,
+			relation?: string,
+			label?: string,
+		): RelationEdge[] {
+			let edges = incomingEdges.get(path) ?? [];
 			if (relation) {
-				return edges.filter((e) => e.relationUid === relation);
+				edges = edges.filter((e) => e.relationUid === relation);
+			}
+			if (label !== undefined) {
+				edges = edges.filter((e) => e.label === label);
 			}
 			return edges;
 		},
@@ -189,15 +212,15 @@ export const TestGraphs = {
 	simpleHierarchy(): MockGraph {
 		return {
 			files: [
-				{path: "A.md", properties: {title: "A"}},
-				{path: "B.md", properties: {title: "B"}},
-				{path: "C.md", properties: {title: "C"}},
+				{ path: "A.md", properties: { title: "A" } },
+				{ path: "B.md", properties: { title: "B" } },
+				{ path: "C.md", properties: { title: "C" } },
 			],
 			edges: [
-				{from: "A.md", to: "B.md", relationUid: "down"},
-				{from: "B.md", to: "A.md", relationUid: "up"},
-				{from: "B.md", to: "C.md", relationUid: "down"},
-				{from: "C.md", to: "B.md", relationUid: "up"},
+				{ from: "A.md", to: "B.md", relationUid: "down" },
+				{ from: "B.md", to: "A.md", relationUid: "up" },
+				{ from: "B.md", to: "C.md", relationUid: "down" },
+				{ from: "C.md", to: "B.md", relationUid: "up" },
 			],
 		};
 	},
@@ -210,34 +233,34 @@ export const TestGraphs = {
 			files: [
 				{
 					path: "person1.md",
-					properties: {name: "Alice", gender: "female", age: 30},
+					properties: { name: "Alice", gender: "female", age: 30 },
 				},
 				{
 					path: "person2.md",
-					properties: {name: "Bob", gender: "male", age: 25},
+					properties: { name: "Bob", gender: "male", age: 25 },
 				},
 				{
 					path: "person3.md",
-					properties: {name: "Charlie", gender: null, age: 35},
+					properties: { name: "Charlie", gender: null, age: 35 },
 				},
 				{
 					path: "person4.md",
-					properties: {name: "Dana", age: 28},
+					properties: { name: "Dana", age: 28 },
 				},
 				{
 					path: "root.md",
-					properties: {title: "Root"},
+					properties: { title: "Root" },
 				},
 			],
 			edges: [
-				{from: "root.md", to: "person1.md", relationUid: "down"},
-				{from: "root.md", to: "person2.md", relationUid: "down"},
-				{from: "root.md", to: "person3.md", relationUid: "down"},
-				{from: "root.md", to: "person4.md", relationUid: "down"},
-				{from: "person1.md", to: "root.md", relationUid: "up"},
-				{from: "person2.md", to: "root.md", relationUid: "up"},
-				{from: "person3.md", to: "root.md", relationUid: "up"},
-				{from: "person4.md", to: "root.md", relationUid: "up"},
+				{ from: "root.md", to: "person1.md", relationUid: "down" },
+				{ from: "root.md", to: "person2.md", relationUid: "down" },
+				{ from: "root.md", to: "person3.md", relationUid: "down" },
+				{ from: "root.md", to: "person4.md", relationUid: "down" },
+				{ from: "person1.md", to: "root.md", relationUid: "up" },
+				{ from: "person2.md", to: "root.md", relationUid: "up" },
+				{ from: "person3.md", to: "root.md", relationUid: "up" },
+				{ from: "person4.md", to: "root.md", relationUid: "up" },
 			],
 		};
 	},
@@ -248,18 +271,30 @@ export const TestGraphs = {
 	sequentialChain(): MockGraph {
 		return {
 			files: [
-				{path: "chapter1.md", properties: {title: "Chapter 1", order: 1}},
-				{path: "chapter2.md", properties: {title: "Chapter 2", order: 2}},
-				{path: "chapter3.md", properties: {title: "Chapter 3", order: 3}},
-				{path: "chapter4.md", properties: {title: "Chapter 4", order: 4}},
+				{
+					path: "chapter1.md",
+					properties: { title: "Chapter 1", order: 1 },
+				},
+				{
+					path: "chapter2.md",
+					properties: { title: "Chapter 2", order: 2 },
+				},
+				{
+					path: "chapter3.md",
+					properties: { title: "Chapter 3", order: 3 },
+				},
+				{
+					path: "chapter4.md",
+					properties: { title: "Chapter 4", order: 4 },
+				},
 			],
 			edges: [
-				{from: "chapter1.md", to: "chapter2.md", relationUid: "next"},
-				{from: "chapter2.md", to: "chapter1.md", relationUid: "prev"},
-				{from: "chapter2.md", to: "chapter3.md", relationUid: "next"},
-				{from: "chapter3.md", to: "chapter2.md", relationUid: "prev"},
-				{from: "chapter3.md", to: "chapter4.md", relationUid: "next"},
-				{from: "chapter4.md", to: "chapter3.md", relationUid: "prev"},
+				{ from: "chapter1.md", to: "chapter2.md", relationUid: "next" },
+				{ from: "chapter2.md", to: "chapter1.md", relationUid: "prev" },
+				{ from: "chapter2.md", to: "chapter3.md", relationUid: "next" },
+				{ from: "chapter3.md", to: "chapter2.md", relationUid: "prev" },
+				{ from: "chapter3.md", to: "chapter4.md", relationUid: "next" },
+				{ from: "chapter4.md", to: "chapter3.md", relationUid: "prev" },
 			],
 			relations: ["next", "prev"],
 		};
@@ -271,27 +306,79 @@ export const TestGraphs = {
 	deepHierarchy(): MockGraph {
 		return {
 			files: [
-				{path: "root.md", properties: {level: 0}},
-				{path: "a.md", properties: {level: 1, category: "x"}},
-				{path: "b.md", properties: {level: 1, category: "y"}},
-				{path: "a1.md", properties: {level: 2, category: "x"}},
-				{path: "a2.md", properties: {level: 2, category: "x"}},
-				{path: "b1.md", properties: {level: 2, category: "y"}},
-				{path: "a1i.md", properties: {level: 3, category: "x"}},
+				{ path: "root.md", properties: { level: 0 } },
+				{ path: "a.md", properties: { level: 1, category: "x" } },
+				{ path: "b.md", properties: { level: 1, category: "y" } },
+				{ path: "a1.md", properties: { level: 2, category: "x" } },
+				{ path: "a2.md", properties: { level: 2, category: "x" } },
+				{ path: "b1.md", properties: { level: 2, category: "y" } },
+				{ path: "a1i.md", properties: { level: 3, category: "x" } },
 			],
 			edges: [
-				{from: "root.md", to: "a.md", relationUid: "down"},
-				{from: "root.md", to: "b.md", relationUid: "down"},
-				{from: "a.md", to: "root.md", relationUid: "up"},
-				{from: "b.md", to: "root.md", relationUid: "up"},
-				{from: "a.md", to: "a1.md", relationUid: "down"},
-				{from: "a.md", to: "a2.md", relationUid: "down"},
-				{from: "a1.md", to: "a.md", relationUid: "up"},
-				{from: "a2.md", to: "a.md", relationUid: "up"},
-				{from: "b.md", to: "b1.md", relationUid: "down"},
-				{from: "b1.md", to: "b.md", relationUid: "up"},
-				{from: "a1.md", to: "a1i.md", relationUid: "down"},
-				{from: "a1i.md", to: "a1.md", relationUid: "up"},
+				{ from: "root.md", to: "a.md", relationUid: "down" },
+				{ from: "root.md", to: "b.md", relationUid: "down" },
+				{ from: "a.md", to: "root.md", relationUid: "up" },
+				{ from: "b.md", to: "root.md", relationUid: "up" },
+				{ from: "a.md", to: "a1.md", relationUid: "down" },
+				{ from: "a.md", to: "a2.md", relationUid: "down" },
+				{ from: "a1.md", to: "a.md", relationUid: "up" },
+				{ from: "a2.md", to: "a.md", relationUid: "up" },
+				{ from: "b.md", to: "b1.md", relationUid: "down" },
+				{ from: "b1.md", to: "b.md", relationUid: "up" },
+				{ from: "a1.md", to: "a1i.md", relationUid: "down" },
+				{ from: "a1i.md", to: "a1.md", relationUid: "up" },
+			],
+		};
+	},
+
+	/**
+	 * Graph with labeled edges for testing dot-notation labels.
+	 * Book.md -> Author.md (up.author), Book.md -> Series.md (up.series),
+	 * Book.md -> Publisher.md (up, no label)
+	 */
+	withLabels(): MockGraph {
+		return {
+			files: [
+				{ path: "book.md", properties: { title: "Book" } },
+				{ path: "author.md", properties: { title: "Author" } },
+				{ path: "series.md", properties: { title: "Series" } },
+				{ path: "publisher.md", properties: { title: "Publisher" } },
+			],
+			edges: [
+				{
+					from: "book.md",
+					to: "author.md",
+					relationUid: "up",
+					label: "author",
+				},
+				{
+					from: "book.md",
+					to: "series.md",
+					relationUid: "up",
+					label: "series",
+				},
+				{
+					from: "book.md",
+					to: "publisher.md",
+					relationUid: "up",
+				},
+				{
+					from: "author.md",
+					to: "book.md",
+					relationUid: "down",
+					label: "author",
+				},
+				{
+					from: "series.md",
+					to: "book.md",
+					relationUid: "down",
+					label: "series",
+				},
+				{
+					from: "publisher.md",
+					to: "book.md",
+					relationUid: "down",
+				},
 			],
 		};
 	},
@@ -322,7 +409,11 @@ export function collectPaths(results: PathNode[]): string[] {
 /**
  * Helper to run a query and get results
  */
-export function runQuery(query: string, graph: MockGraph, activeFile: string): QueryResult {
+export function runQuery(
+	query: string,
+	graph: MockGraph,
+	activeFile: string,
+): QueryResult {
 	const relations = graph.relations ?? ["up", "down", "next", "prev"];
 	const groupNames = graph.groups?.map((g) => g.name) ?? [];
 	const validationCtx = createValidationContext(relations, groupNames);
@@ -342,10 +433,10 @@ export function createMockGroup(
 	name: string,
 	queryStr: string,
 	relations: string[],
-	groupNames: string[]
+	groupNames: string[],
 ): MockGroup {
 	const validationCtx = createValidationContext(relations, groupNames);
 	const q = parse(queryStr);
 	q.validate(validationCtx);
-	return {name, query: q};
+	return { name, query: q };
 }

@@ -6,6 +6,7 @@
 
 import { FileProperties, ParsedRelation, RelationDefinition } from "../types";
 import {
+	isValidLabel,
 	isValidRelationName,
 	normalizeLabel,
 	normalizeRelationName,
@@ -34,11 +35,7 @@ export function parseFrontmatterRelations(
 
 	for (const [relationName, aliasKeys] of relationAliases.entries()) {
 		for (const aliasKey of aliasKeys) {
-			const value = resolveAliasValue(
-				aliasKey,
-				frontmatter,
-				frontmatterLowercase,
-			);
+			const value = resolveAliasValue(aliasKey, frontmatterLowercase);
 			if (value === undefined) continue;
 
 			if (
@@ -48,6 +45,7 @@ export function parseFrontmatterRelations(
 			) {
 				// Object value → each key is a label
 				for (const [label, subValue] of Object.entries(value)) {
+					if (!isValidLabel(label)) continue;
 					relations.push(
 						...parseRelationEntry(
 							relationName,
@@ -75,10 +73,10 @@ export function parseFrontmatterRelations(
 		if (dotIdx === -1) continue;
 		const prefix = key.slice(0, dotIdx);
 		const label = key.slice(dotIdx + 1);
-		if (!knownRelations.has(prefix) || !label) continue;
+		if (!knownRelations.has(prefix) || !isValidLabel(label)) continue;
 		// Skip if this exact key was already consumed via alias resolution
 		if (consumedKeys.has(key)) continue;
-		const value = frontmatterLowercase.get(key);
+		const value = frontmatterLowercase.get(key) as FrontmatterValue;
 		relations.push(...parseRelationEntry(prefix, value, label));
 		consumedKeys.add(key);
 	}
@@ -96,9 +94,8 @@ export function parseFrontmatterRelations(
  */
 function resolveAliasValue(
 	aliasKey: string,
-	frontmatter: Record<string, unknown>,
-	frontmatterLowercase: Map<string, FrontmatterValue>,
-): FrontmatterValue | Record<string, unknown> {
+	frontmatterLowercase: Map<string, unknown>,
+): unknown {
 	// Quoted string: literal property lookup
 	if (aliasKey.startsWith('"') && aliasKey.endsWith('"')) {
 		const literalKey = aliasKey.slice(1, -1).toLowerCase();
@@ -110,13 +107,7 @@ function resolveAliasValue(
 	if (dotIndex !== -1) {
 		const parentKey = aliasKey.slice(0, dotIndex).toLowerCase();
 		const childKey = aliasKey.slice(dotIndex + 1).toLowerCase();
-		const parentValue =
-			frontmatter[parentKey] ??
-			frontmatter[
-				Object.keys(frontmatter).find(
-					(k) => k.toLowerCase() === parentKey,
-				) ?? ""
-			];
+		const parentValue = frontmatterLowercase.get(parentKey);
 
 		if (
 			parentValue &&
@@ -128,19 +119,14 @@ function resolveAliasValue(
 				(k) => k.toLowerCase() === childKey,
 			);
 			if (matchingKey) {
-				return parentObj[matchingKey] as FrontmatterValue;
+				return parentObj[matchingKey];
 			}
 		}
 		return undefined;
 	}
 
 	// Simple: direct property lookup — check for object value (labeled relations)
-	const rawValue =
-		frontmatter[
-			Object.keys(frontmatter).find(
-				(k) => k.toLowerCase() === aliasKey,
-			) ?? ""
-		];
+	const rawValue = frontmatterLowercase.get(aliasKey);
 	if (
 		rawValue !== undefined &&
 		typeof rawValue === "object" &&
@@ -150,7 +136,7 @@ function resolveAliasValue(
 		return rawValue as Record<string, unknown>;
 	}
 
-	return frontmatterLowercase.get(aliasKey);
+	return rawValue;
 }
 
 export function parseFileProperties(
@@ -248,10 +234,10 @@ function buildRelationAliases(
 
 function normalizeFrontmatterKeys(
 	frontmatter: Record<string, unknown>,
-): Map<string, FrontmatterValue> {
-	const map = new Map<string, FrontmatterValue>();
+): Map<string, unknown> {
+	const map = new Map<string, unknown>();
 	for (const [key, value] of Object.entries(frontmatter)) {
-		map.set(key.toLowerCase(), value as FrontmatterValue);
+		map.set(key.toLowerCase(), value);
 	}
 	return map;
 }

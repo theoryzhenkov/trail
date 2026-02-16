@@ -108,7 +108,7 @@ const nodeToMark: Record<string, Decoration> = {
  */
 const functionCallParents = new Set(["FunctionCall"]);
 const propertyAccessParents = new Set(["PropertyAccess", "SortKey"]);
-const relationNameParents = new Set(["RelationName"]);
+const relationNameParents = new Set(["RelationName", "RelationLabel"]);
 
 /**
  * Build decorations from the Lezer syntax tree.

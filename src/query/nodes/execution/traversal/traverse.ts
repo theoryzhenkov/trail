@@ -43,9 +43,9 @@ export function traverse(
 
 /**
  * Resolve an edge into a NodeContext with all display metadata.
- * Shared by both DFS and BFS paths to eliminate duplication.
+ * Shared by DFS (via TraversalState.buildNodeContext), BFS, and handleLeaf.
  */
-function resolveNodeContext(
+export function resolveNodeContext(
 	env: QueryEnv,
 	edge: RelationEdge,
 	depth: number,

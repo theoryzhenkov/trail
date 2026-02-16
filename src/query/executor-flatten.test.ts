@@ -3,23 +3,27 @@
  * Tests for the `flatten` modifier on relation specs
  */
 
-import {describe, it, expect} from "vitest";
-import {runQuery, MockGraph} from "./test-utils";
+import { describe, it, expect } from "vitest";
+import { runQuery, MockGraph } from "./test-utils";
 
 describe("TQL Executor - Flatten", () => {
 	describe("Basic flatten behavior", () => {
 		it("should produce flat list with flatten modifier", () => {
 			const graph: MockGraph = {
 				files: [
-					{path: "root.md", properties: {}},
-					{path: "child1.md", properties: {}},
-					{path: "child2.md", properties: {}},
-					{path: "grandchild1.md", properties: {}},
+					{ path: "root.md", properties: {} },
+					{ path: "child1.md", properties: {} },
+					{ path: "child2.md", properties: {} },
+					{ path: "grandchild1.md", properties: {} },
 				],
 				edges: [
-					{from: "root.md", to: "child1.md", relation: "down"},
-					{from: "root.md", to: "child2.md", relation: "down"},
-					{from: "child1.md", to: "grandchild1.md", relation: "down"},
+					{ from: "root.md", to: "child1.md", relation: "down" },
+					{ from: "root.md", to: "child2.md", relation: "down" },
+					{
+						from: "child1.md",
+						to: "grandchild1.md",
+						relation: "down",
+					},
 				],
 				relations: ["down"],
 			};
@@ -27,7 +31,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down :flatten',
 				graph,
-				"root.md"
+				"root.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -47,13 +51,17 @@ describe("TQL Executor - Flatten", () => {
 		it("should preserve tree structure without flatten", () => {
 			const graph: MockGraph = {
 				files: [
-					{path: "root.md", properties: {}},
-					{path: "child1.md", properties: {}},
-					{path: "grandchild1.md", properties: {}},
+					{ path: "root.md", properties: {} },
+					{ path: "child1.md", properties: {} },
+					{ path: "grandchild1.md", properties: {} },
 				],
 				edges: [
-					{from: "root.md", to: "child1.md", relation: "down"},
-					{from: "child1.md", to: "grandchild1.md", relation: "down"},
+					{ from: "root.md", to: "child1.md", relation: "down" },
+					{
+						from: "child1.md",
+						to: "grandchild1.md",
+						relation: "down",
+					},
 				],
 				relations: ["down"],
 			};
@@ -61,7 +69,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down ',
 				graph,
-				"root.md"
+				"root.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -77,16 +85,16 @@ describe("TQL Executor - Flatten", () => {
 			// Diamond pattern: root -> a, b; a -> c; b -> c
 			const graph: MockGraph = {
 				files: [
-					{path: "root.md", properties: {}},
-					{path: "a.md", properties: {}},
-					{path: "b.md", properties: {}},
-					{path: "c.md", properties: {}},
+					{ path: "root.md", properties: {} },
+					{ path: "a.md", properties: {} },
+					{ path: "b.md", properties: {} },
+					{ path: "c.md", properties: {} },
 				],
 				edges: [
-					{from: "root.md", to: "a.md", relation: "down"},
-					{from: "root.md", to: "b.md", relation: "down"},
-					{from: "a.md", to: "c.md", relation: "down"},
-					{from: "b.md", to: "c.md", relation: "down"},
+					{ from: "root.md", to: "a.md", relation: "down" },
+					{ from: "root.md", to: "b.md", relation: "down" },
+					{ from: "a.md", to: "c.md", relation: "down" },
+					{ from: "b.md", to: "c.md", relation: "down" },
 				],
 				relations: ["down"],
 			};
@@ -94,7 +102,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down :flatten',
 				graph,
-				"root.md"
+				"root.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -108,17 +116,17 @@ describe("TQL Executor - Flatten", () => {
 			// Clique: a, b, c all connected to each other via "same"
 			const graph: MockGraph = {
 				files: [
-					{path: "a.md", properties: {}},
-					{path: "b.md", properties: {}},
-					{path: "c.md", properties: {}},
+					{ path: "a.md", properties: {} },
+					{ path: "b.md", properties: {} },
+					{ path: "c.md", properties: {} },
 				],
 				edges: [
-					{from: "a.md", to: "b.md", relation: "same"},
-					{from: "a.md", to: "c.md", relation: "same"},
-					{from: "b.md", to: "a.md", relation: "same"},
-					{from: "b.md", to: "c.md", relation: "same"},
-					{from: "c.md", to: "a.md", relation: "same"},
-					{from: "c.md", to: "b.md", relation: "same"},
+					{ from: "a.md", to: "b.md", relation: "same" },
+					{ from: "a.md", to: "c.md", relation: "same" },
+					{ from: "b.md", to: "a.md", relation: "same" },
+					{ from: "b.md", to: "c.md", relation: "same" },
+					{ from: "c.md", to: "a.md", relation: "same" },
+					{ from: "c.md", to: "b.md", relation: "same" },
 				],
 				relations: ["same"],
 			};
@@ -126,7 +134,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from same :flatten',
 				graph,
-				"a.md"
+				"a.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -143,15 +151,15 @@ describe("TQL Executor - Flatten", () => {
 		it("should respect depth limit when flattening", () => {
 			const graph: MockGraph = {
 				files: [
-					{path: "root.md", properties: {}},
-					{path: "level1.md", properties: {}},
-					{path: "level2.md", properties: {}},
-					{path: "level3.md", properties: {}},
+					{ path: "root.md", properties: {} },
+					{ path: "level1.md", properties: {} },
+					{ path: "level2.md", properties: {} },
+					{ path: "level3.md", properties: {} },
 				],
 				edges: [
-					{from: "root.md", to: "level1.md", relation: "down"},
-					{from: "level1.md", to: "level2.md", relation: "down"},
-					{from: "level2.md", to: "level3.md", relation: "down"},
+					{ from: "root.md", to: "level1.md", relation: "down" },
+					{ from: "level1.md", to: "level2.md", relation: "down" },
+					{ from: "level2.md", to: "level3.md", relation: "down" },
 				],
 				relations: ["down"],
 			};
@@ -159,7 +167,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down :depth 2 :flatten',
 				graph,
-				"root.md"
+				"root.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -174,15 +182,19 @@ describe("TQL Executor - Flatten", () => {
 		it("should work with depth 1", () => {
 			const graph: MockGraph = {
 				files: [
-					{path: "root.md", properties: {}},
-					{path: "child1.md", properties: {}},
-					{path: "child2.md", properties: {}},
-					{path: "grandchild.md", properties: {}},
+					{ path: "root.md", properties: {} },
+					{ path: "child1.md", properties: {} },
+					{ path: "child2.md", properties: {} },
+					{ path: "grandchild.md", properties: {} },
 				],
 				edges: [
-					{from: "root.md", to: "child1.md", relation: "down"},
-					{from: "root.md", to: "child2.md", relation: "down"},
-					{from: "child1.md", to: "grandchild.md", relation: "down"},
+					{ from: "root.md", to: "child1.md", relation: "down" },
+					{ from: "root.md", to: "child2.md", relation: "down" },
+					{
+						from: "child1.md",
+						to: "grandchild.md",
+						relation: "down",
+					},
 				],
 				relations: ["down"],
 			};
@@ -190,7 +202,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down :depth 1 :flatten',
 				graph,
-				"root.md"
+				"root.md",
 			);
 
 			// Depth 1 means only direct children
@@ -206,15 +218,15 @@ describe("TQL Executor - Flatten", () => {
 		it("should apply WHERE filter to flattened results", () => {
 			const graph: MockGraph = {
 				files: [
-					{path: "root.md", properties: {}},
-					{path: "a.md", properties: {status: "active"}},
-					{path: "b.md", properties: {status: "inactive"}},
-					{path: "c.md", properties: {status: "active"}},
+					{ path: "root.md", properties: {} },
+					{ path: "a.md", properties: { status: "active" } },
+					{ path: "b.md", properties: { status: "inactive" } },
+					{ path: "c.md", properties: { status: "active" } },
 				],
 				edges: [
-					{from: "root.md", to: "a.md", relation: "down"},
-					{from: "root.md", to: "b.md", relation: "down"},
-					{from: "b.md", to: "c.md", relation: "down"},
+					{ from: "root.md", to: "a.md", relation: "down" },
+					{ from: "root.md", to: "b.md", relation: "down" },
+					{ from: "b.md", to: "c.md", relation: "down" },
 				],
 				relations: ["down"],
 			};
@@ -222,7 +234,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down :flatten where status = "active"',
 				graph,
-				"root.md"
+				"root.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -239,15 +251,15 @@ describe("TQL Executor - Flatten", () => {
 		it("should apply PRUNE filter during flattened traversal", () => {
 			const graph: MockGraph = {
 				files: [
-					{path: "root.md", properties: {}},
-					{path: "a.md", properties: {blocked: false}},
-					{path: "b.md", properties: {blocked: true}},
-					{path: "c.md", properties: {blocked: false}},
+					{ path: "root.md", properties: {} },
+					{ path: "a.md", properties: { blocked: false } },
+					{ path: "b.md", properties: { blocked: true } },
+					{ path: "c.md", properties: { blocked: false } },
 				],
 				edges: [
-					{from: "root.md", to: "a.md", relation: "down"},
-					{from: "root.md", to: "b.md", relation: "down"},
-					{from: "b.md", to: "c.md", relation: "down"},
+					{ from: "root.md", to: "a.md", relation: "down" },
+					{ from: "root.md", to: "b.md", relation: "down" },
+					{ from: "b.md", to: "c.md", relation: "down" },
 				],
 				relations: ["down"],
 			};
@@ -255,7 +267,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down :flatten prune blocked = true',
 				graph,
-				"root.md"
+				"root.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -275,15 +287,15 @@ describe("TQL Executor - Flatten", () => {
 		it("should only flatten relations with flatten modifier", () => {
 			const graph: MockGraph = {
 				files: [
-					{path: "root.md", properties: {}},
-					{path: "child.md", properties: {}},
-					{path: "grandchild.md", properties: {}},
-					{path: "sibling.md", properties: {}},
+					{ path: "root.md", properties: {} },
+					{ path: "child.md", properties: {} },
+					{ path: "grandchild.md", properties: {} },
+					{ path: "sibling.md", properties: {} },
 				],
 				edges: [
-					{from: "root.md", to: "child.md", relation: "down"},
-					{from: "child.md", to: "grandchild.md", relation: "down"},
-					{from: "root.md", to: "sibling.md", relation: "same"},
+					{ from: "root.md", to: "child.md", relation: "down" },
+					{ from: "child.md", to: "grandchild.md", relation: "down" },
+					{ from: "root.md", to: "sibling.md", relation: "same" },
 				],
 				relations: ["down", "same"],
 			};
@@ -291,7 +303,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down :flatten, same',
 				graph,
-				"root.md"
+				"root.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -300,14 +312,16 @@ describe("TQL Executor - Flatten", () => {
 			expect(result.results).toHaveLength(3);
 
 			const flattenedNodes = result.results.filter(
-				(r) => r.relation === "down"
+				(r) => r.relation === "down",
 			);
 			for (const node of flattenedNodes) {
 				expect(node.depth).toBe(1);
 				expect(node.children).toHaveLength(0);
 			}
 
-			const normalNodes = result.results.filter((r) => r.relation === "same");
+			const normalNodes = result.results.filter(
+				(r) => r.relation === "same",
+			);
 			expect(normalNodes).toHaveLength(1);
 		});
 	});
@@ -317,14 +331,14 @@ describe("TQL Executor - Flatten", () => {
 			// A -> B -> C -> A (circular)
 			const graph: MockGraph = {
 				files: [
-					{path: "a.md", properties: {}},
-					{path: "b.md", properties: {}},
-					{path: "c.md", properties: {}},
+					{ path: "a.md", properties: {} },
+					{ path: "b.md", properties: {} },
+					{ path: "c.md", properties: {} },
 				],
 				edges: [
-					{from: "a.md", to: "b.md", relation: "down"},
-					{from: "b.md", to: "c.md", relation: "down"},
-					{from: "c.md", to: "a.md", relation: "down"},
+					{ from: "a.md", to: "b.md", relation: "down" },
+					{ from: "b.md", to: "c.md", relation: "down" },
+					{ from: "c.md", to: "a.md", relation: "down" },
 				],
 				relations: ["down"],
 			};
@@ -332,7 +346,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down :flatten',
 				graph,
-				"a.md"
+				"a.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -349,8 +363,8 @@ describe("TQL Executor - Flatten", () => {
 		it("should preserve implied status in flattened results", () => {
 			const graph: MockGraph = {
 				files: [
-					{path: "root.md", properties: {}},
-					{path: "child.md", properties: {}},
+					{ path: "root.md", properties: {} },
+					{ path: "child.md", properties: {} },
 				],
 				edges: [
 					{
@@ -367,7 +381,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down :flatten',
 				graph,
-				"root.md"
+				"root.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -381,17 +395,17 @@ describe("TQL Executor - Flatten", () => {
 		it("should flatten descendants beyond specified depth (5D fix)", () => {
 			const graph: MockGraph = {
 				files: [
-					{path: "root.md", properties: {}},
-					{path: "a.md", properties: {}},
-					{path: "b.md", properties: {}},
-					{path: "c.md", properties: {}},
-					{path: "d.md", properties: {}},
+					{ path: "root.md", properties: {} },
+					{ path: "a.md", properties: {} },
+					{ path: "b.md", properties: {} },
+					{ path: "c.md", properties: {} },
+					{ path: "d.md", properties: {} },
 				],
 				edges: [
-					{from: "root.md", to: "a.md", relation: "down"},
-					{from: "a.md", to: "b.md", relation: "down"},
-					{from: "b.md", to: "c.md", relation: "down"},
-					{from: "c.md", to: "d.md", relation: "down"},
+					{ from: "root.md", to: "a.md", relation: "down" },
+					{ from: "a.md", to: "b.md", relation: "down" },
+					{ from: "b.md", to: "c.md", relation: "down" },
+					{ from: "c.md", to: "d.md", relation: "down" },
 				],
 				relations: ["down"],
 			};
@@ -399,7 +413,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down :flatten 2',
 				graph,
-				"root.md"
+				"root.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -424,10 +438,86 @@ describe("TQL Executor - Flatten", () => {
 		});
 	});
 
+	describe("Flatten with labels", () => {
+		it("should preserve label on flattened results", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "book.md", properties: {} },
+					{ path: "author.md", properties: {} },
+					{ path: "coauthor.md", properties: {} },
+				],
+				edges: [
+					{
+						from: "book.md",
+						to: "author.md",
+						relation: "up",
+						label: "author",
+					},
+					{
+						from: "author.md",
+						to: "coauthor.md",
+						relation: "up",
+						label: "author",
+					},
+				],
+				relations: ["up"],
+			};
+
+			const result = runQuery(
+				'group "Test" from up.author :flatten',
+				graph,
+				"book.md",
+			);
+
+			expect(result.visible).toBe(true);
+			expect(result.results).toHaveLength(2);
+			for (const node of result.results) {
+				expect(node.label).toBe("author");
+			}
+		});
+
+		it("should filter by label in flatten mode", () => {
+			const graph: MockGraph = {
+				files: [
+					{ path: "book.md", properties: {} },
+					{ path: "author.md", properties: {} },
+					{ path: "series.md", properties: {} },
+					{ path: "publisher.md", properties: {} },
+				],
+				edges: [
+					{
+						from: "book.md",
+						to: "author.md",
+						relation: "up",
+						label: "author",
+					},
+					{
+						from: "book.md",
+						to: "series.md",
+						relation: "up",
+						label: "series",
+					},
+					{ from: "book.md", to: "publisher.md", relation: "up" },
+				],
+				relations: ["up"],
+			};
+
+			const result = runQuery(
+				'group "Test" from up.author :flatten',
+				graph,
+				"book.md",
+			);
+
+			expect(result.visible).toBe(true);
+			expect(result.results).toHaveLength(1);
+			expect(result.results[0]?.path).toBe("author.md");
+		});
+	});
+
 	describe("Flatten edge cases", () => {
 		it("should return empty results when no edges exist", () => {
 			const graph: MockGraph = {
-				files: [{path: "lonely.md", properties: {}}],
+				files: [{ path: "lonely.md", properties: {} }],
 				edges: [],
 				relations: ["down"],
 			};
@@ -435,7 +525,7 @@ describe("TQL Executor - Flatten", () => {
 			const result = runQuery(
 				'group "Test" from down :flatten',
 				graph,
-				"lonely.md"
+				"lonely.md",
 			);
 
 			expect(result.visible).toBe(true);
@@ -445,17 +535,17 @@ describe("TQL Executor - Flatten", () => {
 		it("should handle single node result", () => {
 			const graph: MockGraph = {
 				files: [
-					{path: "root.md", properties: {}},
-					{path: "only.md", properties: {}},
+					{ path: "root.md", properties: {} },
+					{ path: "only.md", properties: {} },
 				],
-				edges: [{from: "root.md", to: "only.md", relation: "down"}],
+				edges: [{ from: "root.md", to: "only.md", relation: "down" }],
 				relations: ["down"],
 			};
 
 			const result = runQuery(
 				'group "Test" from down :flatten',
 				graph,
-				"root.md"
+				"root.md",
 			);
 
 			expect(result.visible).toBe(true);
