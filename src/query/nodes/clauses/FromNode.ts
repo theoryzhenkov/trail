@@ -5,7 +5,7 @@
  */
 
 import type {SyntaxNode} from "@lezer/common";
-import {ClauseNode} from "../base/ClauseNode";
+import {Node} from "../base/Node";
 import {RelationSpecNode} from "./RelationSpecNode";
 import {InlineQueryNode} from "../expressions/InlineQueryNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
@@ -28,7 +28,7 @@ export type RelationChain = {
 };
 
 @register("FromNode", {clause: true})
-export class FromNode extends ClauseNode {
+export class FromNode extends Node {
 	readonly chains: RelationChain[];
 
 	static providesContexts: CompletionContext[] = ["relation", "clause"];

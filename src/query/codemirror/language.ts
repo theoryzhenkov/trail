@@ -1,26 +1,28 @@
 /**
  * TQL Language Definition for CodeMirror 6
- * 
+ *
  * Provides syntax highlighting for TQL queries using a Lezer LR parser.
- * 
+ *
  * NOTE: CM6's native highlighting (via styleTags + HighlightStyle) does NOT work
  * in Obsidian plugins due to module instance fragmentation. The @lezer/highlight
  * module used to create NodeTypes with styleTags is a different instance than
  * the one used by TreeHighlighter to read those props.
- * 
+ *
  * Instead, we use a ViewPlugin that reads the Lezer syntax tree and applies
  * decorations based on node types, bypassing CM6's native highlighting system.
  */
 
+import { LRLanguage, LanguageSupport, syntaxTree } from "@codemirror/language";
 import {
-	LRLanguage,
-	LanguageSupport,
-	syntaxTree,
-} from "@codemirror/language";
-import {Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate} from "@codemirror/view";
-import {RangeSetBuilder} from "@codemirror/state";
-import type {SyntaxNode} from "@lezer/common";
-import {parser} from "./parser";
+	Decoration,
+	DecorationSet,
+	EditorView,
+	ViewPlugin,
+	ViewUpdate,
+} from "@codemirror/view";
+import { RangeSetBuilder } from "@codemirror/state";
+import type { SyntaxNode } from "@lezer/common";
+import { parser } from "./parser";
 
 /**
  * TQL language definition using the Lezer parser.
@@ -29,7 +31,7 @@ export const tqlLanguage = LRLanguage.define({
 	name: "tql",
 	parser,
 	languageData: {
-		commentTokens: {line: "//"},
+		commentTokens: { line: "//" },
 	},
 });
 
@@ -37,19 +39,19 @@ export const tqlLanguage = LRLanguage.define({
  * Decoration marks for different node types.
  * These CSS classes are styled in styles.css.
  */
-const keywordMark = Decoration.mark({class: "tql-keyword"});
-const typeMark = Decoration.mark({class: "tql-type"});
-const logicMark = Decoration.mark({class: "tql-logic"});
-const stringMark = Decoration.mark({class: "tql-string"});
-const numberMark = Decoration.mark({class: "tql-number"});
-const atomMark = Decoration.mark({class: "tql-atom"});
-const operatorMark = Decoration.mark({class: "tql-operator"});
-const functionMark = Decoration.mark({class: "tql-function"});
-const propertyMark = Decoration.mark({class: "tql-property"});
-const variableMark = Decoration.mark({class: "tql-variable"});
-const punctuationMark = Decoration.mark({class: "tql-punctuation"});
-const commentMark = Decoration.mark({class: "tql-comment"});
-const builtinMark = Decoration.mark({class: "tql-builtin"});
+const keywordMark = Decoration.mark({ class: "tql-keyword" });
+const typeMark = Decoration.mark({ class: "tql-type" });
+const logicMark = Decoration.mark({ class: "tql-logic" });
+const stringMark = Decoration.mark({ class: "tql-string" });
+const numberMark = Decoration.mark({ class: "tql-number" });
+const atomMark = Decoration.mark({ class: "tql-atom" });
+const operatorMark = Decoration.mark({ class: "tql-operator" });
+const functionMark = Decoration.mark({ class: "tql-function" });
+const propertyMark = Decoration.mark({ class: "tql-property" });
+const variableMark = Decoration.mark({ class: "tql-variable" });
+const punctuationMark = Decoration.mark({ class: "tql-punctuation" });
+const commentMark = Decoration.mark({ class: "tql-comment" });
+const builtinMark = Decoration.mark({ class: "tql-builtin" });
 
 /**
  * Map node names to decoration marks.
@@ -64,7 +66,7 @@ const nodeToMark: Record<string, Decoration> = {
 	when: keywordMark,
 	sort: keywordMark,
 	display: keywordMark,
-	
+
 	// Keywords - modifiers
 	depth: typeMark,
 	extend: typeMark,
@@ -72,13 +74,13 @@ const nodeToMark: Record<string, Decoration> = {
 	asc: typeMark,
 	desc: typeMark,
 	all: typeMark,
-	
+
 	// Logical operators
 	and: logicMark,
 	or: logicMark,
 	not: logicMark,
 	in: logicMark,
-	
+
 	// Literals
 	String: stringMark,
 	Number: numberMark,
@@ -86,17 +88,17 @@ const nodeToMark: Record<string, Decoration> = {
 	Boolean: atomMark,
 	Null: atomMark,
 	DateLiteral: numberMark,
-	
+
 	// Date keywords
 	today: atomMark,
 	yesterday: atomMark,
 	tomorrow: atomMark,
 	startOfWeek: atomMark,
 	endOfWeek: atomMark,
-	
+
 	// Identifiers
 	BuiltinIdentifier: builtinMark,
-	
+
 	// Comments
 	LineComment: commentMark,
 };
@@ -106,7 +108,7 @@ const nodeToMark: Record<string, Decoration> = {
  */
 const functionCallParents = new Set(["FunctionCall"]);
 const propertyAccessParents = new Set(["PropertyAccess", "SortKey"]);
-const relationSpecParents = new Set(["RelationSpec"]);
+const relationNameParents = new Set(["RelationName"]);
 
 /**
  * Build decorations from the Lezer syntax tree.
@@ -114,8 +116,8 @@ const relationSpecParents = new Set(["RelationSpec"]);
 function buildDecorations(view: EditorView): DecorationSet {
 	const builder = new RangeSetBuilder<Decoration>();
 	const tree = syntaxTree(view.state);
-	
-	for (const {from, to} of view.visibleRanges) {
+
+	for (const { from, to } of view.visibleRanges) {
 		tree.iterate({
 			from,
 			to,
@@ -127,7 +129,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 			},
 		});
 	}
-	
+
 	return builder.finish();
 }
 
@@ -136,27 +138,27 @@ function buildDecorations(view: EditorView): DecorationSet {
  */
 function getMarkForNode(node: SyntaxNode): Decoration | null {
 	const name = node.name;
-	
+
 	// Direct node type mapping
 	if (nodeToMark[name]) {
 		return nodeToMark[name];
 	}
-	
+
 	// Special handling for Identifier based on context
 	if (name === "Identifier") {
 		return getIdentifierMark(node);
 	}
-	
+
 	// Operators
 	if (isOperator(name)) {
 		return operatorMark;
 	}
-	
+
 	// Punctuation
 	if (isPunctuation(name)) {
 		return punctuationMark;
 	}
-	
+
 	return null;
 }
 
@@ -165,11 +167,11 @@ function getMarkForNode(node: SyntaxNode): Decoration | null {
  */
 function getIdentifierMark(node: SyntaxNode): Decoration {
 	const parent = node.parent;
-	
+
 	if (!parent) {
 		return variableMark;
 	}
-	
+
 	// Function name in function call
 	if (functionCallParents.has(parent.name)) {
 		// Check if this is the first child (the function name)
@@ -178,21 +180,17 @@ function getIdentifierMark(node: SyntaxNode): Decoration {
 			return functionMark;
 		}
 	}
-	
+
 	// Property access
 	if (propertyAccessParents.has(parent.name)) {
 		return propertyMark;
 	}
-	
-	// Relation name in RelationSpec
-	if (relationSpecParents.has(parent.name)) {
-		// First identifier is the relation name
-		const firstChild = parent.firstChild;
-		if (firstChild && firstChild.from === node.from) {
-			return variableMark;
-		}
+
+	// Relation name in RelationName (inside RelationSpec)
+	if (relationNameParents.has(parent.name)) {
+		return variableMark;
 	}
-	
+
 	// Default
 	return variableMark;
 }
@@ -201,7 +199,20 @@ function getIdentifierMark(node: SyntaxNode): Decoration {
  * Check if a node name represents an operator
  */
 function isOperator(name: string): boolean {
-	return ["=", "!=", "<", ">", "<=", ">=", "=?", "!=?", "+", "-", "..", "!"].includes(name);
+	return [
+		"=",
+		"!=",
+		"<",
+		">",
+		"<=",
+		">=",
+		"=?",
+		"!=?",
+		"+",
+		"-",
+		"..",
+		"!",
+	].includes(name);
 }
 
 /**
@@ -215,25 +226,28 @@ function isPunctuation(name: string): boolean {
  * ViewPlugin for TQL syntax highlighting.
  * Reads the Lezer syntax tree and applies decorations based on node types.
  */
-export const tqlHighlightPlugin = ViewPlugin.fromClass(class {
-	decorations: DecorationSet;
-	
-	constructor(view: EditorView) {
-		this.decorations = buildDecorations(view);
-	}
-	
-	update(update: ViewUpdate) {
-		if (update.docChanged || update.viewportChanged) {
-			this.decorations = buildDecorations(update.view);
+export const tqlHighlightPlugin = ViewPlugin.fromClass(
+	class {
+		decorations: DecorationSet;
+
+		constructor(view: EditorView) {
+			this.decorations = buildDecorations(view);
 		}
-	}
-}, {
-	decorations: v => v.decorations
-});
+
+		update(update: ViewUpdate) {
+			if (update.docChanged || update.viewportChanged) {
+				this.decorations = buildDecorations(update.view);
+			}
+		}
+	},
+	{
+		decorations: (v) => v.decorations,
+	},
+);
 
 /**
  * TQL language support with ViewPlugin-based highlighting.
- * 
+ *
  * Uses manual decoration instead of CM6's native highlighting
  * because the native system doesn't work in Obsidian plugins.
  */

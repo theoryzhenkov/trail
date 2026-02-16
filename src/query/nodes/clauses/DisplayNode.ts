@@ -5,13 +5,13 @@
  */
 
 import type {SyntaxNode} from "@lezer/common";
-import {ClauseNode} from "../base/ClauseNode";
+import {Node} from "../base/Node";
 import {PropertyNode} from "../expressions/PropertyNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import {register, type ConvertContext} from "../registry";
 
 @register("DisplayNode", {clause: true})
-export class DisplayNode extends ClauseNode {
+export class DisplayNode extends Node {
 	readonly all: boolean;
 	readonly properties: PropertyNode[];
 

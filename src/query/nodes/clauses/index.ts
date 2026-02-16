@@ -12,6 +12,3 @@ export {WhenNode} from "./WhenNode";
 export {SortNode} from "./SortNode";
 export {SortKeyNode} from "./SortKeyNode";
 export {DisplayNode} from "./DisplayNode";
-
-// Re-export base
-export {ClauseNode} from "../base/ClauseNode";

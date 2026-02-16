@@ -7,7 +7,7 @@
  */
 
 import type {SyntaxNode} from "@lezer/common";
-import {ClauseNode} from "../base/ClauseNode";
+import {Node} from "../base/Node";
 import type {ExprNode} from "../base/ExprNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import type {EvalContext} from "../context";
@@ -16,7 +16,7 @@ import {isTruthy} from "../value-ops";
 import {findExpressionInClause} from "./WhereNode";
 
 @register("WhenNode", {clause: true})
-export class WhenNode extends ClauseNode {
+export class WhenNode extends Node {
 	readonly expression: ExprNode;
 
 	static providesContexts: CompletionContext[] = ["expression", "clause"];

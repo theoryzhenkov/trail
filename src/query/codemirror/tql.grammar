@@ -26,7 +26,9 @@ RelationChain { RelationSpec (">>" ChainTarget)* }
 
 ChainTarget { RelationSpec | GroupReference | InlineQuery }
 
-RelationSpec { Identifier RelationOption* }
+RelationSpec { RelationName RelationOption* }
+
+RelationName { Identifier ("." Identifier)? }
 
 RelationOption {
   ":depth" Number |

@@ -8,10 +8,18 @@
  * - Warning collection
  */
 
-import type {RelationEdge, FileProperties, VisualDirection} from "../../../../types";
-import type {QueryEnv} from "../../context";
-import type {QueryResultNode, QueryWarning, TraversalContext} from "../../types";
-import type {TraversalConfig, NodeContext, OutputConfig} from "./types";
+import type {
+	RelationEdge,
+	FileProperties,
+	VisualDirection,
+} from "../../../../types";
+import type { QueryEnv } from "../../context";
+import type {
+	QueryResultNode,
+	QueryWarning,
+	TraversalContext,
+} from "../../types";
+import type { TraversalConfig, NodeContext, OutputConfig } from "./types";
 
 /**
  * Manages traversal state and result building
@@ -84,13 +92,6 @@ export class TraversalState {
 		}
 	}
 
-	/**
-	 * Create a snapshot of ancestors (for recursive calls that need isolation)
-	 */
-	snapshotAncestors(): Set<string> {
-		return new Set(this.ancestors);
-	}
-
 	// =========================================================================
 	// Node Context Building (5A: simplified, delegates to env)
 	// =========================================================================
@@ -115,6 +116,7 @@ export class TraversalState {
 		const traversalCtx: TraversalContext = {
 			depth,
 			relation: relationName,
+			label: edge.label,
 			isImplied: edge.implied,
 			parent: this.currentPath(),
 			path: traversalPath,
@@ -145,12 +147,16 @@ export class TraversalState {
 	 * - Tree mode: returns node with children nested
 	 * - Partial flat: tree until flattenFrom depth, then flatten descendants
 	 */
-	buildResultNode(ctx: NodeContext, children: QueryResultNode[]): QueryResultNode {
-		const {flattenFrom} = this.output;
+	buildResultNode(
+		ctx: NodeContext,
+		children: QueryResultNode[],
+	): QueryResultNode {
+		const { flattenFrom } = this.output;
 
 		const node: QueryResultNode = {
 			path: ctx.path,
 			relation: ctx.relationName,
+			label: ctx.edge.label,
 			depth: ctx.depth,
 			implied: ctx.edge.implied,
 			impliedFrom: ctx.impliedFromName,
@@ -183,7 +189,7 @@ export class TraversalState {
 	 * Add a warning
 	 */
 	addWarning(message: string): void {
-		this.warnings.push({message});
+		this.warnings.push({ message });
 	}
 
 	// =========================================================================
@@ -193,9 +199,12 @@ export class TraversalState {
 	/**
 	 * Get the final result based on output configuration
 	 */
-	getResult(treeResults: QueryResultNode[]): {nodes: QueryResultNode[]; warnings: QueryWarning[]} {
+	getResult(treeResults: QueryResultNode[]): {
+		nodes: QueryResultNode[];
+		warnings: QueryWarning[];
+	} {
 		// Both tree and partial flatten are now handled entirely in buildResultNode
-		return {nodes: treeResults, warnings: this.warnings};
+		return { nodes: treeResults, warnings: this.warnings };
 	}
 }
 
@@ -205,7 +214,7 @@ export class TraversalState {
 function flattenDescendants(nodes: QueryResultNode[]): QueryResultNode[] {
 	const result: QueryResultNode[] = [];
 	for (const node of nodes) {
-		result.push({...node, children: []});
+		result.push({ ...node, children: [] });
 		if (node.children.length > 0) {
 			result.push(...flattenDescendants(node.children));
 		}
@@ -221,14 +230,9 @@ export class BfsTraversalState {
 	private readonly visited: Set<string>;
 	/** Flat results */
 	private readonly results: QueryResultNode[] = [];
-	/** Collected warnings */
-	private readonly warnings: QueryWarning[] = [];
-	/** Starting path */
-	private readonly startPath: string;
 
 	constructor(startPath: string) {
 		this.visited = new Set([startPath]);
-		this.startPath = startPath;
 	}
 
 	/**
@@ -253,23 +257,9 @@ export class BfsTraversalState {
 	}
 
 	/**
-	 * Add a warning
-	 */
-	addWarning(message: string): void {
-		this.warnings.push({message});
-	}
-
-	/**
-	 * Get the starting path
-	 */
-	getStartPath(): string {
-		return this.startPath;
-	}
-
-	/**
 	 * Get the final result
 	 */
-	getResult(): {nodes: QueryResultNode[]; warnings: QueryWarning[]} {
-		return {nodes: this.results, warnings: this.warnings};
+	getResult(): { nodes: QueryResultNode[]; warnings: QueryWarning[] } {
+		return { nodes: this.results, warnings: [] };
 	}
 }

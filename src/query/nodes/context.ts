@@ -16,7 +16,11 @@ import type {
 	QueryWarning,
 	QueryResultNode,
 } from "./types";
-import type {FileProperties, RelationEdge, VisualDirection} from "../../types";
+import type {
+	FileProperties,
+	RelationEdge,
+	VisualDirection,
+} from "../../types";
 
 // =============================================================================
 // QueryEnv - Read-only per-query environment
@@ -62,7 +66,7 @@ export class QueryEnv {
 	}
 
 	addWarning(message: string): void {
-		this._warnings.push({message});
+		this._warnings.push({ message });
 	}
 
 	hasErrors(): boolean {
@@ -86,12 +90,20 @@ export class QueryEnv {
 	// Graph Access (delegated to QueryContext)
 	// =========================================================================
 
-	getOutgoingEdges(path: string, relation?: string): RelationEdge[] {
-		return this._queryCtx.getOutgoingEdges(path, relation);
+	getOutgoingEdges(
+		path: string,
+		relation?: string,
+		label?: string,
+	): RelationEdge[] {
+		return this._queryCtx.getOutgoingEdges(path, relation, label);
 	}
 
-	getIncomingEdges(path: string, relation?: string): RelationEdge[] {
-		return this._queryCtx.getIncomingEdges(path, relation);
+	getIncomingEdges(
+		path: string,
+		relation?: string,
+		label?: string,
+	): RelationEdge[] {
+		return this._queryCtx.getIncomingEdges(path, relation, label);
 	}
 
 	getProperties(path: string): FileProperties {
@@ -142,7 +154,11 @@ export class QueryEnv {
 
 	resolveRelativeDate(kind: string): Date {
 		const now = new Date();
-		const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+		const today = new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate(),
+		);
 
 		switch (kind) {
 			case "today":
@@ -157,7 +173,9 @@ export class QueryEnv {
 			}
 			case "endOfWeek": {
 				const day = today.getDay();
-				return new Date(today.getTime() + (6 - day) * 24 * 60 * 60 * 1000);
+				return new Date(
+					today.getTime() + (6 - day) * 24 * 60 * 60 * 1000,
+				);
 			}
 			default:
 				return today;
@@ -185,7 +203,7 @@ export class EvalContext {
 		env: QueryEnv,
 		filePath: string,
 		properties: FileProperties,
-		traversal?: TraversalContext
+		traversal?: TraversalContext,
 	) {
 		this.env = env;
 		this.filePath = filePath;
@@ -268,6 +286,8 @@ export class EvalContext {
 				return this.traversal.depth;
 			case "relation":
 				return this.traversal.relation;
+			case "label":
+				return this.traversal.label ?? null;
 			case "isImplied":
 				return this.traversal.isImplied;
 			case "parent":
@@ -287,10 +307,14 @@ export class EvalContext {
 /**
  * Create an EvalContext from a QueryResultNode
  */
-export function evalContextFromNode(env: QueryEnv, node: QueryResultNode): EvalContext {
+export function evalContextFromNode(
+	env: QueryEnv,
+	node: QueryResultNode,
+): EvalContext {
 	return new EvalContext(env, node.path, node.properties, {
 		depth: node.depth,
 		relation: node.relation,
+		label: node.label,
 		isImplied: node.implied,
 		parent: node.parent,
 		path: node.traversalPath,
@@ -315,11 +339,13 @@ export class ValidationContextImpl {
 	private _relationNames: string[];
 	private _relationNamesLower: Set<string>;
 	private _groupNames: Set<string>;
-	private _errors: Array<{message: string; span: Span; code: string}> = [];
+	private _errors: Array<{ message: string; span: Span; code: string }> = [];
 
 	constructor(relationNames: string[], groupNames: string[]) {
 		this._relationNames = relationNames;
-		this._relationNamesLower = new Set(relationNames.map((n) => n.toLowerCase()));
+		this._relationNamesLower = new Set(
+			relationNames.map((n) => n.toLowerCase()),
+		);
 		this._groupNames = new Set(groupNames);
 	}
 
@@ -340,14 +366,14 @@ export class ValidationContextImpl {
 	}
 
 	addError(message: string, span: Span, code: string): void {
-		this._errors.push({message, span, code});
+		this._errors.push({ message, span, code });
 	}
 
 	hasErrors(): boolean {
 		return this._errors.length > 0;
 	}
 
-	getErrors(): Array<{message: string; span: Span; code: string}> {
+	getErrors(): Array<{ message: string; span: Span; code: string }> {
 		return this._errors;
 	}
 }
@@ -357,7 +383,7 @@ export class ValidationContextImpl {
  */
 export function createValidationContext(
 	relationNames: string[],
-	groupNames: string[]
+	groupNames: string[],
 ): ValidationContextImpl {
 	return new ValidationContextImpl(relationNames, groupNames);
 }

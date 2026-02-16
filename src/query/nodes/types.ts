@@ -2,7 +2,11 @@
  * TQL Node Types and Shared Interfaces
  */
 
-import type {FileProperties, RelationEdge, VisualDirection} from "../../types";
+import type {
+	FileProperties,
+	RelationEdge,
+	VisualDirection,
+} from "../../types";
 
 /**
  * Source span for error reporting
@@ -32,17 +36,17 @@ export interface NodeDoc {
  * Highlighting categories for syntax highlighting
  */
 export type HighlightCategory =
-	| "keyword"        // Clause keywords (group, from, where, etc.)
-	| "typeName"       // Modifiers (depth, extend, asc, desc, etc.)
+	| "keyword" // Clause keywords (group, from, where, etc.)
+	| "typeName" // Modifiers (depth, extend, asc, desc, etc.)
 	| "operatorKeyword" // Logical operators (and, or, not, in)
-	| "operator"       // Symbolic operators (=, !=, <, >, etc.)
-	| "string"         // String literals
-	| "number"         // Number and duration literals
-	| "atom"           // Boolean, null, date keywords
-	| "function"       // Function names
-	| "property"       // Property prefixes (file., traversal.)
-	| "variable"       // Identifiers, property names
-	| "punctuation";   // Delimiters (, . ( ))
+	| "operator" // Symbolic operators (=, !=, <, >, etc.)
+	| "string" // String literals
+	| "number" // Number and duration literals
+	| "atom" // Boolean, null, date keywords
+	| "function" // Function names
+	| "property" // Property prefixes (file., traversal.)
+	| "variable" // Identifiers, property names
+	| "punctuation"; // Delimiters (, . ( ))
 
 /**
  * Traversal context for WHERE/PRUNE evaluation
@@ -50,6 +54,7 @@ export type HighlightCategory =
 export interface TraversalContext {
 	depth: number;
 	relation: string;
+	label?: string;
 	isImplied: boolean;
 	parent: string | null;
 	path: string[];
@@ -76,7 +81,7 @@ export interface FileMetadata {
 export class RuntimeError extends Error {
 	constructor(
 		message: string,
-		public span: Span
+		public span: Span,
 	) {
 		super(message);
 		this.name = "RuntimeError";
@@ -97,6 +102,7 @@ export interface DisplayProperty {
 export interface TraversalNode {
 	path: string;
 	relation: string;
+	label?: string;
 	depth: number;
 	implied: boolean;
 	impliedFrom?: string;
@@ -138,15 +144,23 @@ export interface QueryWarning {
  * Query context interface (provided by plugin)
  */
 export interface QueryContext {
-	getOutgoingEdges(path: string, relation?: string): RelationEdge[];
-	getIncomingEdges(path: string, relation?: string): RelationEdge[];
+	getOutgoingEdges(
+		path: string,
+		relation?: string,
+		label?: string,
+	): RelationEdge[];
+	getIncomingEdges(
+		path: string,
+		relation?: string,
+		label?: string,
+	): RelationEdge[];
 	getProperties(path: string): FileProperties;
 	getFileMetadata(path: string): FileMetadata | undefined;
 	getRelationNames(): string[];
 	resolveRelationUid(name: string): string | undefined;
 	getRelationName(uid: string): string;
 	getVisualDirection(relationUid: string): VisualDirection;
-	resolveGroupQuery(name: string): unknown; // Will be QueryNode after refactor
+	resolveGroupQuery(name: string): unknown;
 	activeFilePath: string;
 	activeFileProperties: FileProperties;
 }
@@ -231,7 +245,13 @@ export interface Suggestion {
 	/** Text to insert */
 	insertText: string;
 	/** Kind of completion */
-	kind: "keyword" | "operator" | "function" | "property" | "value" | "snippet";
+	kind:
+		| "keyword"
+		| "operator"
+		| "function"
+		| "property"
+		| "value"
+		| "snippet";
 	/** Documentation */
 	detail?: string;
 	/** Full documentation */

@@ -1,4 +1,4 @@
-import type {RelationDefinition, RelationName, RelationUid} from "../types";
+import type { RelationDefinition, RelationName, RelationUid } from "../types";
 
 // Relation names must start with alphanumeric, can contain _, -
 // This prevents "-" alone from being a valid relation (used in chain syntax ::-::)
@@ -17,7 +17,9 @@ export interface RelationIndexes {
 	uidByNormalizedName: Map<string, RelationUid>;
 }
 
-export function buildRelationIndexes(relations: RelationDefinition[]): RelationIndexes {
+export function buildRelationIndexes(
+	relations: RelationDefinition[],
+): RelationIndexes {
 	const byUid = new Map<RelationUid, RelationDefinition>();
 	const uidByNormalizedName = new Map<string, RelationUid>();
 
@@ -29,12 +31,12 @@ export function buildRelationIndexes(relations: RelationDefinition[]): RelationI
 		}
 	}
 
-	return {byUid, uidByNormalizedName};
+	return { byUid, uidByNormalizedName };
 }
 
 export function resolveRelationUidByName(
 	relations: RelationDefinition[],
-	name: string
+	name: string,
 ): RelationUid | undefined {
 	const normalized = normalizeRelationName(name);
 	if (!normalized) {
@@ -50,14 +52,14 @@ export function resolveRelationUidByName(
 
 export function findRelationByUid(
 	relations: RelationDefinition[],
-	uid: string
+	uid: string,
 ): RelationDefinition | undefined {
 	return relations.find((relation) => relation.uid === uid);
 }
 
 export function findRelationByName(
 	relations: RelationDefinition[],
-	name: string
+	name: string,
 ): RelationDefinition | undefined {
 	const uid = resolveRelationUidByName(relations, name);
 	if (!uid) {
@@ -76,6 +78,10 @@ export function createRelationUid(): RelationUid {
 	}
 	const random = Math.random().toString(36).slice(2, 10);
 	return `rel_${Date.now()}_${random}`;
+}
+
+export function normalizeLabel(label: string): string {
+	return label.trim().toLowerCase();
 }
 
 export function formatRelationNameForTql(name: RelationName): string {

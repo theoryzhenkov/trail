@@ -3,13 +3,13 @@
  */
 
 import type {SyntaxNode} from "@lezer/common";
-import {ClauseNode} from "../base/ClauseNode";
+import {Node} from "../base/Node";
 import {PropertyNode} from "../expressions/PropertyNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext} from "../types";
 import {register, type ConvertContext} from "../registry";
 
 @register("SortKeyNode", {clause: true})
-export class SortKeyNode extends ClauseNode {
+export class SortKeyNode extends Node {
 	readonly key: PropertyNode;
 	readonly direction: "asc" | "desc";
 

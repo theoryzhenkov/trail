@@ -3,9 +3,9 @@
  * Tests for applying implied relation rules to edges
  */
 
-import {describe, it, expect} from "vitest";
-import {applyImpliedRules} from "./implied-relations";
-import type {RelationDefinition, RelationEdge} from "../types";
+import { describe, it, expect } from "vitest";
+import { applyImpliedRules } from "./implied-relations";
+import type { RelationDefinition, RelationEdge } from "../types";
 
 /**
  * Helper to create an edge for testing
@@ -15,9 +15,15 @@ function edge(
 	toPath: string,
 	relation: string,
 	implied = false,
-	impliedFrom?: string
+	impliedFrom?: string,
 ): RelationEdge {
-	return {fromPath, toPath, relationUid: relation, implied, impliedFromUid: impliedFrom};
+	return {
+		fromPath,
+		toPath,
+		relationUid: relation,
+		implied,
+		impliedFromUid: impliedFrom,
+	};
 }
 
 /**
@@ -25,7 +31,10 @@ function edge(
  */
 function relation(
 	id: string,
-	impliedRelations: Array<{targetRelation: string; direction: RelationDefinition["impliedRelations"][number]["direction"]}> = []
+	impliedRelations: Array<{
+		targetRelation: string;
+		direction: RelationDefinition["impliedRelations"][number]["direction"];
+	}> = [],
 ): RelationDefinition {
 	return {
 		uid: id,
@@ -45,10 +54,13 @@ function hasEdge(
 	edges: RelationEdge[],
 	fromPath: string,
 	toPath: string,
-	relation: string
+	relation: string,
 ): boolean {
 	return edges.some(
-		(e) => e.fromPath === fromPath && e.toPath === toPath && e.relationUid === relation
+		(e) =>
+			e.fromPath === fromPath &&
+			e.toPath === toPath &&
+			e.relationUid === relation,
 	);
 }
 
@@ -76,7 +88,9 @@ describe("applyImpliedRules", () => {
 		it("should create forward implied edge", () => {
 			const edges = [edge("A.md", "B.md", "up")];
 			const relations = [
-				relation("up", [{targetRelation: "parent", direction: "forward"}])
+				relation("up", [
+					{ targetRelation: "parent", direction: "forward" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -94,7 +108,9 @@ describe("applyImpliedRules", () => {
 		it("should create reverse implied edge", () => {
 			const edges = [edge("A.md", "B.md", "up")];
 			const relations = [
-				relation("up", [{targetRelation: "down", direction: "reverse"}])
+				relation("up", [
+					{ targetRelation: "down", direction: "reverse" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -112,7 +128,9 @@ describe("applyImpliedRules", () => {
 		it("should create both forward and reverse implied edges", () => {
 			const edges = [edge("A.md", "B.md", "related")];
 			const relations = [
-				relation("related", [{targetRelation: "linked", direction: "both"}])
+				relation("related", [
+					{ targetRelation: "linked", direction: "both" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -128,7 +146,9 @@ describe("applyImpliedRules", () => {
 			// This is the key test for issue #7: symmetric relations like "same"
 			const edges = [edge("A.md", "B.md", "same")];
 			const relations = [
-				relation("same", [{targetRelation: "same", direction: "reverse"}])
+				relation("same", [
+					{ targetRelation: "same", direction: "reverse" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -137,7 +157,7 @@ describe("applyImpliedRules", () => {
 			expect(hasEdge(result, "B.md", "A.md", "same")).toBe(true);
 
 			const impliedEdge = result.find(
-				(e) => e.fromPath === "B.md" && e.toPath === "A.md"
+				(e) => e.fromPath === "B.md" && e.toPath === "A.md",
 			);
 			expect(impliedEdge?.implied).toBe(true);
 			expect(impliedEdge?.impliedFromUid).toBe("same");
@@ -147,7 +167,9 @@ describe("applyImpliedRules", () => {
 			// Forward self-implication should be a no-op (same edge already exists)
 			const edges = [edge("A.md", "B.md", "same")];
 			const relations = [
-				relation("same", [{targetRelation: "same", direction: "forward"}])
+				relation("same", [
+					{ targetRelation: "same", direction: "forward" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -160,7 +182,9 @@ describe("applyImpliedRules", () => {
 		it("should handle self-implication with both direction", () => {
 			const edges = [edge("A.md", "B.md", "related")];
 			const relations = [
-				relation("related", [{targetRelation: "related", direction: "both"}])
+				relation("related", [
+					{ targetRelation: "related", direction: "both" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -173,10 +197,12 @@ describe("applyImpliedRules", () => {
 		it("should handle multiple files with symmetric relations", () => {
 			const edges = [
 				edge("A.md", "B.md", "same"),
-				edge("B.md", "C.md", "same")
+				edge("B.md", "C.md", "same"),
 			];
 			const relations = [
-				relation("same", [{targetRelation: "same", direction: "reverse"}])
+				relation("same", [
+					{ targetRelation: "same", direction: "reverse" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -191,10 +217,12 @@ describe("applyImpliedRules", () => {
 			// If user already defined both directions explicitly
 			const edges = [
 				edge("A.md", "B.md", "same"),
-				edge("B.md", "A.md", "same")
+				edge("B.md", "A.md", "same"),
 			];
 			const relations = [
-				relation("same", [{targetRelation: "same", direction: "reverse"}])
+				relation("same", [
+					{ targetRelation: "same", direction: "reverse" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -207,28 +235,36 @@ describe("applyImpliedRules", () => {
 		it("should create sibling edges between nodes sharing same target", () => {
 			const edges = [
 				edge("Child1.md", "Parent.md", "up"),
-				edge("Child2.md", "Parent.md", "up")
+				edge("Child2.md", "Parent.md", "up"),
 			];
 			const relations = [
-				relation("up", [{targetRelation: "sibling", direction: "sibling"}])
+				relation("up", [
+					{ targetRelation: "sibling", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
 			expect(result).toHaveLength(4);
 			expect(hasEdge(result, "Child1.md", "Parent.md", "up")).toBe(true);
 			expect(hasEdge(result, "Child2.md", "Parent.md", "up")).toBe(true);
-			expect(hasEdge(result, "Child1.md", "Child2.md", "sibling")).toBe(true);
-			expect(hasEdge(result, "Child2.md", "Child1.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "Child1.md", "Child2.md", "sibling")).toBe(
+				true,
+			);
+			expect(hasEdge(result, "Child2.md", "Child1.md", "sibling")).toBe(
+				true,
+			);
 		});
 
 		it("should create sibling edges for three or more siblings", () => {
 			const edges = [
 				edge("A.md", "Parent.md", "up"),
 				edge("B.md", "Parent.md", "up"),
-				edge("C.md", "Parent.md", "up")
+				edge("C.md", "Parent.md", "up"),
 			];
 			const relations = [
-				relation("up", [{targetRelation: "sibling", direction: "sibling"}])
+				relation("up", [
+					{ targetRelation: "sibling", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -245,7 +281,9 @@ describe("applyImpliedRules", () => {
 		it("should not create sibling edges for single child", () => {
 			const edges = [edge("OnlyChild.md", "Parent.md", "up")];
 			const relations = [
-				relation("up", [{targetRelation: "sibling", direction: "sibling"}])
+				relation("up", [
+					{ targetRelation: "sibling", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -259,10 +297,12 @@ describe("applyImpliedRules", () => {
 			// Parent -> B and Parent -> C means B and C are siblings
 			const edges = [
 				edge("Parent.md", "B.md", "down"),
-				edge("Parent.md", "C.md", "down")
+				edge("Parent.md", "C.md", "down"),
 			];
 			const relations = [
-				relation("down", [{targetRelation: "same", direction: "sibling"}])
+				relation("down", [
+					{ targetRelation: "same", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -284,10 +324,12 @@ describe("applyImpliedRules", () => {
 			const edges = [
 				edge("Parent.md", "A.md", "down"),
 				edge("Parent.md", "B.md", "down"),
-				edge("Parent.md", "C.md", "down")
+				edge("Parent.md", "C.md", "down"),
 			];
 			const relations = [
-				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+				relation("down", [
+					{ targetRelation: "sibling", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -304,7 +346,9 @@ describe("applyImpliedRules", () => {
 		it("should not create sibling edges for single child from parent", () => {
 			const edges = [edge("Parent.md", "OnlyChild.md", "down")];
 			const relations = [
-				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+				relation("down", [
+					{ targetRelation: "sibling", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -319,24 +363,26 @@ describe("applyImpliedRules", () => {
 				edge("Parent1.md", "A.md", "down"),
 				edge("Parent1.md", "B.md", "down"),
 				edge("Parent2.md", "C.md", "down"),
-				edge("Parent2.md", "D.md", "down")
+				edge("Parent2.md", "D.md", "down"),
 			];
 			const relations = [
-				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+				relation("down", [
+					{ targetRelation: "sibling", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
 			// 4 original + 4 sibling edges (2 pairs from each parent, bidirectional)
 			expect(result).toHaveLength(8);
-			
+
 			// Parent1's children are siblings
 			expect(hasEdge(result, "A.md", "B.md", "sibling")).toBe(true);
 			expect(hasEdge(result, "B.md", "A.md", "sibling")).toBe(true);
-			
+
 			// Parent2's children are siblings
 			expect(hasEdge(result, "C.md", "D.md", "sibling")).toBe(true);
 			expect(hasEdge(result, "D.md", "C.md", "sibling")).toBe(true);
-			
+
 			// Children from different parents are NOT siblings
 			expect(hasEdge(result, "A.md", "C.md", "sibling")).toBe(false);
 			expect(hasEdge(result, "A.md", "D.md", "sibling")).toBe(false);
@@ -347,16 +393,22 @@ describe("applyImpliedRules", () => {
 		it("should work with different implied relation names", () => {
 			const edges = [
 				edge("Project.md", "Task1.md", "tasks"),
-				edge("Project.md", "Task2.md", "tasks")
+				edge("Project.md", "Task2.md", "tasks"),
 			];
 			const relations = [
-				relation("tasks", [{targetRelation: "related-task", direction: "sibling"}])
+				relation("tasks", [
+					{ targetRelation: "related-task", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
 			expect(result).toHaveLength(4);
-			expect(hasEdge(result, "Task1.md", "Task2.md", "related-task")).toBe(true);
-			expect(hasEdge(result, "Task2.md", "Task1.md", "related-task")).toBe(true);
+			expect(
+				hasEdge(result, "Task1.md", "Task2.md", "related-task"),
+			).toBe(true);
+			expect(
+				hasEdge(result, "Task2.md", "Task1.md", "related-task"),
+			).toBe(true);
 		});
 	});
 
@@ -368,24 +420,46 @@ describe("applyImpliedRules", () => {
 				edge("Child2.md", "Parent.md", "up"),
 				// Down-style: Parent pointing to children
 				edge("Parent.md", "Descendant1.md", "down"),
-				edge("Parent.md", "Descendant2.md", "down")
+				edge("Parent.md", "Descendant2.md", "down"),
 			];
 			const relations = [
-				relation("up", [{targetRelation: "up-sibling", direction: "sibling"}]),
-				relation("down", [{targetRelation: "down-sibling", direction: "sibling"}])
+				relation("up", [
+					{ targetRelation: "up-sibling", direction: "sibling" },
+				]),
+				relation("down", [
+					{ targetRelation: "down-sibling", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
 			// 4 original + 2 up-sibling + 2 down-sibling = 8
 			expect(result).toHaveLength(8);
-			
+
 			// Up-style siblings
-			expect(hasEdge(result, "Child1.md", "Child2.md", "up-sibling")).toBe(true);
-			expect(hasEdge(result, "Child2.md", "Child1.md", "up-sibling")).toBe(true);
-			
+			expect(
+				hasEdge(result, "Child1.md", "Child2.md", "up-sibling"),
+			).toBe(true);
+			expect(
+				hasEdge(result, "Child2.md", "Child1.md", "up-sibling"),
+			).toBe(true);
+
 			// Down-style siblings
-			expect(hasEdge(result, "Descendant1.md", "Descendant2.md", "down-sibling")).toBe(true);
-			expect(hasEdge(result, "Descendant2.md", "Descendant1.md", "down-sibling")).toBe(true);
+			expect(
+				hasEdge(
+					result,
+					"Descendant1.md",
+					"Descendant2.md",
+					"down-sibling",
+				),
+			).toBe(true);
+			expect(
+				hasEdge(
+					result,
+					"Descendant2.md",
+					"Descendant1.md",
+					"down-sibling",
+				),
+			).toBe(true);
 		});
 
 		it("should not create duplicates when same nodes appear in both styles", () => {
@@ -395,23 +469,33 @@ describe("applyImpliedRules", () => {
 				edge("A.md", "Parent.md", "up"),
 				edge("B.md", "Parent.md", "up"),
 				edge("Parent.md", "A.md", "down"),
-				edge("Parent.md", "B.md", "down")
+				edge("Parent.md", "B.md", "down"),
 			];
 			const relations = [
-				relation("up", [{targetRelation: "sibling", direction: "sibling"}]),
-				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+				relation("up", [
+					{ targetRelation: "sibling", direction: "sibling" },
+				]),
+				relation("down", [
+					{ targetRelation: "sibling", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
 			// 4 original + 2 sibling edges (should not duplicate from both rules)
 			expect(result).toHaveLength(6);
-			
+
 			// Should have exactly one edge in each direction
 			const abEdges = result.filter(
-				(e) => e.fromPath === "A.md" && e.toPath === "B.md" && e.relationUid === "sibling"
+				(e) =>
+					e.fromPath === "A.md" &&
+					e.toPath === "B.md" &&
+					e.relationUid === "sibling",
 			);
 			const baEdges = result.filter(
-				(e) => e.fromPath === "B.md" && e.toPath === "A.md" && e.relationUid === "sibling"
+				(e) =>
+					e.fromPath === "B.md" &&
+					e.toPath === "A.md" &&
+					e.relationUid === "sibling",
 			);
 			expect(abEdges).toHaveLength(1);
 			expect(baEdges).toHaveLength(1);
@@ -428,10 +512,12 @@ describe("applyImpliedRules", () => {
 				edge("Grandparent.md", "Parent2.md", "down"),
 				edge("Parent1.md", "Child1A.md", "down"),
 				edge("Parent1.md", "Child1B.md", "down"),
-				edge("Parent2.md", "Child2A.md", "down")
+				edge("Parent2.md", "Child2A.md", "down"),
 			];
 			const relations = [
-				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+				relation("down", [
+					{ targetRelation: "sibling", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -442,15 +528,25 @@ describe("applyImpliedRules", () => {
 			expect(result).toHaveLength(9);
 
 			// Parents are siblings
-			expect(hasEdge(result, "Parent1.md", "Parent2.md", "sibling")).toBe(true);
-			expect(hasEdge(result, "Parent2.md", "Parent1.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "Parent1.md", "Parent2.md", "sibling")).toBe(
+				true,
+			);
+			expect(hasEdge(result, "Parent2.md", "Parent1.md", "sibling")).toBe(
+				true,
+			);
 
 			// Parent1's children are siblings
-			expect(hasEdge(result, "Child1A.md", "Child1B.md", "sibling")).toBe(true);
-			expect(hasEdge(result, "Child1B.md", "Child1A.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "Child1A.md", "Child1B.md", "sibling")).toBe(
+				true,
+			);
+			expect(hasEdge(result, "Child1B.md", "Child1A.md", "sibling")).toBe(
+				true,
+			);
 
 			// Children from different parents are NOT siblings
-			expect(hasEdge(result, "Child1A.md", "Child2A.md", "sibling")).toBe(false);
+			expect(hasEdge(result, "Child1A.md", "Child2A.md", "sibling")).toBe(
+				false,
+			);
 		});
 	});
 
@@ -472,10 +568,12 @@ describe("applyImpliedRules", () => {
 			// B and C should have `same` relation between them
 			const edges = [
 				edge("A.md", "B.md", "down"),
-				edge("A.md", "C.md", "down")
+				edge("A.md", "C.md", "down"),
 			];
 			const relations = [
-				relation("down", [{targetRelation: "same", direction: "sibling"}])
+				relation("down", [
+					{ targetRelation: "same", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -485,7 +583,10 @@ describe("applyImpliedRules", () => {
 
 			// Verify they're marked as implied from "down"
 			const bcEdge = result.find(
-				(e) => e.fromPath === "B.md" && e.toPath === "C.md" && e.relationUid === "same"
+				(e) =>
+					e.fromPath === "B.md" &&
+					e.toPath === "C.md" &&
+					e.relationUid === "same",
 			);
 			expect(bcEdge?.implied).toBe(true);
 			expect(bcEdge?.impliedFromUid).toBe("down");
@@ -497,10 +598,12 @@ describe("applyImpliedRules", () => {
 			const edges = [
 				edge("Parent.md", "Child1.md", "down"),
 				edge("Parent.md", "Child2.md", "down"),
-				edge("Parent.md", "Child3.md", "down")
+				edge("Parent.md", "Child3.md", "down"),
 			];
 			const relations = [
-				relation("down", [{targetRelation: "sibling", direction: "sibling"}])
+				relation("down", [
+					{ targetRelation: "sibling", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -509,22 +612,36 @@ describe("applyImpliedRules", () => {
 			expect(result).toHaveLength(9);
 
 			// Every pair should have bidirectional sibling relation
-			expect(hasEdge(result, "Child1.md", "Child2.md", "sibling")).toBe(true);
-			expect(hasEdge(result, "Child2.md", "Child1.md", "sibling")).toBe(true);
-			expect(hasEdge(result, "Child1.md", "Child3.md", "sibling")).toBe(true);
-			expect(hasEdge(result, "Child3.md", "Child1.md", "sibling")).toBe(true);
-			expect(hasEdge(result, "Child2.md", "Child3.md", "sibling")).toBe(true);
-			expect(hasEdge(result, "Child3.md", "Child2.md", "sibling")).toBe(true);
+			expect(hasEdge(result, "Child1.md", "Child2.md", "sibling")).toBe(
+				true,
+			);
+			expect(hasEdge(result, "Child2.md", "Child1.md", "sibling")).toBe(
+				true,
+			);
+			expect(hasEdge(result, "Child1.md", "Child3.md", "sibling")).toBe(
+				true,
+			);
+			expect(hasEdge(result, "Child3.md", "Child1.md", "sibling")).toBe(
+				true,
+			);
+			expect(hasEdge(result, "Child2.md", "Child3.md", "sibling")).toBe(
+				true,
+			);
+			expect(hasEdge(result, "Child3.md", "Child2.md", "sibling")).toBe(
+				true,
+			);
 		});
 
 		it("should be queryable - implied siblings appear in edge results", () => {
 			// Ensure implied edges are included in output and usable
 			const edges = [
 				edge("Parent.md", "A.md", "down"),
-				edge("Parent.md", "B.md", "down")
+				edge("Parent.md", "B.md", "down"),
 			];
 			const relations = [
-				relation("down", [{targetRelation: "same", direction: "sibling"}])
+				relation("down", [
+					{ targetRelation: "same", direction: "sibling" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -533,12 +650,16 @@ describe("applyImpliedRules", () => {
 			expect(sameEdges).toHaveLength(2);
 
 			// Both directions present
-			expect(sameEdges.some((e) => e.fromPath === "A.md" && e.toPath === "B.md")).toBe(
-				true
-			);
-			expect(sameEdges.some((e) => e.fromPath === "B.md" && e.toPath === "A.md")).toBe(
-				true
-			);
+			expect(
+				sameEdges.some(
+					(e) => e.fromPath === "A.md" && e.toPath === "B.md",
+				),
+			).toBe(true);
+			expect(
+				sameEdges.some(
+					(e) => e.fromPath === "B.md" && e.toPath === "A.md",
+				),
+			).toBe(true);
 		});
 	});
 
@@ -547,9 +668,9 @@ describe("applyImpliedRules", () => {
 			const edges = [edge("A.md", "B.md", "up")];
 			const relations = [
 				relation("up", [
-					{targetRelation: "down", direction: "reverse"},
-					{targetRelation: "parent", direction: "forward"}
-				])
+					{ targetRelation: "down", direction: "reverse" },
+					{ targetRelation: "parent", direction: "forward" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -565,7 +686,9 @@ describe("applyImpliedRules", () => {
 			const edges = [edge("A.md", "B.md", "up")];
 			// relation.id is lowercase by contract - uppercase would not be valid
 			const relations = [
-				relation("up", [{targetRelation: "down", direction: "reverse"}])
+				relation("up", [
+					{ targetRelation: "down", direction: "reverse" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -577,7 +700,9 @@ describe("applyImpliedRules", () => {
 			// Edge relations are expected to already be lowercase from parsing
 			const edges = [edge("A.md", "B.md", "up")];
 			const relations = [
-				relation("up", [{targetRelation: "down", direction: "reverse"}])
+				relation("up", [
+					{ targetRelation: "down", direction: "reverse" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
@@ -589,7 +714,9 @@ describe("applyImpliedRules", () => {
 	describe("edge cases", () => {
 		it("should handle empty edge list", () => {
 			const relations = [
-				relation("up", [{targetRelation: "down", direction: "reverse"}])
+				relation("up", [
+					{ targetRelation: "down", direction: "reverse" },
+				]),
 			];
 			const result = applyImpliedRules([], relations);
 
@@ -598,7 +725,9 @@ describe("applyImpliedRules", () => {
 
 		it("should skip rules with empty relation names", () => {
 			const edges = [edge("A.md", "B.md", "up")];
-			const relations = [relation("up", [{targetRelation: "", direction: "reverse"}])];
+			const relations = [
+				relation("up", [{ targetRelation: "", direction: "reverse" }]),
+			];
 			const result = applyImpliedRules(edges, relations);
 
 			expect(result).toHaveLength(1);
@@ -607,11 +736,98 @@ describe("applyImpliedRules", () => {
 		it("should skip relations with empty names", () => {
 			const edges = [edge("A.md", "B.md", "up")];
 			const relations = [
-				relation("", [{targetRelation: "down", direction: "reverse"}])
+				relation("", [
+					{ targetRelation: "down", direction: "reverse" },
+				]),
 			];
 			const result = applyImpliedRules(edges, relations);
 
 			expect(result).toHaveLength(1);
+		});
+	});
+
+	describe("label preservation", () => {
+		it("should preserve label on reverse implied edges", () => {
+			const edges: RelationEdge[] = [
+				{
+					fromPath: "a.md",
+					toPath: "b.md",
+					relationUid: "up-uid",
+					label: "author",
+					implied: false,
+				},
+			];
+			const relations = [
+				relation("up-uid", [
+					{ targetRelation: "down-uid", direction: "reverse" },
+				]),
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			expect(result).toHaveLength(2);
+			const impliedEdge = result.find(
+				(e) =>
+					e.fromPath === "b.md" &&
+					e.toPath === "a.md" &&
+					e.relationUid === "down-uid",
+			);
+			expect(impliedEdge).toBeDefined();
+			expect(impliedEdge?.implied).toBe(true);
+			expect(impliedEdge?.label).toBe("author");
+		});
+
+		it("should preserve label on forward implied edges", () => {
+			const edges: RelationEdge[] = [
+				{
+					fromPath: "a.md",
+					toPath: "b.md",
+					relationUid: "up-uid",
+					label: "author",
+					implied: false,
+				},
+			];
+			const relations = [
+				relation("up-uid", [
+					{ targetRelation: "parent-uid", direction: "forward" },
+				]),
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			expect(result).toHaveLength(2);
+			const impliedEdge = result.find(
+				(e) =>
+					e.fromPath === "a.md" &&
+					e.toPath === "b.md" &&
+					e.relationUid === "parent-uid",
+			);
+			expect(impliedEdge).toBeDefined();
+			expect(impliedEdge?.implied).toBe(true);
+			expect(impliedEdge?.label).toBe("author");
+		});
+
+		it("should include label in edge deduplication key", () => {
+			const edges: RelationEdge[] = [
+				{
+					fromPath: "a.md",
+					toPath: "b.md",
+					relationUid: "up-uid",
+					label: "author",
+					implied: false,
+				},
+				{
+					fromPath: "a.md",
+					toPath: "b.md",
+					relationUid: "up-uid",
+					label: "editor",
+					implied: false,
+				},
+			];
+			const relations: RelationDefinition[] = [];
+			const result = applyImpliedRules(edges, relations);
+
+			expect(result).toHaveLength(2);
+			expect(result.some((e) => e.label === "author")).toBe(true);
+			expect(result.some((e) => e.label === "editor")).toBe(true);
 		});
 	});
 });

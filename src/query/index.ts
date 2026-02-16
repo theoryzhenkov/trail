@@ -54,7 +54,6 @@ export {Query} from "./nodes/query";
 // ============================================================================
 
 export {
-	QueryNode,
 	FromNode,
 	RelationSpecNode,
 	SortNode,
@@ -99,7 +98,7 @@ export {
 
 export {Node} from "./nodes/base/Node";
 export {ExprNode} from "./nodes/base/ExprNode";
-export {ClauseNode} from "./nodes/base/ClauseNode";
+
 export {TokenNode} from "./nodes/base/TokenNode";
 export {LiteralNode} from "./nodes/base/LiteralNode";
 export {BinaryNode} from "./nodes/base/BinaryNode";

@@ -15,7 +15,13 @@ export interface ImpliedRelation {
 export type VisualDirection = "descending" | "ascending";
 
 // PropertyValue is recursive to support nested YAML structures
-export type PropertyValue = string | number | boolean | string[] | null | PropertyObject;
+export type PropertyValue =
+	| string
+	| number
+	| boolean
+	| string[]
+	| null
+	| PropertyObject;
 
 export interface PropertyObject {
 	[key: string]: PropertyValue;
@@ -25,7 +31,11 @@ export interface FileProperties {
 	[key: string]: PropertyValue;
 }
 
-export type PropertyFilterOperator = "equals" | "contains" | "exists" | "notExists";
+export type PropertyFilterOperator =
+	| "equals"
+	| "contains"
+	| "exists"
+	| "notExists";
 export type FilterMatchMode = "all" | "any";
 
 export interface PropertyFilter {
@@ -75,12 +85,14 @@ export interface RelationEdge {
 	fromPath: string;
 	toPath: string;
 	relationUid: RelationUid;
+	label?: string;
 	implied: boolean;
 	impliedFromUid?: RelationUid;
 }
 
 export interface ParsedRelation {
 	relation: RelationName;
+	label?: string;
 	/** Target of the edge. undefined = current file */
 	target?: string;
 	/** Source of the edge. undefined = current file */

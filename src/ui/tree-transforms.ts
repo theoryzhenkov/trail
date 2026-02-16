@@ -1,5 +1,5 @@
-import type {QueryResultNode} from "../query/nodes/types";
-import type {DisplayGroup, GroupMember} from "../types";
+import type { QueryResultNode } from "../query/nodes/types";
+import type { DisplayGroup, GroupMember } from "../types";
 
 /**
  * Node with merged relations from multiple traversals.
@@ -54,8 +54,14 @@ function mergeNodesByPath(nodes: QueryResultNode[]): MergedNode[] {
 		const instances = byPath.get(path)!;
 		const first = instances[0]!;
 
-		// Collect unique relations, sorted for stable comparison
-		const relations = [...new Set(instances.map((n) => n.relation))].sort();
+		// Collect unique relations (with label suffix), sorted for stable comparison
+		const relations = [
+			...new Set(
+				instances.map((n) =>
+					n.label ? `${n.relation}.${n.label}` : n.relation,
+				),
+			),
+		].sort();
 
 		// If any instance is explicit (not implied), the merged node is explicit
 		const implied = instances.every((n) => n.implied);
@@ -127,7 +133,7 @@ function groupMergedNodes(nodes: MergedNode[]): DisplayGroup[] {
 function createGroupFromMergedNodes(nodes: MergedNode[]): DisplayGroup {
 	const firstNode = nodes[0];
 	if (!firstNode) {
-		return {relations: [], members: [], subgroups: []};
+		return { relations: [], members: [], subgroups: [] };
 	}
 
 	const relations = firstNode.relations;
@@ -147,7 +153,7 @@ function createGroupFromMergedNodes(nodes: MergedNode[]): DisplayGroup {
 	// Since all nodes have identical children, process first node's children
 	const subgroups = groupMergedNodes(firstNode.children);
 
-	return {relations, members, subgroups};
+	return { relations, members, subgroups };
 }
 
 // =============================================================================
@@ -189,7 +195,10 @@ function mergedSubtreesEqual(a: MergedNode[], b: MergedNode[]): boolean {
  * Compares two QueryResultNode subtrees for structural equality.
  * Exported for testing.
  */
-export function tqlSubtreesEqual(a: QueryResultNode[], b: QueryResultNode[]): boolean {
+export function tqlSubtreesEqual(
+	a: QueryResultNode[],
+	b: QueryResultNode[],
+): boolean {
 	if (a.length !== b.length) return false;
 	if (a.length === 0) return true;
 
@@ -230,7 +239,7 @@ export function invertDisplayGroups(groups: DisplayGroup[]): DisplayGroup[] {
  */
 function invertDisplayGroupChain(
 	group: DisplayGroup,
-	parentAsChild: DisplayGroup | null
+	parentAsChild: DisplayGroup | null,
 ): DisplayGroup[] {
 	const invertedGroup: DisplayGroup = {
 		...group,

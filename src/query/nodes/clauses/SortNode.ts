@@ -5,13 +5,13 @@
  */
 
 import type {SyntaxNode} from "@lezer/common";
-import {ClauseNode} from "../base/ClauseNode";
+import {Node} from "../base/Node";
 import {SortKeyNode} from "./SortKeyNode";
 import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import {register, type ConvertContext} from "../registry";
 
 @register("SortNode", {clause: true})
-export class SortNode extends ClauseNode {
+export class SortNode extends Node {
 	readonly keys: SortKeyNode[];
 
 	static providesContexts: CompletionContext[] = ["sort-key", "clause"];

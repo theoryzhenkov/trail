@@ -18,15 +18,20 @@
  * @see docs/syntax/inline.md
  */
 
-import {ParsedRelation} from "../types";
-import {isValidRelationName, normalizeRelationName} from "../relations";
-import {dedupeRelations, extractLinkTarget} from "./index";
+import { ParsedRelation } from "../types";
+import {
+	isValidRelationName,
+	normalizeLabel,
+	normalizeRelationName,
+} from "../relations";
+import { dedupeRelations, extractLinkTarget } from "./index";
 
 /** Context state for tracking across the file */
 interface ParserContext {
-	source: string | undefined;  // undefined = currentFile (matches ParsedRelation)
+	source: string | undefined; // undefined = currentFile (matches ParsedRelation)
 	relation: string;
-	lastTarget: string | undefined;  // undefined = currentFile (matches ParsedRelation)
+	label?: string;
+	lastTarget: string | undefined; // undefined = currentFile (matches ParsedRelation)
 }
 
 /** A match with its position and type */
@@ -35,123 +40,177 @@ interface PatternMatch {
 	start: number;
 	end: number;
 	relation?: string;
+	label?: string;
 	source?: string;
 	target?: string;
 }
 
-// Pattern regexes - relation names must start with alphanumeric
-const TRIPLE_REGEX = /\[\[([^\]]+)\]\]::\s*([a-z0-9][a-z0-9_-]*)\s*::\s*\[\[([^\]]+)\]\]/gi;
-const PREFIX_REGEX = /([a-z0-9][a-z0-9_-]*)::\s*\[\[([^\]]+)\]\]/gi;
-const SUFFIX_REGEX = /\[\[([^\]]+)\]\]::\s*([a-z0-9][a-z0-9_-]*)/gi;
+// Pattern regexes - relation names must start with alphanumeric, optional .label suffix
+const TRIPLE_REGEX =
+	/\[\[([^\]]+)\]\]::\s*([a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)?)\s*::\s*\[\[([^\]]+)\]\]/gi;
+const PREFIX_REGEX =
+	/([a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)?)::\s*\[\[([^\]]+)\]\]/gi;
+const SUFFIX_REGEX =
+	/\[\[([^\]]+)\]\]::\s*([a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)?)/gi;
 const CONTINUATION_REGEX = /::\s*\[\[([^\]]+)\]\]/gi;
 const CHAIN_REGEX = /::-::\s*\[\[([^\]]+)\]\]/gi;
 
-export function parseInlineRelations(content: string, allowedRelations?: Set<string>): ParsedRelation[] {
+function splitRelationLabel(raw: string): { relation: string; label?: string } {
+	const dotIdx = raw.indexOf(".");
+	if (dotIdx === -1) return { relation: normalizeRelationName(raw) };
+	return {
+		relation: normalizeRelationName(raw.slice(0, dotIdx)),
+		label: normalizeLabel(raw.slice(dotIdx + 1)),
+	};
+}
+
+export function parseInlineRelations(
+	content: string,
+	allowedRelations?: Set<string>,
+): ParsedRelation[] {
 	const relations: ParsedRelation[] = [];
 	const matches: PatternMatch[] = [];
-	
+
 	// Collect all pattern matches
 	collectTripleMatches(content, matches);
 	collectPrefixMatches(content, matches);
 	collectSuffixMatches(content, matches);
 	collectChainMatches(content, matches);
 	collectContinuationMatches(content, matches);
-	
+
 	// Sort by position
 	matches.sort((a, b) => a.start - b.start);
-	
+
 	// Remove overlapping matches (prefer earlier, more specific ones)
 	const filteredMatches = removeOverlaps(matches);
-	
+
 	// Process matches in order with context tracking
 	let context: ParserContext | null = null;
-	
+
 	for (const match of filteredMatches) {
-		const relation = match.relation ? normalizeRelationName(match.relation) : null;
-		
+		let relation: string | null = null;
+		let label: string | undefined;
+
+		if (match.relation) {
+			const split = splitRelationLabel(match.relation);
+			relation = split.relation;
+			label = split.label;
+		}
+
 		// Skip if relation is specified but not valid/allowed
 		if (relation) {
 			if (!isValidRelationName(relation)) continue;
 			if (allowedRelations && !allowedRelations.has(relation)) continue;
 		}
-		
+
 		switch (match.type) {
 			case "triple": {
 				// [[A]]::rel::[[B]] - creates A->B, sets context
-				const source = match.source ? extractLinkTarget(match.source) : undefined;
-				const target = match.target ? extractLinkTarget(match.target) : undefined;
+				const source = match.source
+					? extractLinkTarget(match.source)
+					: undefined;
+				const target = match.target
+					? extractLinkTarget(match.target)
+					: undefined;
 				if (!source || !target || !relation) continue;
-				
-				relations.push({relation, target, source});
-				context = {source, relation, lastTarget: target};
+
+				relations.push({ relation, label, target, source });
+				context = { source, relation, label, lastTarget: target };
 				break;
 			}
-			
+
 			case "prefix": {
 				// rel::[[A]] - creates currentFile->A, sets context
-				const target = match.target ? extractLinkTarget(match.target) : undefined;
+				const target = match.target
+					? extractLinkTarget(match.target)
+					: undefined;
 				if (!target || !relation) continue;
-				
-				relations.push({relation, target});
-				context = {source: undefined, relation, lastTarget: target};
+
+				relations.push({ relation, label, target });
+				context = {
+					source: undefined,
+					relation,
+					label,
+					lastTarget: target,
+				};
 				break;
 			}
-			
+
 			case "suffix": {
 				// [[A]]::rel - creates A->currentFile, sets context
 				// But if continuation follows, don't create edge to currentFile
-				const source = match.source ? extractLinkTarget(match.source) : undefined;
+				const source = match.source
+					? extractLinkTarget(match.source)
+					: undefined;
 				if (!source || !relation) continue;
-				
+
 				// Check if fan-out continuation follows this match
 				// Only "continuation" (::[[X]]) counts, not "chain" (::-::[[X]]) which needs lastTarget
-				const hasFollowingContinuation = filteredMatches.some(m => 
-					m.start > match.end && 
-					m.type === "continuation" &&
-					!filteredMatches.some(between => 
-						between.start > match.end && 
-						between.start < m.start &&
-						(between.type === "triple" || between.type === "prefix" || between.type === "suffix")
-					)
+				const hasFollowingContinuation = filteredMatches.some(
+					(m) =>
+						m.start > match.end &&
+						m.type === "continuation" &&
+						!filteredMatches.some(
+							(between) =>
+								between.start > match.end &&
+								between.start < m.start &&
+								(between.type === "triple" ||
+									between.type === "prefix" ||
+									between.type === "suffix"),
+						),
 				);
-				
+
 				if (!hasFollowingContinuation) {
 					// No continuation, create edge A -> currentFile
-					relations.push({relation, source});
+					relations.push({ relation, label, source });
 				}
-				
+
 				// lastTarget = undefined because A -> currentFile, and currentFile is the target
-				context = {source, relation, lastTarget: undefined};
+				context = { source, relation, label, lastTarget: undefined };
 				break;
 			}
-			
+
 			case "continuation": {
 				// ::[[B]] - uses context source -> B
 				if (!context) continue;
-				const target = match.target ? extractLinkTarget(match.target) : undefined;
+				const target = match.target
+					? extractLinkTarget(match.target)
+					: undefined;
 				if (!target) continue;
-				
+
 				// source passes through directly (undefined = currentFile)
-				relations.push({relation: context.relation, target, source: context.source});
+				relations.push({
+					relation: context.relation,
+					label: context.label,
+					target,
+					source: context.source,
+				});
 				context.lastTarget = target;
 				break;
 			}
-			
+
 			case "chain": {
 				// ::-::[[B]] - chains from lastTarget -> B
 				// lastTarget undefined means currentFile - that's valid for chaining
 				if (!context) continue;
-				const target = match.target ? extractLinkTarget(match.target) : undefined;
+				const target = match.target
+					? extractLinkTarget(match.target)
+					: undefined;
 				if (!target) continue;
-				
+
 				// lastTarget passes through directly (undefined = currentFile)
-				relations.push({relation: context.relation, target, source: context.lastTarget});
+				relations.push({
+					relation: context.relation,
+					label: context.label,
+					target,
+					source: context.lastTarget,
+				});
 				context.lastTarget = target;
 				break;
 			}
 		}
 	}
-	
+
 	return dedupeRelations(relations);
 }
 
@@ -192,7 +251,10 @@ function collectSuffixMatches(content: string, matches: PatternMatch[]): void {
 	}
 }
 
-function collectContinuationMatches(content: string, matches: PatternMatch[]): void {
+function collectContinuationMatches(
+	content: string,
+	matches: PatternMatch[],
+): void {
 	for (const match of content.matchAll(CONTINUATION_REGEX)) {
 		matches.push({
 			type: "continuation",
@@ -216,7 +278,7 @@ function collectChainMatches(content: string, matches: PatternMatch[]): void {
 
 function removeOverlaps(matches: PatternMatch[]): PatternMatch[] {
 	const result: PatternMatch[] = [];
-	
+
 	// Priority: triple > chain > continuation > prefix > suffix
 	const priority: Record<PatternMatch["type"], number> = {
 		triple: 5,
@@ -225,25 +287,26 @@ function removeOverlaps(matches: PatternMatch[]): PatternMatch[] {
 		prefix: 2,
 		suffix: 1,
 	};
-	
+
 	// Sort by start position, then by priority (higher first)
 	const sorted = [...matches].sort((a, b) => {
 		if (a.start !== b.start) return a.start - b.start;
 		return priority[b.type] - priority[a.type];
 	});
-	
+
 	for (const match of sorted) {
-		const overlaps = result.some(existing =>
-			(match.start >= existing.start && match.start < existing.end) ||
-			(match.end > existing.start && match.end <= existing.end) ||
-			(match.start <= existing.start && match.end >= existing.end)
+		const overlaps = result.some(
+			(existing) =>
+				(match.start >= existing.start && match.start < existing.end) ||
+				(match.end > existing.start && match.end <= existing.end) ||
+				(match.start <= existing.start && match.end >= existing.end),
 		);
-		
+
 		if (!overlaps) {
 			result.push(match);
 		}
 	}
-	
+
 	// Re-sort by position for processing order
 	return result.sort((a, b) => a.start - b.start);
 }

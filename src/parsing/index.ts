@@ -1,4 +1,4 @@
-import {ParsedRelation} from "../types";
+import { ParsedRelation } from "../types";
 
 export function extractLinkTarget(raw: string): string {
 	const withoutAlias = raw.split("|")[0] ?? raw;
@@ -19,7 +19,7 @@ export function dedupeRelations(relations: ParsedRelation[]): ParsedRelation[] {
 	const deduped: ParsedRelation[] = [];
 	for (const relation of relations) {
 		// Both source and target can be undefined (meaning currentFile)
-		const key = `${relation.source ?? ""}::${relation.relation}::${relation.target ?? ""}`;
+		const key = `${relation.source ?? ""}::${relation.relation}::${relation.label ?? ""}::${relation.target ?? ""}`;
 		if (seen.has(key)) {
 			continue;
 		}

@@ -2,14 +2,19 @@
  * Tests for the TQL Parser using Lezer + tree converter
  */
 
-import {describe, it, expect} from "vitest";
-import {parse, ParseError} from "./parser";
-import {Query} from "./query";
-import {FromNode, WhereNode} from "./clauses";
-import {OrExprNode, AndExprNode, CompareExprNode, PropertyNode} from "./expressions";
-import {ExistsFunction} from "./functions/existence";
-import {StringNode, NumberNode, BooleanNode, NullNode} from "./literals";
-import {DateExprNode} from "./expressions";
+import { describe, it, expect } from "vitest";
+import { parse, ParseError } from "./parser";
+import { Query } from "./query";
+import { FromNode, WhereNode } from "./clauses";
+import {
+	OrExprNode,
+	AndExprNode,
+	CompareExprNode,
+	PropertyNode,
+} from "./expressions";
+import { ExistsFunction } from "./functions/existence";
+import { StringNode, NumberNode, BooleanNode, NullNode } from "./literals";
+import { DateExprNode } from "./expressions";
 
 describe("TQL Parser", () => {
 	describe("Basic query parsing", () => {
@@ -146,16 +151,23 @@ describe("TQL Parser", () => {
 		});
 
 		it("should parse display specific properties", () => {
-			const query = parse('group "Test" from up display status, priority');
+			const query = parse(
+				'group "Test" from up display status, priority',
+			);
 			expect(query.display?.all).toBe(false);
 			expect(query.display?.properties.length).toBe(2);
 		});
-		
+
 		it("should parse display with builtin properties", () => {
-			const query = parse('group "Test" from up display $file.name, $file.path');
+			const query = parse(
+				'group "Test" from up display $file.name, $file.path',
+			);
 			expect(query.display?.properties.length).toBe(2);
 			expect(query.display?.properties[0]?.isBuiltin).toBe(true);
-			expect(query.display?.properties[0]?.path).toEqual(["file", "name"]);
+			expect(query.display?.properties[0]?.path).toEqual([
+				"file",
+				"name",
+			]);
 		});
 	});
 
@@ -169,7 +181,7 @@ describe("TQL Parser", () => {
 				expect(query.from.chains[0].chain[0].spec.name).toBe("next");
 			}
 		});
-		
+
 		it("should parse group reference chain", () => {
 			const query = parse('group "Test" from up >> @"Children"');
 			expect(query.from.chains[0]?.chain.length).toBe(1);
@@ -179,10 +191,34 @@ describe("TQL Parser", () => {
 			}
 		});
 	});
-	
+
+	describe("label (dot notation)", () => {
+		it("should parse from up.author", () => {
+			const query = parse('group "test" from up.author');
+			const spec = query.from.chains[0]!.first;
+			expect(spec.name).toBe("up");
+			expect(spec.label).toBe("author");
+		});
+
+		it("should parse from up.author :depth 2", () => {
+			const query = parse('group "test" from up.author :depth 2');
+			const spec = query.from.chains[0]!.first;
+			expect(spec.name).toBe("up");
+			expect(spec.label).toBe("author");
+			expect(spec.depth).toBe(2);
+		});
+
+		it("should parse from up (no label)", () => {
+			const query = parse('group "test" from up');
+			const spec = query.from.chains[0]!.first;
+			expect(spec.name).toBe("up");
+			expect(spec.label).toBeUndefined();
+		});
+	});
+
 	describe("Error handling", () => {
 		it("should throw ParseError for missing group", () => {
-			expect(() => parse('from up')).toThrow(ParseError);
+			expect(() => parse("from up")).toThrow(ParseError);
 		});
 
 		it("should throw ParseError for missing from clause", () => {
@@ -190,7 +226,9 @@ describe("TQL Parser", () => {
 		});
 
 		it("should throw ParseError for invalid syntax", () => {
-			expect(() => parse('group "Test" from up where ==')).toThrow(ParseError);
+			expect(() => parse('group "Test" from up where ==')).toThrow(
+				ParseError,
+			);
 		});
 	});
 });

@@ -8,8 +8,16 @@
  * - Traversal: single implementation that walks the graph
  */
 
-import type {RelationEdge, FileProperties, VisualDirection} from "../../../../types";
-import type {TraversalContext, QueryResultNode, QueryWarning} from "../../types";
+import type {
+	RelationEdge,
+	FileProperties,
+	VisualDirection,
+} from "../../../../types";
+import type {
+	TraversalContext,
+	QueryResultNode,
+	QueryWarning,
+} from "../../types";
 
 // =============================================================================
 // Node Context - Information about the current node during traversal
@@ -74,7 +82,7 @@ export interface NodeFilter {
  * Always-include filter (no filtering)
  */
 export const INCLUDE_ALL: NodeFilter = {
-	evaluate: () => ({include: true, traverse: true}),
+	evaluate: () => ({ include: true, traverse: true }),
 };
 
 // =============================================================================
@@ -110,6 +118,8 @@ export interface TraversalConfig {
 	startPath: string;
 	/** Relation to traverse */
 	relation: string;
+	/** Optional label filter (e.g., "author" from up.author) */
+	label?: string;
 	/** Maximum depth (Infinity for unlimited) */
 	maxDepth: number;
 	/** Filter for node inclusion/traversal (composed by executor) */

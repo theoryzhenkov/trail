@@ -7,12 +7,12 @@
  */
 
 import type {SyntaxNode} from "@lezer/common";
-import {ClauseNode} from "../base/ClauseNode";
+import {Node} from "../base/Node";
 import type {Span, NodeDoc, ValidationContext, CompletionContext, Completable} from "../types";
 import {register, type ConvertContext} from "../registry";
 
 @register("GroupNode", {clause: true})
-export class GroupNode extends ClauseNode {
+export class GroupNode extends Node {
 	readonly name: string;
 
 	static providesContexts: CompletionContext[] = ["after-group"];

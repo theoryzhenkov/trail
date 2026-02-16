@@ -1,14 +1,14 @@
-import {App, TFile} from "obsidian";
-import {TrailSettings} from "../settings";
+import { App, TFile } from "obsidian";
+import { TrailSettings } from "../settings";
+import { FileProperties, RelationEdge } from "../types";
+import { parseInlineRelations } from "../parsing/inline";
 import {
-	FileProperties,
-	RelationEdge
-} from "../types";
-import {parseInlineRelations} from "../parsing/inline";
-import {parseFileProperties, parseFrontmatterRelations} from "../parsing/frontmatter";
-import {computeAncestors, AncestorNode} from "./traversal";
-import {applyImpliedRules} from "./implied-relations";
-import {buildPropertyExcludeKeys} from "./property-filters";
+	parseFileProperties,
+	parseFrontmatterRelations,
+} from "../parsing/frontmatter";
+import { computeAncestors, AncestorNode } from "./traversal";
+import { applyImpliedRules } from "./implied-relations";
+import { buildPropertyExcludeKeys } from "./property-filters";
 import {
 	buildRelationIndexes,
 	normalizeRelationName,
@@ -75,7 +75,7 @@ export class GraphStore {
 	}
 
 	async updateFile(file: TFile, emit = true) {
-		const {edges, properties} = await this.parseFileData(file);
+		const { edges, properties } = await this.parseFileData(file);
 		this.edgesBySource.set(file.path, edges);
 		this.propertiesByPath.set(file.path, properties);
 		this.invalidateImpliedCache();
@@ -125,7 +125,7 @@ export class GraphStore {
 		if (edges) {
 			const updatedEdges = edges.map((edge) => ({
 				...edge,
-				fromPath: newPath
+				fromPath: newPath,
 			}));
 			this.edgesBySource.set(newPath, updatedEdges);
 			this.edgesBySource.delete(oldPath);
@@ -141,7 +141,7 @@ export class GraphStore {
 			const updated = list.map((edge) => {
 				if (edge.toPath === oldPath) {
 					changed = true;
-					return {...edge, toPath: newPath};
+					return { ...edge, toPath: newPath };
 				}
 				return edge;
 			});
@@ -184,7 +184,7 @@ export class GraphStore {
 		// Build ordered list from settings
 		const orderedTypes: string[] = [];
 		const seen = new Set<string>();
-		
+
 		for (const relation of this.settings.relations) {
 			const normalized = normalizeRelationName(relation.name);
 			if (normalized && !seen.has(normalized)) {
@@ -192,7 +192,7 @@ export class GraphStore {
 				seen.add(normalized);
 			}
 		}
-		
+
 		// Add any relations found in edges but not in settings (append at end)
 		for (const edge of this.getEdgesWithImplied()) {
 			const relationName = this.getRelationName(edge.relationUid);
@@ -202,44 +202,59 @@ export class GraphStore {
 				seen.add(normalized);
 			}
 		}
-		
+
 		return orderedTypes;
 	}
 
-	getIncomingEdges(path: string, relation?: string): RelationEdge[] {
-		const edges = this.edgesByTarget.get(path) ?? [];
-		if (!relation) {
-			return edges;
+	getIncomingEdges(
+		path: string,
+		relation?: string,
+		label?: string,
+	): RelationEdge[] {
+		let edges = this.edgesByTarget.get(path) ?? [];
+		if (relation) {
+			const relationUid = this.resolveRelationUid(relation);
+			if (!relationUid) return [];
+			edges = edges.filter((e) => e.relationUid === relationUid);
 		}
-		const relationUid = this.resolveRelationUid(relation);
-		if (!relationUid) {
-			return [];
+		if (label !== undefined) {
+			edges = edges.filter((e) => e.label === label);
 		}
-		return edges.filter((edge) => edge.relationUid === relationUid);
+		return edges;
 	}
 
-	getOutgoingEdges(path: string, relation?: string): RelationEdge[] {
-		const edges = this.edgesBySourceWithImplied.get(path) ?? [];
-		if (!relation) {
-			return edges;
+	getOutgoingEdges(
+		path: string,
+		relation?: string,
+		label?: string,
+	): RelationEdge[] {
+		let edges = this.edgesBySourceWithImplied.get(path) ?? [];
+		if (relation) {
+			const relationUid = this.resolveRelationUid(relation);
+			if (!relationUid) return [];
+			edges = edges.filter((e) => e.relationUid === relationUid);
 		}
-		const relationUid = this.resolveRelationUid(relation);
-		if (!relationUid) {
-			return [];
+		if (label !== undefined) {
+			edges = edges.filter((e) => e.label === label);
 		}
-		return edges.filter((edge) => edge.relationUid === relationUid);
+		return edges;
 	}
 
 	getAncestors(path: string, relationFilter?: Set<string>): AncestorNode[] {
 		const relationUidFilter = relationFilter
 			? new Set(
 					Array.from(relationFilter)
-						.map((relationName) => this.resolveRelationUid(relationName))
-						.filter((uid): uid is string => Boolean(uid))
-			  )
+						.map((relationName) =>
+							this.resolveRelationUid(relationName),
+						)
+						.filter((uid): uid is string => Boolean(uid)),
+				)
 			: undefined;
-		return computeAncestors(path, this.getEdgesWithImplied(), relationUidFilter, (uid) =>
-			this.getRelationName(uid)
+		return computeAncestors(
+			path,
+			this.getEdgesWithImplied(),
+			relationUidFilter,
+			(uid) => this.getRelationName(uid),
 		);
 	}
 
@@ -257,7 +272,9 @@ export class GraphStore {
 		if (this.relationByUid.has(relation)) {
 			return relation;
 		}
-		return this.relationUidByNormalizedName.get(normalizeRelationName(relation));
+		return this.relationUidByNormalizedName.get(
+			normalizeRelationName(relation),
+		);
 	}
 
 	getRelationName(relationUid: string): string {
@@ -273,7 +290,8 @@ export class GraphStore {
 			targetList.push(edge);
 			this.edgesByTarget.set(edge.toPath, targetList);
 
-			const sourceList = this.edgesBySourceWithImplied.get(edge.fromPath) ?? [];
+			const sourceList =
+				this.edgesBySourceWithImplied.get(edge.fromPath) ?? [];
 			sourceList.push(edge);
 			this.edgesBySourceWithImplied.set(edge.fromPath, sourceList);
 		}
@@ -284,7 +302,10 @@ export class GraphStore {
 			return this.cachedEdgesWithImplied;
 		}
 		const explicitEdges = Array.from(this.edgesBySource.values()).flat();
-		this.cachedEdgesWithImplied = applyImpliedRules(explicitEdges, this.settings.relations);
+		this.cachedEdgesWithImplied = applyImpliedRules(
+			explicitEdges,
+			this.settings.relations,
+		);
 		return this.cachedEdgesWithImplied;
 	}
 
@@ -293,21 +314,23 @@ export class GraphStore {
 	}
 
 	private async parseFileData(
-		file: TFile
-	): Promise<{edges: RelationEdge[]; properties: FileProperties}> {
+		file: TFile,
+	): Promise<{ edges: RelationEdge[]; properties: FileProperties }> {
 		const content = await this.app.vault.read(file);
 		const allowedRelations = new Set(
 			this.settings.relations
 				.map((relation) => normalizeRelationName(relation.name))
-				.filter((name) => name.length > 0)
+				.filter((name) => name.length > 0),
 		);
 		const inlineRelations = parseInlineRelations(content, allowedRelations);
 		const cache = this.app.metadataCache.getFileCache(file);
-		const frontmatterRelations = parseFrontmatterRelations(
-			cache?.frontmatter,
-			this.settings.relations
-		);
+		const { relations: frontmatterRelations, consumedKeys } =
+			parseFrontmatterRelations(
+				cache?.frontmatter,
+				this.settings.relations,
+			);
 		const excludeKeys = buildPropertyExcludeKeys(this.settings.relations);
+		for (const key of consumedKeys) excludeKeys.add(key);
 		const properties = parseFileProperties(cache?.frontmatter, excludeKeys);
 
 		const combined = [...inlineRelations, ...frontmatterRelations];
@@ -319,7 +342,10 @@ export class GraphStore {
 			let toPath: string;
 
 			if (relation.source) {
-				const sourceFile = this.app.metadataCache.getFirstLinkpathDest(relation.source, file.path);
+				const sourceFile = this.app.metadataCache.getFirstLinkpathDest(
+					relation.source,
+					file.path,
+				);
 				if (!sourceFile || !(sourceFile instanceof TFile)) {
 					continue;
 				}
@@ -329,7 +355,10 @@ export class GraphStore {
 			}
 
 			if (relation.target) {
-				const targetFile = this.app.metadataCache.getFirstLinkpathDest(relation.target, file.path);
+				const targetFile = this.app.metadataCache.getFirstLinkpathDest(
+					relation.target,
+					file.path,
+				);
 				if (!targetFile || !(targetFile instanceof TFile)) {
 					continue;
 				}
@@ -341,8 +370,13 @@ export class GraphStore {
 			edges.push({
 				fromPath,
 				toPath,
-				relationUid: resolveRelationUidByName(this.settings.relations, relation.relation) ?? "",
-				implied: false
+				relationUid:
+					resolveRelationUidByName(
+						this.settings.relations,
+						relation.relation,
+					) ?? "",
+				label: relation.label,
+				implied: false,
 			});
 		}
 

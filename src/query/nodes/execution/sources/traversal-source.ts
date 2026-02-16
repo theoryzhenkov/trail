@@ -6,11 +6,11 @@
  * logic from query-executor.ts behind the QuerySource interface.
  */
 
-import type {QuerySource} from "../pipeline";
-import type {QueryEnv} from "../../context";
-import type {FromNode} from "../../clauses/FromNode";
-import type {PruneNode} from "../../clauses/PruneNode";
-import type {QueryResultNode} from "../../types";
+import type { QuerySource } from "../pipeline";
+import type { QueryEnv } from "../../context";
+import type { FromNode } from "../../clauses/FromNode";
+import type { PruneNode } from "../../clauses/PruneNode";
+import type { QueryResultNode } from "../../types";
 import {
 	traverse,
 	buildFilter,
@@ -22,7 +22,7 @@ import {
 export class TraversalSource implements QuerySource {
 	constructor(
 		private readonly from: FromNode,
-		private readonly prune?: PruneNode
+		private readonly prune?: PruneNode,
 	) {}
 
 	produce(env: QueryEnv, startPath: string): QueryResultNode[] {
@@ -40,7 +40,11 @@ export class TraversalSource implements QuerySource {
 			const config: TraversalConfig = {
 				startPath,
 				relation: relationChain.first.name,
-				maxDepth: relationChain.first.depth === "unlimited" ? Infinity : relationChain.first.depth,
+				label: relationChain.first.label,
+				maxDepth:
+					relationChain.first.depth === "unlimited"
+						? Infinity
+						: relationChain.first.depth,
 				filter,
 				output: {
 					flattenFrom: relationChain.first.flatten,
@@ -50,7 +54,7 @@ export class TraversalSource implements QuerySource {
 							chain: relationChain.chain,
 							filter,
 							resolveGroup,
-					  })
+						})
 					: undefined,
 			};
 
