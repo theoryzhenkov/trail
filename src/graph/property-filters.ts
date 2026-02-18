@@ -1,6 +1,9 @@
-import {FileProperties, PropertyFilter, RelationDefinition} from "../types";
+import { FileProperties, PropertyFilter, RelationDefinition } from "../types";
 
-export function evaluatePropertyFilter(properties: FileProperties, filter: PropertyFilter): boolean {
+export function evaluatePropertyFilter(
+	properties: FileProperties,
+	filter: PropertyFilter,
+): boolean {
 	const key = filter.key.trim().toLowerCase();
 	if (!key) {
 		return true;
@@ -21,23 +24,28 @@ export function evaluatePropertyFilter(properties: FileProperties, filter: Prope
 	}
 }
 
-export function buildPropertyExcludeKeys(relations: RelationDefinition[]): Set<string> {
+export function buildPropertyExcludeKeys(
+	relations: RelationDefinition[],
+): Set<string> {
 	const keys = new Set<string>();
 	for (const relation of relations) {
 		for (const alias of relation.aliases) {
 			const key = alias.key;
-			
+
+			// Wildcard aliases don't map to direct property keys
+			if (key.includes("*")) continue;
+
 			// Quoted string: literal property key
 			if (key.startsWith('"') && key.endsWith('"')) {
 				keys.add(key.slice(1, -1).toLowerCase());
 				continue;
 			}
-			
+
 			// Contains dot: nested object lookup, not a direct property
 			if (key.includes(".")) {
 				continue;
 			}
-			
+
 			// Simple key: direct property
 			keys.add(key.toLowerCase());
 		}
@@ -47,7 +55,7 @@ export function buildPropertyExcludeKeys(relations: RelationDefinition[]): Set<s
 
 function matchesEquals(
 	value: FileProperties[string] | undefined,
-	expected: PropertyFilter["value"]
+	expected: PropertyFilter["value"],
 ): boolean {
 	if (value === undefined) {
 		return false;
@@ -88,7 +96,7 @@ function matchesEquals(
 
 function matchesContains(
 	value: FileProperties[string] | undefined,
-	expected: PropertyFilter["value"]
+	expected: PropertyFilter["value"],
 ): boolean {
 	if (value === undefined || value === null || expected === undefined) {
 		return false;

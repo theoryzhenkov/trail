@@ -251,6 +251,364 @@ describe("parseFrontmatterRelations", () => {
 	});
 });
 
+describe("wildcard alias resolution", () => {
+	function makeWildcardDefs(
+		relationName: string,
+		...aliasKeys: string[]
+	): RelationDefinition[] {
+		return [
+			{
+				uid: relationName,
+				name: relationName,
+				aliases: aliasKeys.map((key) => ({ key })),
+				impliedRelations: [],
+			},
+		];
+	}
+
+	it("*KEY at depth — scalar value", () => {
+		const fm = {
+			type: { book: { ntppi: "[[AI Safety]]" } },
+		};
+		const defs = makeWildcardDefs("ntppi", "*ntppi");
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(1);
+		expect(relations[0]).toEqual({
+			relation: "ntppi",
+			target: "AI Safety",
+		});
+	});
+
+	it("*KEY at depth — array value", () => {
+		const fm = {
+			type: { book: { ntppi: ["[[AI Safety]]", "[[Rationality]]"] } },
+		};
+		const defs = makeWildcardDefs("ntppi", "*ntppi");
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(2);
+		expect(relations.map((r) => r.target)).toEqual([
+			"AI Safety",
+			"Rationality",
+		]);
+	});
+
+	it("*KEY at depth — object value (children → labels)", () => {
+		const fm = {
+			type: {
+				book: {
+					ntppi: {
+						author: ["[[Eliezer Yudkowsky]]", "[[Nate Soares]]"],
+						series: "[[MIRI Series]]",
+					},
+				},
+			},
+		};
+		const defs = makeWildcardDefs("ntppi", "*ntppi");
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(3);
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "author",
+			target: "Eliezer Yudkowsky",
+		});
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "author",
+			target: "Nate Soares",
+		});
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "series",
+			target: "MIRI Series",
+		});
+	});
+
+	it("*KEY at depth — dot-key NOT matched (notation-specific)", () => {
+		// Unquoted wildcard should NOT match literal dot-keys
+		const fm = {
+			type: { book: { "ntppi.author": "[[Someone]]" } },
+		};
+		const defs = makeWildcardDefs("ntppi", "*ntppi");
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		// "ntppi.author" is not "ntppi" — should not match
+		expect(relations).toHaveLength(0);
+	});
+
+	it('*"KEY.LABEL" at depth — matches literal dot-key, extracts label', () => {
+		const fm = {
+			type: {
+				book: {
+					"NTPPi.author": [
+						"[[Eliezer Yudkowsky]]",
+						"[[Nate Soares]]",
+					],
+				},
+			},
+		};
+		const defs = makeWildcardDefs("ntppi", '*"NTPPi.author"');
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(2);
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "author",
+			target: "Eliezer Yudkowsky",
+		});
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "author",
+			target: "Nate Soares",
+		});
+	});
+
+	it('*"KEY.{L1, L2}" — matches multiple literal dot-keys', () => {
+		const fm = {
+			data: {
+				"ntppi.foo": "[[target1]]",
+				"ntppi.bar": "[[target2]]",
+				"ntppi.baz": "[[target3]]",
+			},
+		};
+		const defs = makeWildcardDefs("ntppi", '*"NTPPi.{foo, bar}"');
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(2);
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "foo",
+			target: "target1",
+		});
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "bar",
+			target: "target2",
+		});
+	});
+
+	it("*KEY.LABEL — object notation label filter", () => {
+		const fm = {
+			type: {
+				book: {
+					ntppi: {
+						author: "[[Eliezer]]",
+						series: "[[MIRI]]",
+					},
+				},
+			},
+		};
+		const defs = makeWildcardDefs("ntppi", "*ntppi.author");
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(1);
+		expect(relations[0]).toEqual({
+			relation: "ntppi",
+			label: "author",
+			target: "Eliezer",
+		});
+	});
+
+	it("*KEY.{L1, L2} — object notation set filter", () => {
+		const fm = {
+			deep: {
+				ntppi: {
+					author: "[[Eliezer]]",
+					series: "[[MIRI]]",
+					editor: "[[Someone]]",
+				},
+			},
+		};
+		const defs = makeWildcardDefs("ntppi", "*ntppi.{author, series}");
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(2);
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "author",
+			target: "Eliezer",
+		});
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "series",
+			target: "MIRI",
+		});
+	});
+
+	it("PREFIX.*KEY — prefix restriction", () => {
+		const fm = {
+			type: { book: { ntppi: "[[AI Safety]]" } },
+			other: { ntppi: "[[Should Not Match]]" },
+		};
+		const defs = makeWildcardDefs("ntppi", "type.*ntppi");
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(1);
+		expect(relations[0]).toEqual({
+			relation: "ntppi",
+			target: "AI Safety",
+		});
+	});
+
+	it("PREFIX.*KEY.LABEL — prefix + label filter", () => {
+		const fm = {
+			type: {
+				book: {
+					ntppi: {
+						author: "[[Eliezer]]",
+						series: "[[MIRI]]",
+					},
+				},
+			},
+		};
+		const defs = makeWildcardDefs("ntppi", "type.*ntppi.author");
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(1);
+		expect(relations[0]).toEqual({
+			relation: "ntppi",
+			label: "author",
+			target: "Eliezer",
+		});
+	});
+
+	it('PREFIX.*"KEY.LABEL" — prefix + quoted dot-key', () => {
+		const fm = {
+			type: {
+				book: { "NTPPi.author": "[[Eliezer]]" },
+			},
+		};
+		const defs = makeWildcardDefs("ntppi", 'type.*"NTPPi.author"');
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(1);
+		expect(relations[0]).toEqual({
+			relation: "ntppi",
+			label: "author",
+			target: "Eliezer",
+		});
+	});
+
+	it("array of objects — walk recurses into array elements", () => {
+		const fm = {
+			relations: [
+				{ "NTPPi.foo": "[[target1]]" },
+				{ "NTPPi.bar": "[[target2]]" },
+				{ other: "[[ignored]]" },
+			],
+		};
+		const defs = makeWildcardDefs("ntppi", '*"NTPPi.{foo, bar}"');
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(2);
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "foo",
+			target: "target1",
+		});
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "bar",
+			target: "target2",
+		});
+	});
+
+	it("*KEY.LABEL on scalar value — filtered out (no label on scalar)", () => {
+		const fm = {
+			type: { book: { ntppi: "[[AI Safety]]" } },
+		};
+		const defs = makeWildcardDefs("ntppi", "*ntppi.author");
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		// Scalar produces unlabeled match, which is excluded by the label filter
+		expect(relations).toHaveLength(0);
+	});
+
+	it("no matches → empty result", () => {
+		const fm = {
+			type: { book: { something: "[[Value]]" } },
+		};
+		const defs = makeWildcardDefs("ntppi", "*ntppi");
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(0);
+	});
+
+	it("dedup with regular aliases", () => {
+		// Both wildcard and regular alias resolve to the same relation+target
+		const fm = {
+			ntppi: "[[AI Safety]]",
+			type: { ntppi: "[[AI Safety]]" },
+		};
+		const defs: RelationDefinition[] = [
+			{
+				uid: "ntppi",
+				name: "ntppi",
+				aliases: [{ key: "ntppi" }, { key: "*ntppi" }],
+				impliedRelations: [],
+			},
+		];
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		// Should be deduped
+		expect(relations).toHaveLength(1);
+		expect(relations[0]).toEqual({
+			relation: "ntppi",
+			target: "AI Safety",
+		});
+	});
+
+	it('mixed: both *KEY and *"KEY.LABEL" aliases on same relation', () => {
+		const fm = {
+			type: {
+				book: {
+					NTPPi: "[[AI Safety]]",
+					"NTPPi.author": ["[[Eliezer Yudkowsky]]"],
+				},
+			},
+		};
+		const defs: RelationDefinition[] = [
+			{
+				uid: "ntppi",
+				name: "ntppi",
+				aliases: [
+					{ key: "type.*NTPPi" },
+					{ key: 'type.*"NTPPi.author"' },
+				],
+				impliedRelations: [],
+			},
+		];
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(2);
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			target: "AI Safety",
+		});
+		expect(relations).toContainEqual({
+			relation: "ntppi",
+			label: "author",
+			target: "Eliezer Yudkowsky",
+		});
+	});
+
+	it("case-insensitive key matching in tree walk", () => {
+		const fm = {
+			type: { Book: { NTPPI: "[[Target]]" } },
+		};
+		const defs = makeWildcardDefs("ntppi", "type.*ntppi");
+		const { relations } = parseFrontmatterRelations(fm, defs);
+
+		expect(relations).toHaveLength(1);
+		expect(relations[0]).toEqual({
+			relation: "ntppi",
+			target: "Target",
+		});
+	});
+});
+
 describe("parseFileProperties", () => {
 	it("should exclude consumed keys from file properties", () => {
 		const fm = {
