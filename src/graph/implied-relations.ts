@@ -25,7 +25,6 @@ export function applyImpliedRules(
 					fromPath: edge.fromPath,
 					toPath: edge.toPath,
 					relationUid: rule.impliedRelationUid,
-					label: edge.label,
 					implied: true,
 					impliedFromUid: edge.relationUid,
 				};
@@ -37,7 +36,6 @@ export function applyImpliedRules(
 					fromPath: edge.toPath,
 					toPath: edge.fromPath,
 					relationUid: rule.impliedRelationUid,
-					label: edge.label,
 					implied: true,
 					impliedFromUid: edge.relationUid,
 				};

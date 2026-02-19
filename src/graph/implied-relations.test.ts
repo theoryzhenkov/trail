@@ -746,8 +746,8 @@ describe("applyImpliedRules", () => {
 		});
 	});
 
-	describe("label preservation", () => {
-		it("should preserve label on reverse implied edges", () => {
+	describe("label handling on implied edges", () => {
+		it("should not inherit label on reverse implied edges", () => {
 			const edges: RelationEdge[] = [
 				{
 					fromPath: "a.md",
@@ -773,10 +773,10 @@ describe("applyImpliedRules", () => {
 			);
 			expect(impliedEdge).toBeDefined();
 			expect(impliedEdge?.implied).toBe(true);
-			expect(impliedEdge?.label).toBe("author");
+			expect(impliedEdge?.label).toBeUndefined();
 		});
 
-		it("should preserve label on forward implied edges", () => {
+		it("should not inherit label on forward implied edges", () => {
 			const edges: RelationEdge[] = [
 				{
 					fromPath: "a.md",
@@ -802,7 +802,7 @@ describe("applyImpliedRules", () => {
 			);
 			expect(impliedEdge).toBeDefined();
 			expect(impliedEdge?.implied).toBe(true);
-			expect(impliedEdge?.label).toBe("author");
+			expect(impliedEdge?.label).toBeUndefined();
 		});
 
 		it("should include label in edge deduplication key", () => {
