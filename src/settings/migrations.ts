@@ -59,8 +59,8 @@ export function savedDataNeedsMigration(
 
 	// Check for legacy alias format or legacy relation shape
 	if (Array.isArray(savedData.relations)) {
-		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration checks
 		for (const relation of savedData.relations as Array<
+			// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration checks
 			RelationDefinition & LegacyRelationDefinition
 		>) {
 			if (needsAliasMigration(relation.aliases)) {
@@ -96,8 +96,8 @@ export function applyMigrations(data: Partial<SavedSettingsData>): {
 	migrateRelationAliases(relations);
 
 	// Auto-migrate relation identity and implied relation references
-	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
 	migrateRelationIdentity(
+		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
 		relations as Array<RelationDefinition & LegacyRelationDefinition>,
 	);
 
@@ -132,8 +132,8 @@ function migrateRelationAliases(relations: RelationDefinition[]): void {
 		}
 
 		const migratedAliases: RelationAlias[] = [];
-		// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
 		const legacyAliases =
+			// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration
 			relation.aliases as unknown as LegacyRelationAlias[];
 
 		for (const alias of legacyAliases) {
@@ -165,8 +165,8 @@ function migrateSingleAlias(alias: LegacyRelationAlias): string {
 	}
 }
 
-// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration checks
 function needsRelationIdentityMigration(
+	// eslint-disable-next-line @typescript-eslint/no-deprecated -- intentional access for migration checks
 	relation: LegacyRelationDefinition,
 ): boolean {
 	const hasUid = typeof relation.uid === "string" && relation.uid.length > 0;

@@ -94,11 +94,6 @@ describe("TQL Executor - Clauses", () => {
 				"root.md",
 			);
 
-			const depths = result.results.map((n) => n.depth);
-			// In flatten mode depth is normalized to 1, but traversal context
-			// should still be available for sorting via evalContextFromNode
-			// which includes traversalPath. The key fix: sorting previously
-			// dropped traversal context by constructing EvalContext without it.
 			expect(result.results.length).toBeGreaterThan(0);
 		});
 	});
