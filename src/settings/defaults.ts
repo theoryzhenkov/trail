@@ -2,31 +2,36 @@ import {
 	GroupDefinition,
 	ImpliedRelation,
 	RelationAlias,
-	RelationDefinition
+	RelationDefinition,
 } from "../types";
-import {createRelationUid, formatRelationNameForTql} from "../relations";
+import { createRelationUid, formatRelationNameForTql } from "../relations";
 
 export function createDefaultRelations(): RelationDefinition[] {
-	const base: Array<{name: string; visualDirection: RelationDefinition["visualDirection"]}> = [
-		{name: "up", visualDirection: "ascending"},
-		{name: "down", visualDirection: "descending"},
-		{name: "next", visualDirection: "descending"},
-		{name: "prev", visualDirection: "descending"}
+	const base: Array<{
+		name: string;
+		visualDirection: RelationDefinition["visualDirection"];
+	}> = [
+		{ name: "up", visualDirection: "ascending" },
+		{ name: "down", visualDirection: "descending" },
+		{ name: "next", visualDirection: "descending" },
+		{ name: "prev", visualDirection: "descending" },
 	];
-	const relations = base.map(({name, visualDirection}) => ({
+	const relations = base.map(({ name, visualDirection }) => ({
 		uid: createRelationUid(),
 		name,
 		aliases: createDefaultAliases(name),
 		impliedRelations: [] as ImpliedRelation[],
-		visualDirection
+		visualDirection,
 	}));
-	const uidByName = new Map(relations.map((relation) => [relation.name, relation.uid]));
+	const uidByName = new Map(
+		relations.map((relation) => [relation.name, relation.uid]),
+	);
 
 	const impliedPairs: Array<[string, string]> = [
 		["up", "down"],
 		["down", "up"],
 		["next", "prev"],
-		["prev", "next"]
+		["prev", "next"],
 	];
 
 	for (const [from, to] of impliedPairs) {
@@ -37,7 +42,7 @@ export function createDefaultRelations(): RelationDefinition[] {
 		}
 		relation.impliedRelations.push({
 			targetRelationUid,
-			direction: "reverse"
+			direction: "reverse",
 		});
 	}
 
@@ -65,9 +70,5 @@ from next depth 1, prev depth 1`,
 }
 
 export function createDefaultAliases(name: string): RelationAlias[] {
-	const normalized = formatRelationNameForTql(name);
-	return [
-		{key: normalized},
-		{key: `relations.${normalized}`},
-	];
+	return [{ key: formatRelationNameForTql(name) }];
 }

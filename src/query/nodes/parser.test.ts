@@ -214,6 +214,28 @@ describe("TQL Parser", () => {
 			expect(spec.name).toBe("up");
 			expect(spec.label).toBeUndefined();
 		});
+
+		it("should parse from up.author.primary (multi-segment label)", () => {
+			const query = parse('group "test" from up.author.primary');
+			const spec = query.from.chains[0]!.first;
+			expect(spec.name).toBe("up");
+			expect(spec.label).toBe("author.primary");
+		});
+
+		it("should parse from up.foo.bar.baz (three-segment label)", () => {
+			const query = parse('group "test" from up.foo.bar.baz');
+			const spec = query.from.chains[0]!.first;
+			expect(spec.name).toBe("up");
+			expect(spec.label).toBe("foo.bar.baz");
+		});
+
+		it("should parse multi-segment label with depth", () => {
+			const query = parse('group "test" from up.author.primary :depth 3');
+			const spec = query.from.chains[0]!.first;
+			expect(spec.name).toBe("up");
+			expect(spec.label).toBe("author.primary");
+			expect(spec.depth).toBe(3);
+		});
 	});
 
 	describe("Error handling", () => {

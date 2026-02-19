@@ -12,8 +12,11 @@ export function isValidRelationName(value: string): boolean {
 	return value.length > 0 && RELATION_NAME_REGEX.test(value);
 }
 
-/** Labels follow the same rules as relation names */
-export const isValidLabel = isValidRelationName;
+/** Labels are dot-separated paths where each segment follows relation name rules */
+export function isValidLabel(value: string): boolean {
+	if (value.length === 0) return false;
+	return value.split(".").every((s) => RELATION_NAME_REGEX.test(s));
+}
 
 export interface RelationIndexes {
 	byUid: Map<RelationUid, RelationDefinition>;

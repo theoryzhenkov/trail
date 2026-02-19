@@ -1,6 +1,9 @@
 /**
  * Frontmatter parsing for relations and file properties.
  *
+ * Keys match at any depth of YAML nesting via full tree walk.
+ * Labels are hierarchical dot-separated paths built from intermediate object keys.
+ *
  * @see docs/syntax/frontmatter.md
  */
 
@@ -20,6 +23,21 @@ export interface FrontmatterRelationResult {
 	consumedKeys: Set<string>;
 }
 
+/** A match found by the tree walk */
+interface KeyMatch {
+	value: unknown;
+	/** Label segments derived from dot-notation prefix (e.g. "up.author" → ["author"]) */
+	labelPrefix: string[];
+}
+
+/**
+ * Parse frontmatter relations using simple key matching at any depth.
+ *
+ * For each relation definition, each alias key is searched through the entire
+ * frontmatter tree. Exact key matches and dot-notation prefix matches are found.
+ * Values are recursively descended to build hierarchical label paths from
+ * intermediate object keys.
+ */
 export function parseFrontmatterRelations(
 	frontmatter: Record<string, unknown> | undefined,
 	relationDefinitions: RelationDefinition[],
@@ -30,124 +48,181 @@ export function parseFrontmatterRelations(
 
 	const relations: ParsedRelation[] = [];
 	const consumedKeys = new Set<string>();
-	const relationAliases = buildRelationAliases(relationDefinitions);
-	const frontmatterLowercase = normalizeFrontmatterKeys(frontmatter);
 
-	for (const [relationName, aliasKeys] of relationAliases.entries()) {
-		for (const aliasKey of aliasKeys) {
-			const wildcard = parseWildcardAlias(aliasKey);
-			if (wildcard) {
-				resolveWildcardRelations(
-					frontmatter,
-					wildcard,
-					relationName,
-					relations,
-				);
-				continue;
-			}
+	// Build a map of relation name → alias keys
+	const relationKeyMap = buildRelationKeyMap(relationDefinitions);
 
-			const value = resolveAliasValue(aliasKey, frontmatterLowercase);
-			if (value === undefined) continue;
+	// Track which key names are used by relations for consumedKeys
+	const allKeyNames = new Set<string>();
+	for (const keySet of relationKeyMap.values()) {
+		for (const key of keySet) {
+			allKeyNames.add(key);
+		}
+	}
 
-			if (
-				typeof value === "object" &&
-				value !== null &&
-				!Array.isArray(value)
-			) {
-				// Object value → each key is a label
-				for (const [label, subValue] of Object.entries(value)) {
-					if (!isValidLabel(label)) continue;
-					relations.push(
-						...parseRelationEntry(
-							relationName,
-							subValue as FrontmatterValue,
-							label,
-						),
-					);
+	// Collect consumed top-level frontmatter keys
+	for (const fmKey of Object.keys(frontmatter)) {
+		const fmKeyLower = fmKey.toLowerCase();
+		if (allKeyNames.has(fmKeyLower)) {
+			consumedKeys.add(fmKeyLower);
+		} else {
+			// Check dot-notation prefix: "up.author" consumed if "up" is a key
+			const dotIdx = fmKeyLower.indexOf(".");
+			if (dotIdx !== -1) {
+				const prefix = fmKeyLower.slice(0, dotIdx);
+				if (allKeyNames.has(prefix)) {
+					consumedKeys.add(fmKeyLower);
 				}
-				consumedKeys.add(aliasKey);
-			} else {
-				relations.push(
-					...parseRelationEntry(
-						relationName,
-						value as FrontmatterValue,
-					),
-				);
 			}
 		}
 	}
 
-	// Dot-key scanning: "up.author" as a literal frontmatter key
-	const knownRelations = new Set(relationAliases.keys());
-	for (const [key] of frontmatterLowercase.entries()) {
-		const dotIdx = key.indexOf(".");
-		if (dotIdx === -1) continue;
-		const prefix = key.slice(0, dotIdx);
-		const label = key.slice(dotIdx + 1);
-		if (!knownRelations.has(prefix) || !isValidLabel(label)) continue;
-		// Skip if this exact key was already consumed via alias resolution
-		if (consumedKeys.has(key)) continue;
-		const value = frontmatterLowercase.get(key) as FrontmatterValue;
-		relations.push(...parseRelationEntry(prefix, value, label));
-		consumedKeys.add(key);
+	for (const [relationName, keyNames] of relationKeyMap.entries()) {
+		for (const keyName of keyNames) {
+			const matches: KeyMatch[] = [];
+			findKeyMatches(frontmatter, keyName, matches);
+
+			for (const match of matches) {
+				extractWikilinks(
+					match.value,
+					match.labelPrefix,
+					relations,
+					relationName,
+				);
+			}
+		}
 	}
 
 	return { relations: dedupeRelations(relations), consumedKeys };
 }
 
 /**
- * Resolve alias value based on syntax:
- * - Quoted ("key.name") → literal property lookup
- * - Contains dot (parent.key) → nested object lookup
- * - Simple (key) → direct property lookup
- *
- * Returns FrontmatterValue for scalars/arrays, or Record<string, unknown> for objects (labeled relations).
+ * Build a map from normalized relation name to set of alias key names (lowercase).
  */
-function resolveAliasValue(
-	aliasKey: string,
-	frontmatterLowercase: Map<string, unknown>,
-): unknown {
-	// Quoted string: literal property lookup
-	if (aliasKey.startsWith('"') && aliasKey.endsWith('"')) {
-		const literalKey = aliasKey.slice(1, -1).toLowerCase();
-		return frontmatterLowercase.get(literalKey);
+function buildRelationKeyMap(
+	relations: RelationDefinition[],
+): Map<string, Set<string>> {
+	const map = new Map<string, Set<string>>();
+	for (const relation of relations) {
+		const normalizedName = normalizeRelationName(relation.name);
+		if (!isValidRelationName(normalizedName)) continue;
+		const keys = new Set<string>();
+		for (const alias of relation.aliases) {
+			keys.add(alias.key.toLowerCase());
+		}
+		map.set(normalizedName, keys);
+	}
+	return map;
+}
+
+/**
+ * Walk the entire frontmatter tree looking for a key name.
+ *
+ * At each object node:
+ * 1. Check if any key matches keyName exactly (case-insensitive)
+ * 2. Check if any key starts with `keyName.` (dot notation) — suffix becomes initial label segments
+ * 3. Recurse into child objects/arrays for deeper matches
+ */
+function findKeyMatches(
+	node: unknown,
+	keyName: string,
+	matches: KeyMatch[],
+): void {
+	if (Array.isArray(node)) {
+		for (const element of node) {
+			findKeyMatches(element, keyName, matches);
+		}
+		return;
 	}
 
-	// Contains dot: nested object lookup
-	const dotIndex = aliasKey.indexOf(".");
-	if (dotIndex !== -1) {
-		const parentKey = aliasKey.slice(0, dotIndex).toLowerCase();
-		const childKey = aliasKey.slice(dotIndex + 1).toLowerCase();
-		const parentValue = frontmatterLowercase.get(parentKey);
+	if (typeof node !== "object" || node === null) return;
 
-		if (
-			parentValue &&
-			typeof parentValue === "object" &&
-			!Array.isArray(parentValue)
-		) {
-			const parentObj = parentValue as Record<string, unknown>;
-			const matchingKey = Object.keys(parentObj).find(
-				(k) => k.toLowerCase() === childKey,
-			);
-			if (matchingKey) {
-				return parentObj[matchingKey];
+	const obj = node as Record<string, unknown>;
+	for (const [k, v] of Object.entries(obj)) {
+		const keyLower = k.toLowerCase();
+
+		if (keyLower === keyName) {
+			// Exact match
+			matches.push({ value: v, labelPrefix: [] });
+		} else if (keyLower.startsWith(keyName + ".")) {
+			// Dot-notation match: "up.author" with keyName "up" → labelPrefix ["author"]
+			const suffix = keyLower.slice(keyName.length + 1);
+			const segments = suffix.split(".");
+			if (segments.every((s) => s.length > 0)) {
+				matches.push({ value: v, labelPrefix: segments });
+			}
+		} else {
+			// Recurse into children for deeper matches
+			findKeyMatches(v, keyName, matches);
+		}
+	}
+}
+
+/**
+ * Recursively extract wikilinks from a value, building label paths from
+ * intermediate object keys.
+ *
+ * - If value is an object, each key becomes a label segment; recurse into values
+ * - If value is a string or string[], extract wikilink targets as leaf relations
+ */
+function extractWikilinks(
+	value: unknown,
+	labelPath: string[],
+	relations: ParsedRelation[],
+	relationName: string,
+): void {
+	if (typeof value === "string") {
+		const target = extractWikiLinkTarget(value);
+		if (target.length > 0) {
+			pushRelation(relations, relationName, labelPath, target);
+		}
+		return;
+	}
+
+	if (Array.isArray(value)) {
+		for (const item of value) {
+			if (typeof item === "string") {
+				const target = extractWikiLinkTarget(item);
+				if (target.length > 0) {
+					pushRelation(relations, relationName, labelPath, target);
+				}
 			}
 		}
-		return undefined;
+		return;
 	}
 
-	// Simple: direct property lookup — check for object value (labeled relations)
-	const rawValue = frontmatterLowercase.get(aliasKey);
-	if (
-		rawValue !== undefined &&
-		typeof rawValue === "object" &&
-		rawValue !== null &&
-		!Array.isArray(rawValue)
-	) {
-		return rawValue as Record<string, unknown>;
+	if (typeof value === "object" && value !== null) {
+		const obj = value as Record<string, unknown>;
+		for (const [k, v] of Object.entries(obj)) {
+			const segment = k.toLowerCase();
+			if (!isValidLabel(segment)) continue;
+			extractWikilinks(
+				v,
+				[...labelPath, segment],
+				relations,
+				relationName,
+			);
+		}
 	}
+}
 
-	return rawValue;
+function pushRelation(
+	relations: ParsedRelation[],
+	relationName: string,
+	labelPath: string[],
+	target: string,
+): void {
+	const relation = normalizeRelationName(relationName);
+	if (!isValidRelationName(relation)) return;
+
+	const label =
+		labelPath.length > 0 ? normalizeLabel(labelPath.join(".")) : undefined;
+
+	relations.push({
+		relation,
+		...(label && { label }),
+		target,
+	});
 }
 
 export function parseFileProperties(
@@ -194,55 +269,6 @@ export function parseFileProperties(
 	return properties;
 }
 
-function parseRelationEntry(
-	relationName: string,
-	value: FrontmatterValue,
-	label?: string,
-): ParsedRelation[] {
-	const relation = normalizeRelationName(relationName);
-	if (!isValidRelationName(relation)) {
-		return [];
-	}
-	const normalizedLabel = label ? normalizeLabel(label) : undefined;
-
-	const values = normalizeValues(value);
-	return values
-		.map((rawTarget) => extractWikiLinkTarget(rawTarget))
-		.filter((target) => target.length > 0)
-		.map((target) => ({
-			relation,
-			...(normalizedLabel && { label: normalizedLabel }),
-			target,
-		}));
-}
-
-function normalizeValues(value: FrontmatterValue): string[] {
-	if (Array.isArray(value)) {
-		return value.filter((item): item is string => typeof item === "string");
-	}
-	if (typeof value === "string") {
-		return [value];
-	}
-	return [];
-}
-
-function buildRelationAliases(
-	relations: RelationDefinition[],
-): Map<string, string[]> {
-	const map = new Map<string, string[]>();
-	for (const relation of relations) {
-		const normalizedName = normalizeRelationName(relation.name);
-		if (!isValidRelationName(normalizedName)) {
-			continue;
-		}
-		const aliasKeys = relation.aliases.map((alias) =>
-			alias.key.toLowerCase(),
-		);
-		map.set(normalizedName, aliasKeys);
-	}
-	return map;
-}
-
 function normalizeFrontmatterKeys(
 	frontmatter: Record<string, unknown>,
 ): Map<string, unknown> {
@@ -251,251 +277,4 @@ function normalizeFrontmatterKeys(
 		map.set(key.toLowerCase(), value);
 	}
 	return map;
-}
-
-// ── Wildcard alias support ──────────────────────────────────────────
-
-interface WildcardAlias {
-	prefix: string[]; // e.g. ["type", "book"] for "type.book.*KEY"
-	key: string; // target key (lowercase)
-	quoted: boolean; // true = dot-notation matching
-	labelFilter: string[] | undefined; // label restriction (undefined = all)
-}
-
-interface WildcardMatch {
-	value: unknown;
-	label?: string;
-}
-
-/**
- * Parse an alias key into a WildcardAlias if it contains `*`.
- * Returns undefined for non-wildcard aliases.
- *
- * Supported syntaxes:
- *   *KEY, *KEY.LABEL, *KEY.{L1, L2}
- *   PREFIX.*KEY, PREFIX.*KEY.LABEL
- *   *"KEY.LABEL", *"KEY.{L1, L2}", PREFIX.*"KEY.LABEL"
- */
-function parseWildcardAlias(aliasKey: string): WildcardAlias | undefined {
-	const starIdx = aliasKey.indexOf("*");
-	if (starIdx === -1) return undefined;
-
-	// Extract prefix segments (everything before *)
-	const prefixPart = aliasKey.slice(0, starIdx);
-	const prefix: string[] = prefixPart
-		? prefixPart
-				.replace(/\.$/, "") // remove trailing dot
-				.split(".")
-				.map((s) => s.toLowerCase())
-		: [];
-
-	const afterStar = aliasKey.slice(starIdx + 1);
-
-	// Quoted form: *"KEY.LABEL" or *"KEY.{L1, L2}"
-	if (afterStar.startsWith('"') && afterStar.endsWith('"')) {
-		const inner = afterStar.slice(1, -1);
-		const { key, labelFilter } = parseKeyWithLabels(inner);
-		return { prefix, key: key.toLowerCase(), quoted: true, labelFilter };
-	}
-
-	// Unquoted form: *KEY, *KEY.LABEL, *KEY.{L1, L2}
-	return parseUnquotedAfterStar(afterStar, prefix);
-}
-
-/**
- * Parse "KEY", "KEY.LABEL", or "KEY.{L1, L2}" into key + label filter.
- * Shared by both quoted and unquoted alias parsing paths.
- */
-function parseKeyWithLabels(input: string): {
-	key: string;
-	labelFilter: string[] | undefined;
-} {
-	// Set syntax: KEY.{L1, L2}
-	const braceIdx = input.indexOf(".{");
-	if (braceIdx !== -1 && input.endsWith("}")) {
-		const key = input.slice(0, braceIdx);
-		const labels = input
-			.slice(braceIdx + 2, -1)
-			.split(",")
-			.map((s) => s.trim().toLowerCase())
-			.filter((s) => s.length > 0);
-		return { key, labelFilter: labels };
-	}
-
-	// Single label: KEY.LABEL
-	const dotIdx = input.indexOf(".");
-	if (dotIdx !== -1) {
-		return {
-			key: input.slice(0, dotIdx),
-			labelFilter: [input.slice(dotIdx + 1).toLowerCase()],
-		};
-	}
-
-	return { key: input, labelFilter: undefined };
-}
-
-function parseUnquotedAfterStar(
-	afterStar: string,
-	prefix: string[],
-): WildcardAlias {
-	const { key, labelFilter } = parseKeyWithLabels(afterStar);
-	return {
-		prefix,
-		key: key.toLowerCase(),
-		quoted: false,
-		labelFilter,
-	};
-}
-
-/**
- * Walk a tree looking for keys matching targetKey (object-notation / unquoted).
- * Object values → children become labeled matches.
- * Scalar/array → unlabeled match.
- */
-function walkTreeUnquoted(
-	node: unknown,
-	targetKey: string,
-	matches: WildcardMatch[],
-): void {
-	if (Array.isArray(node)) {
-		for (const element of node) {
-			walkTreeUnquoted(element, targetKey, matches);
-		}
-		return;
-	}
-
-	if (typeof node !== "object" || node === null) return;
-
-	const obj = node as Record<string, unknown>;
-	for (const [k, v] of Object.entries(obj)) {
-		if (k.toLowerCase() === targetKey) {
-			// Found target key — process its value
-			if (typeof v === "object" && v !== null && !Array.isArray(v)) {
-				// Object → each child key is a label
-				for (const [childKey, childValue] of Object.entries(
-					v as Record<string, unknown>,
-				)) {
-					matches.push({
-						value: childValue,
-						label: childKey.toLowerCase(),
-					});
-				}
-			} else {
-				// Scalar or array → unlabeled
-				matches.push({ value: v });
-			}
-		} else {
-			// Recurse into children
-			walkTreeUnquoted(v, targetKey, matches);
-		}
-	}
-}
-
-/**
- * Walk a tree looking for literal dot-keys (quoted / dot-notation).
- * literalKeys is the set of full dot-keys to match (e.g. ["ntppi.author"]).
- * targetKey is the base key (e.g. "ntppi") used to compute label from suffix.
- */
-function walkTreeQuoted(
-	node: unknown,
-	targetKey: string,
-	literalKeys: string[],
-	matches: WildcardMatch[],
-): void {
-	if (Array.isArray(node)) {
-		for (const element of node) {
-			walkTreeQuoted(element, targetKey, literalKeys, matches);
-		}
-		return;
-	}
-
-	if (typeof node !== "object" || node === null) return;
-
-	const obj = node as Record<string, unknown>;
-	for (const [k, v] of Object.entries(obj)) {
-		const keyLower = k.toLowerCase();
-		const matchedLiteral = literalKeys.find((lk) => lk === keyLower);
-		if (matchedLiteral) {
-			// Extract label from the part after the base key + "."
-			const suffix = matchedLiteral.slice(targetKey.length + 1);
-			matches.push({
-				value: v,
-				label: suffix.length > 0 ? suffix : undefined,
-			});
-		} else {
-			walkTreeQuoted(v, targetKey, literalKeys, matches);
-		}
-	}
-}
-
-/**
- * Resolve matches for a wildcard alias against raw frontmatter.
- * Descends through prefix segments, then dispatches to the appropriate walk.
- */
-function resolveWildcardMatches(
-	frontmatter: Record<string, unknown>,
-	wildcard: WildcardAlias,
-): WildcardMatch[] {
-	// Navigate through prefix
-	let node: unknown = frontmatter;
-	for (const segment of wildcard.prefix) {
-		if (typeof node !== "object" || node === null || Array.isArray(node))
-			return [];
-		const obj = node as Record<string, unknown>;
-		const matchingKey = Object.keys(obj).find(
-			(k) => k.toLowerCase() === segment,
-		);
-		if (!matchingKey) return [];
-		node = obj[matchingKey];
-	}
-
-	const matches: WildcardMatch[] = [];
-
-	if (wildcard.quoted) {
-		// Build literal keys from base key + label filter
-		let literalKeys: string[];
-		if (wildcard.labelFilter) {
-			literalKeys = wildcard.labelFilter.map(
-				(label) => `${wildcard.key}.${label}`,
-			);
-		} else {
-			literalKeys = [wildcard.key];
-		}
-		walkTreeQuoted(node, wildcard.key, literalKeys, matches);
-	} else {
-		walkTreeUnquoted(node, wildcard.key, matches);
-	}
-
-	return matches;
-}
-
-/**
- * Convert wildcard matches to ParsedRelations.
- * Applies label filter and delegates to parseRelationEntry.
- */
-function resolveWildcardRelations(
-	frontmatter: Record<string, unknown>,
-	wildcard: WildcardAlias,
-	relationName: string,
-	relations: ParsedRelation[],
-): void {
-	let matches = resolveWildcardMatches(frontmatter, wildcard);
-
-	// Apply label filter for unquoted (object-notation) aliases
-	if (!wildcard.quoted && wildcard.labelFilter) {
-		const allowed = new Set(wildcard.labelFilter);
-		matches = matches.filter(
-			(m) => m.label !== undefined && allowed.has(m.label),
-		);
-	}
-
-	for (const match of matches) {
-		relations.push(
-			...parseRelationEntry(
-				relationName,
-				match.value as FrontmatterValue,
-				match.label,
-			),
-		);
-	}
 }

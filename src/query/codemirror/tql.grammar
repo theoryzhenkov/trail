@@ -30,7 +30,7 @@ RelationSpec { RelationName RelationOption* }
 
 RelationName { Identifier ("." RelationLabel)? }
 
-RelationLabel { Identifier }
+RelationLabel { Identifier ("." Identifier)* }
 
 RelationOption {
   ":depth" Number |

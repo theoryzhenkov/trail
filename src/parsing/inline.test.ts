@@ -564,5 +564,54 @@ some text
 			expect(result[0]?.relation).toBe("up");
 			expect(result[0]?.label).toBe("author");
 		});
+
+		it("should parse multi-segment dotted label path (prefix)", () => {
+			const content = "up.author.primary::[[John]]";
+			const result = parseInlineRelations(content);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toEqual({
+				relation: "up",
+				label: "author.primary",
+				target: "John",
+			});
+		});
+
+		it("should parse multi-segment dotted label path (suffix)", () => {
+			const content = "[[John]]::up.author.primary";
+			const result = parseInlineRelations(content);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toEqual({
+				relation: "up",
+				label: "author.primary",
+				source: "John",
+			});
+		});
+
+		it("should parse multi-segment dotted label path (triple)", () => {
+			const content = "[[A]]::up.author.primary::[[B]]";
+			const result = parseInlineRelations(content);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toEqual({
+				relation: "up",
+				label: "author.primary",
+				target: "B",
+				source: "A",
+			});
+		});
+
+		it("should parse three-segment dotted label path", () => {
+			const content = "up.foo.bar.baz::[[X]]";
+			const result = parseInlineRelations(content);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toEqual({
+				relation: "up",
+				label: "foo.bar.baz",
+				target: "X",
+			});
+		});
 	});
 });

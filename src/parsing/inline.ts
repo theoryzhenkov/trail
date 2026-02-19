@@ -47,11 +47,11 @@ interface PatternMatch {
 
 // Pattern regexes - relation names must start with alphanumeric, optional .label suffix
 const TRIPLE_REGEX =
-	/\[\[([^\]]+)\]\]::\s*([a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)?)\s*::\s*\[\[([^\]]+)\]\]/gi;
+	/\[\[([^\]]+)\]\]::\s*([a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)*)\s*::\s*\[\[([^\]]+)\]\]/gi;
 const PREFIX_REGEX =
-	/([a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)?)::\s*\[\[([^\]]+)\]\]/gi;
+	/([a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)*)::\s*\[\[([^\]]+)\]\]/gi;
 const SUFFIX_REGEX =
-	/\[\[([^\]]+)\]\]::\s*([a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)?)/gi;
+	/\[\[([^\]]+)\]\]::\s*([a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)*)/gi;
 const CONTINUATION_REGEX = /::\s*\[\[([^\]]+)\]\]/gi;
 const CHAIN_REGEX = /::-::\s*\[\[([^\]]+)\]\]/gi;
 
