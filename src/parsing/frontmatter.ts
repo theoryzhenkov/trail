@@ -16,8 +16,6 @@ import {
 } from "../relations";
 import { dedupeRelations, extractWikiLinkTarget } from "./index";
 
-type FrontmatterValue = string | string[] | null | undefined;
-
 export interface FrontmatterRelationResult {
 	relations: ParsedRelation[];
 	consumedKeys: Set<string>;
@@ -148,7 +146,7 @@ function findKeyMatches(
 			// Dot-notation match: "up.author" with keyName "up" → labelPrefix ["author"]
 			const suffix = keyLower.slice(keyName.length + 1);
 			const segments = suffix.split(".");
-			if (segments.every((s) => s.length > 0)) {
+			if (segments.every((s) => isValidLabel(s))) {
 				matches.push({ value: v, labelPrefix: segments });
 			}
 		} else {

@@ -290,9 +290,9 @@ function simplifyAliasKeys(relations: RelationDefinition[]): void {
  * Simplify a single alias key. Returns null to drop it.
  */
 function simplifyKey(key: string): string | null {
-	// Drop redundant relations.X prefix
+	// relations.X → X (strip prefix; deduplication handles redundancy)
 	if (key.startsWith("relations.")) {
-		return null;
+		return key.slice("relations.".length);
 	}
 
 	// Strip quotes: "ntppi.author" → ntppi.author
