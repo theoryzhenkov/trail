@@ -746,6 +746,73 @@ describe("applyImpliedRules", () => {
 		});
 	});
 
+	describe("implied edge suppression by explicit edges", () => {
+		it("should suppress implied edge when explicit labeled edge covers the same route", () => {
+			// A has `up.author: [[B]]` → explicit edge A→B, up-uid, label="author"
+			// up implies down (reverse) → would imply B→A, down-uid (labelless)
+			// B has `down.author: [[A]]` → explicit edge B→A, down-uid, label="author"
+			// The implied B→A, down-uid should be suppressed because explicit covers the route
+			const edges: RelationEdge[] = [
+				{
+					fromPath: "a.md",
+					toPath: "b.md",
+					relationUid: "up-uid",
+					label: "author",
+					implied: false,
+				},
+				{
+					fromPath: "b.md",
+					toPath: "a.md",
+					relationUid: "down-uid",
+					label: "author",
+					implied: false,
+				},
+			];
+			const relations = [
+				relation("up-uid", [
+					{ targetRelation: "down-uid", direction: "reverse" },
+				]),
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			// Should only have the 2 explicit edges, no implied duplicate
+			expect(result).toHaveLength(2);
+			expect(result.every((e) => !e.implied)).toBe(true);
+		});
+
+		it("should still create implied edge when no explicit edge covers the route", () => {
+			// A has `up.author: [[B]]` → explicit edge A→B, up-uid, label="author"
+			// up implies down (reverse) → implies B→A, down-uid (labelless)
+			// No explicit B→A, down-uid exists → implied edge should be created
+			const edges: RelationEdge[] = [
+				{
+					fromPath: "a.md",
+					toPath: "b.md",
+					relationUid: "up-uid",
+					label: "author",
+					implied: false,
+				},
+			];
+			const relations = [
+				relation("up-uid", [
+					{ targetRelation: "down-uid", direction: "reverse" },
+				]),
+			];
+			const result = applyImpliedRules(edges, relations);
+
+			expect(result).toHaveLength(2);
+			const impliedEdge = result.find(
+				(e) =>
+					e.fromPath === "b.md" &&
+					e.toPath === "a.md" &&
+					e.relationUid === "down-uid",
+			);
+			expect(impliedEdge).toBeDefined();
+			expect(impliedEdge?.implied).toBe(true);
+			expect(impliedEdge?.label).toBeUndefined();
+		});
+	});
+
 	describe("label handling on implied edges", () => {
 		it("should not inherit label on reverse implied edges", () => {
 			const edges: RelationEdge[] = [
